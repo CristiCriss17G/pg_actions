@@ -1,0 +1,112 @@
+stages:
+  # - checks
+  - prepare-build
+  - build
+
+variables:
+  SERVICE_NAME: "tools/pg_clone"
+  HARBOR_PROJ: devops-services
+  TIMESTAMP: ./timestamp.txt
+  TAGS: ./tags.txt
+  KANIKO_IMAGE: gcr.io/kaniko-project/executor:debug
+  DOCKER_CONFIG: /kaniko/.docker/
+
+# sonarqube-check:
+#   stage: checks
+#   image:
+#     name: sonarsource/sonar-scanner-cli:${SONAR_SCANNER_VERSION}
+#     entrypoint: ['']
+#   tags:
+#     - ivfhq
+#   variables:
+#     SONAR_USER_HOME: '${CI_PROJECT_DIR}/.sonar' # Defines the location of the analysis task cache
+#     GIT_DEPTH: '0' # Tells git to fetch all the branches of the project, required by the analysis task
+#   cache:
+#     key: '${CI_JOB_NAME}'
+#     paths:
+#       - .sonar/cache
+#   script:
+#     - sonar-scanner
+#   allow_failure: true
+#   rules:
+#     - if: '$CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "main"'
+#     - if: '$CI_COMMIT_REF_NAME == "main"'
+
+prepare:
+  stage: prepare-build
+  image:
+    name: regcr.ivfuture.uk/gitlab-cicd/prepare:latest
+    entrypoint: [""]
+  tags:
+    - ivfhq
+  cache: {}
+  before_script:
+    - echo "Preparing ..."
+    - export CI_PIPELINE_CREATED_AT=$(date +%d%m%Y%H%M)
+    - export SHORT_TAG=$(echo $CI_COMMIT_REF_NAME | sed 's/[^a-zA-Z0-9]/-/g' | tr '[:upper:]' '[:lower:]')-latest
+    - export LONG_TAG=$(echo $CI_COMMIT_REF_NAME | sed 's/[^a-zA-Z0-9]/-/g' | tr '[:upper:]' '[:lower:]')-$CI_COMMIT_SHORT_SHA-$CI_PIPELINE_CREATED_AT
+  script:
+    - echo $CI_PIPELINE_CREATED_AT > $TIMESTAMP
+    - echo "latest" > $TAGS
+    - echo $LONG_TAG >> $TAGS
+    - echo $SHORT_TAG >> $TAGS
+  artifacts:
+    paths:
+      - $TIMESTAMP
+      - $TAGS
+  only:
+    - branches
+    - merge_requests
+
+build:
+  stage: build
+  dependencies:
+    - prepare
+  image:
+    name: $KANIKO_IMAGE
+    entrypoint: [""]
+  tags:
+    - ivfhq
+  interruptible: true
+  cache: {}
+  before_script:
+    - echo "Building ..."
+    - path=$(pwd)
+    - mkdir -p /kaniko/.docker
+    - echo "{\"auths\":{\"${HARBOR_REPO}\":{\"username\":\"${HARBOR_USERNAME}\",\"password\":\"${HARBOR_PASSWORD}\"}}}" > /kaniko/.docker/config.json
+  script:
+    - chmod +x devops/prepare.sh && ./devops/prepare.sh
+  artifacts:
+    paths:
+      - $TIMESTAMP
+      - $TAGS
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "dev"
+
+build-manual:
+  when: manual
+  dependencies:
+    - prepare
+  image:
+    name: $KANIKO_IMAGE
+    entrypoint: [""]
+  tags:
+    - ivfhq
+  stage: build
+  interruptible: true
+  cache: {}
+  before_script:
+    - echo "Building ..."
+    - path=$(pwd)
+    - export CI_PIPELINE_CREATED_AT=$(date +%d%m%Y%H%M)
+    - mkdir -p /kaniko/.docker
+    - echo "{\"auths\":{\"${HARBOR_REPO}\":{\"username\":\"${HARBOR_USERNAME}\",\"password\":\"${HARBOR_PASSWORD}\"}}}" > /kaniko/.docker/config.json
+  script:
+    - chmod +x devops/prepare.sh && ./devops/prepare.sh
+    - echo $CI_PIPELINE_CREATED_AT > $TIMESTAMP
+  artifacts:
+    paths:
+      - $TIMESTAMP
+      - $TAGS
+  rules:
+    - if: $CI_COMMIT_BRANCH != "main" && $CI_COMMIT_BRANCH != "dev"
