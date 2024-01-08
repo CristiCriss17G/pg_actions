@@ -13,5 +13,4 @@ done <$TAGS
 /kaniko/executor --context "$PWD" \
     --dockerfile "$PWD/Dockerfile" \
     $DESTINATIONS \
-    --cache=true \
     --cleanup
