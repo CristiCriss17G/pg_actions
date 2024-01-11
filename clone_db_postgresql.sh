@@ -151,6 +151,26 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
+echo "Changing owner of ytpes in database $DATABASE_TARGET to $NEW_OWNER"
+cat <<EOF | psql -h $PGHOST -U $PGUSER -d $DATABASE_TARGET
+DO \$\$
+DECLARE
+    r RECORD;
+BEGIN
+    FOR r IN SELECT typname FROM pg_type WHERE typtype IN ('b', 'e') AND typcategory != 'A' AND typnamespace IN (SELECT oid FROM pg_namespace WHERE nspname NOT IN ('pg_catalog', 'information_schema'))
+    LOOP
+        RAISE NOTICE 'Changing owner of type: %', r.typname;
+        EXECUTE 'ALTER TYPE ' || quote_ident(r.typname) || ' OWNER TO $NEW_OWNER';
+    END LOOP;
+END\$\$;
+EOF
+
+# check return code
+if [ $? -ne 0 ]; then
+    echo "Changing owner of types failed"
+    exit 1
+fi
+
 # if the session is not interactive check if KEEP_BACKUP is set and 1 to keep the backup file
 if [ $INTERACTIVE -eq 0 ]; then
     if [ -z "$KEEP_BACKUP" ]; then
