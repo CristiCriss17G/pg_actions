@@ -1,2 +1,7 @@
 *.bsql
 .pgpass
+
+
+# Added by cargo
+
+/target

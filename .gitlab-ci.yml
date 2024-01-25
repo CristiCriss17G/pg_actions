@@ -4,7 +4,7 @@ stages:
   - build
 
 variables:
-  SERVICE_NAME: "tools/pg_clone"
+  SERVICE_NAME: "tools/postgres-db-actions"
   HARBOR_PROJ: devops-services
   TIMESTAMP: ./timestamp.txt
   TAGS: ./tags.txt
