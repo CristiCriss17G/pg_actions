@@ -1,4 +1,7 @@
+mod utils;
+
 use clap::{Parser, Subcommand};
+use utils::clone;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -9,14 +12,38 @@ struct Cli {
 
     /// Sets Postgres username
     #[arg(short = 'U', long, env, global = true)]
-    username: Option<String>,
+    superuser: Option<String>,
 
     /// Sets Postgres password
-    #[arg(short, long, env = "PG_PASS", global = true)]
+    #[arg(short = 'P', long = "Password", env = "PG_PASS", global = true)]
     password: Option<String>,
 
+    /// S3/Minio endpoint
+    #[arg(long, env, global = true)]
+    s3_endpoint: Option<String>,
+
+    /// S3/Minio access key
+    #[arg(long, env, global = true)]
+    s3_access_key: Option<String>,
+
+    /// S3/Minio secret key
+    #[arg(long, env, global = true)]
+    s3_secret_key: Option<String>,
+
+    /// S3/Minio bucket
+    #[arg(long, env, global = true)]
+    s3_bucket: Option<String>,
+
+    /// S3/Minio region
+    #[arg(long, env, global = true)]
+    s3_region: Option<String>,
+
+    /// S3/Minio bucket prefix/folder
+    #[arg(long, env, global = true)]
+    s3_prefix: Option<String>,
+
     /// Turn debugging information on
-    #[arg(short, long, global = true, action = clap::ArgAction::Count)]
+    #[arg(short='D', long, global = true, action = clap::ArgAction::Count)]
     debug: u8,
 
     #[command(subcommand)]
@@ -25,35 +52,73 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// does testing things
-    Test {
-        /// lists test values
-        #[arg(short, long)]
-        list: bool,
+    /// Clone a database
+    Clone(clone::CloneArgs),
+    /// Backup operations
+    Backup {
+        /// target database
+        /// default: all
+        target_database: Option<String>,
     },
-    /// does testing2 things
-    Test2 {
-        /// lists test values
-        #[arg(short, long)]
-        list: bool,
+    /// User operations
+    User {
+        /// action subcommand
         #[command(subcommand)]
-        subcommand: Option<TestSubCommands>,
+        subcommand: Option<UserSubCommands>,
     },
 }
 
 #[derive(Subcommand)]
-enum TestSubCommands {
-    /// does testing things
-    Test {
-        /// lists test values
+enum UserSubCommands {
+    /// List users
+    List,
+    /// Create a user
+    Create {
+        /// username
         #[arg(short, long)]
-        list: bool,
+        username: String,
+        /// password
+        #[arg(short, long)]
+        password: String,
+        /// superuser
+        #[arg(long)]
+        superuser: bool,
+        /// createdb
+        #[arg(long)]
+        createdb: bool,
+        /// createrole
+        #[arg(long)]
+        createrole: bool,
+        /// login
+        #[arg(short, long)]
+        login: bool,
     },
-    /// does testing2 things
-    Test2 {
-        /// lists test values
+    /// Delete a user
+    Delete {
+        /// username
         #[arg(short, long)]
-        list: bool,
+        username: String,
+    },
+    /// Update a user
+    Update {
+        /// username
+        #[arg(short, long)]
+        username: String,
+        /// password
+        #[arg(short, long)]
+        password: String,
+        /// superuser
+        #[arg(long)]
+        superuser: bool,
+        /// createdb
+        #[arg(long)]
+        createdb: bool,
+        /// createrole
+        #[arg(long)]
+        createrole: bool,
+        /// login
+        #[arg(short, long)]
+        login: bool,
     },
 }
 
@@ -65,7 +130,7 @@ fn main() {
         println!("Value for hostname: {}", hostname);
     }
 
-    if let Some(username) = cli.username.as_deref() {
+    if let Some(username) = cli.superuser.as_deref() {
         println!("Value for username: {}", username);
     }
 
@@ -81,37 +146,59 @@ fn main() {
     // You can check for the existence of subcommands, and if found use their
     // matches just as you would the top level cmd
     match &cli.command {
-        Some(Commands::Test { list }) => {
-            if *list {
-                println!("Printing testing lists...");
-            } else {
-                println!("Not printing testing lists...");
-            }
+        Some(Commands::Clone(clone_data)) => {
+            clone::clone_db(
+                clone_data,
+                clone::CloneExternalData {
+                    hostname: cli.hostname.as_deref().unwrap_or("localhost").to_string(),
+                    pg_superuser: cli.superuser.as_deref().unwrap_or("postgres").to_string(),
+                    pg_password: cli.password.as_deref().unwrap_or("").to_string(),
+                },
+            );
         }
-        Some(Commands::Test2 { list, subcommand }) => {
-            if *list {
-                println!("Printing testing2 lists...");
-            } else {
-                println!("Not printing testing2 lists...");
-            }
-            match subcommand {
-                Some(TestSubCommands::Test { list }) => {
-                    if *list {
-                        println!("Printing testing lists...");
-                    } else {
-                        println!("Not printing testing lists...");
-                    }
-                }
-                Some(TestSubCommands::Test2 { list }) => {
-                    if *list {
-                        println!("Printing testing2 lists...");
-                    } else {
-                        println!("Not printing testing2 lists...");
-                    }
-                }
-                None => {}
-            }
+        Some(Commands::Backup { target_database }) => {
+            println!(
+                "Backing up database {}",
+                target_database.as_deref().unwrap_or("all").to_string()
+            );
         }
+        Some(Commands::User { subcommand }) => match subcommand {
+            Some(UserSubCommands::List) => {
+                println!("Listing users...");
+            }
+            Some(UserSubCommands::Create {
+                username,
+                password,
+                superuser,
+                createdb,
+                createrole,
+                login,
+            }) => {
+                println!("Creating user {}...", username);
+                println!("Superuser: {}", superuser);
+                println!("Createdb: {}", createdb);
+                println!("Createrole: {}", createrole);
+                println!("Login: {}", login);
+            }
+            Some(UserSubCommands::Delete { username }) => {
+                println!("Deleting user {}...", username);
+            }
+            Some(UserSubCommands::Update {
+                username,
+                password,
+                superuser,
+                createdb,
+                createrole,
+                login,
+            }) => {
+                println!("Updating user {}...", username);
+                println!("Superuser: {}", superuser);
+                println!("Createdb: {}", createdb);
+                println!("Createrole: {}", createrole);
+                println!("Login: {}", login);
+            }
+            None => {}
+        },
         None => {}
     }
 
