@@ -1,7 +1,10 @@
 mod utils;
 
 use clap::{Parser, Subcommand};
+use rpassword::prompt_password;
+use tokio_postgres::Error;
 use utils::clone;
+use utils::structs::PostgresCredentials;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -122,7 +125,8 @@ enum UserSubCommands {
     },
 }
 
-fn main() {
+#[tokio::main]
+async fn main() -> Result<(), Error> {
     let cli = Cli::parse();
 
     // You can check the value provided by positional arguments, or option arguments
@@ -132,6 +136,19 @@ fn main() {
 
     if let Some(username) = cli.superuser.as_deref() {
         println!("Value for username: {}", username);
+    }
+
+    // check if password is defined, if not prompt for it
+    let mut pg_password = cli.password.as_deref().unwrap_or("").to_string();
+
+    if pg_password == "" {
+        match prompt_password("Postgres password: ") {
+            Ok(password) => pg_password = password,
+            Err(e) => {
+                eprintln!("Failed to read password: {}", e);
+                std::process::exit(1);
+            }
+        }
     }
 
     // You can see how many times a particular flag or argument occurred
@@ -149,12 +166,13 @@ fn main() {
         Some(Commands::Clone(clone_data)) => {
             clone::clone_db(
                 clone_data,
-                clone::CloneExternalData {
+                PostgresCredentials {
                     hostname: cli.hostname.as_deref().unwrap_or("localhost").to_string(),
                     pg_superuser: cli.superuser.as_deref().unwrap_or("postgres").to_string(),
-                    pg_password: cli.password.as_deref().unwrap_or("").to_string(),
+                    pg_password,
                 },
-            );
+            )
+            .await?;
         }
         Some(Commands::Backup { target_database }) => {
             println!(
@@ -168,7 +186,7 @@ fn main() {
             }
             Some(UserSubCommands::Create {
                 username,
-                password,
+                password: _,
                 superuser,
                 createdb,
                 createrole,
@@ -185,7 +203,7 @@ fn main() {
             }
             Some(UserSubCommands::Update {
                 username,
-                password,
+                password: _,
                 superuser,
                 createdb,
                 createrole,
@@ -201,6 +219,8 @@ fn main() {
         },
         None => {}
     }
+
+    Ok(())
 
     // Continued program logic goes here...
 }
