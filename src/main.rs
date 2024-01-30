@@ -10,16 +10,45 @@ use utils::structs::PostgresCredentials;
 #[command(author, version, about, long_about = None)]
 struct Cli {
     /// Sets Postgres connection URL
-    #[arg(short = 'H', long, env, global = true)]
+    #[arg(
+        short = 'H',
+        long,
+        env = "PG_HOSTNAME",
+        global = true,
+        default_value = "localhost"
+    )]
     hostname: Option<String>,
 
     /// Sets Postgres username
-    #[arg(short = 'U', long, env, global = true)]
+    #[arg(
+        short = 'U',
+        long,
+        env = "PG_SUPERUSER",
+        global = true,
+        default_value = "postgres"
+    )]
     superuser: Option<String>,
 
     /// Sets Postgres password
-    #[arg(short = 'P', long = "Password", env = "PG_PASS", global = true)]
+    #[arg(
+        short = 'P',
+        long = "Password",
+        env = "PG_PASS",
+        global = true,
+        hide_env_values = true,
+        default_value = "postgres"
+    )]
     password: Option<String>,
+
+    /// Sets Postgres port
+    #[arg(
+        short = 'p',
+        long,
+        env = "PG_PORT",
+        global = true,
+        default_value = "5432"
+    )]
+    port: Option<u16>,
 
     /// S3/Minio endpoint
     #[arg(long, env, global = true)]
@@ -30,7 +59,7 @@ struct Cli {
     s3_access_key: Option<String>,
 
     /// S3/Minio secret key
-    #[arg(long, env, global = true)]
+    #[arg(long, env, global = true, hide_env_values = true)]
     s3_secret_key: Option<String>,
 
     /// S3/Minio bucket
@@ -167,9 +196,10 @@ async fn main() -> Result<(), Error> {
             clone::clone_db(
                 clone_data,
                 PostgresCredentials {
-                    hostname: cli.hostname.as_deref().unwrap_or("localhost").to_string(),
+                    pg_hostname: cli.hostname.as_deref().unwrap_or("localhost").to_string(),
                     pg_superuser: cli.superuser.as_deref().unwrap_or("postgres").to_string(),
                     pg_password,
+                    pg_port: cli.port.unwrap_or(5432),
                 },
             )
             .await?;

@@ -39,7 +39,11 @@ pub async fn init_pgpass(credentials: &PostgresCredentials) -> Result<(), Error>
 
         let pgpass_line = format!(
             "{}:{}:{}:{}:{}",
-            credentials.hostname, "5432", "*", credentials.pg_superuser, credentials.pg_password
+            credentials.pg_hostname,
+            credentials.pg_port,
+            "*",
+            credentials.pg_superuser,
+            credentials.pg_password
         );
 
         match file.write_all(pgpass_line.as_bytes()) {
@@ -57,8 +61,11 @@ pub async fn init_pgpass(credentials: &PostgresCredentials) -> Result<(), Error>
 pub async fn postgres_connect(credentials: &PostgresCredentials) -> Result<Client, Error> {
     let (client, connection) = tokio_postgres::connect(
         &format!(
-            "host={} user={} password={}",
-            credentials.hostname, credentials.pg_superuser, credentials.pg_password
+            "host={} port={} user={} password={}",
+            credentials.pg_hostname,
+            credentials.pg_port,
+            credentials.pg_superuser,
+            credentials.pg_password
         ),
         NoTls,
     )
@@ -82,8 +89,9 @@ pub async fn db_dump(
 
     let mut child = Command::new("pg_dump")
         .arg("-v") // Enable verbose mode
-        .arg(format!("--host={}", credentials.hostname))
+        .arg(format!("--host={}", credentials.pg_hostname))
         .arg(format!("--username={}", credentials.pg_superuser))
+        .arg(format!("--port={}", credentials.pg_port))
         .arg(format!("--dbname={}", database_source))
         .arg("--format=custom")
         .arg("--no-owner")
