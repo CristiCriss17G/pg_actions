@@ -1,6 +1,6 @@
 use crate::utils::db::{
     change_owner_of_objects_in_db, create_db, create_user, db_dump, db_restore, delete_db,
-    init_pgpass, postgres_connect,
+    init_pgpass, kill_connections_to_db, postgres_connect,
 };
 use crate::utils::structs::PostgresCredentials;
 use clap::Args;
@@ -27,7 +27,7 @@ pub struct CloneArgs {
     create_owner: bool,
     /// new password for db
     /// provide if the user does not exist
-    #[arg(short = 'p', long)]
+    #[arg(short = 's', long)]
     new_password: Option<String>,
     /// keep the dump file
     /// defaults to false
@@ -105,6 +105,14 @@ pub async fn clone_db(
         ));
     } else if new_database_exists && data.overwrite {
         info!("Dropping database {}", &data.new_database);
+        info!("Killing connections to database {}", &data.new_database);
+        match kill_connections_to_db(&client, &data.new_database).await {
+            Ok(_) => info!("Connections killed successfully"),
+            Err(e) => {
+                error!("Failed to kill connections: {}", e);
+                return Err(PGCliError::from(e));
+            }
+        }
         match delete_db(&client, &data.new_database).await {
             Ok(_) => info!("Database dropped successfully"),
             Err(e) => {

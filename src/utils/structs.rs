@@ -1,5 +1,6 @@
 use thiserror::Error;
 
+#[derive(Debug)]
 pub struct PostgresCredentials {
     pub pg_hostname: String,
     pub pg_superuser: String,

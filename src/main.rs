@@ -2,7 +2,7 @@ mod utils;
 
 use clap::{Parser, Subcommand};
 use env_logger::{Builder, Env};
-use log::{error, info, LevelFilter};
+use log::{error, info, trace, LevelFilter};
 use rpassword::prompt_password;
 use std::io::Write;
 use utils::clone;
@@ -168,35 +168,39 @@ async fn main() -> Result<(), PGCliError> {
         _ => LevelFilter::Trace,
     };
 
-    Builder::from_env(Env::default())
-        .format(|buf, record| {
-            writeln!(
-                buf,
-                "{} [{}] - {}",
-                chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
-                record.level(),
-                record.args()
-            )
-        })
-        .filter_level(log_level)
-        .init();
+    if cfg!(debug_assertions) {
+        Builder::from_env(Env::default())
+            .format(|buf, record| {
+                writeln!(
+                    buf,
+                    "{} [{}:{}:{}] - {}",
+                    chrono::Local::now().format("%+"),
+                    record.level(),
+                    record.target(),
+                    record.line().unwrap_or(0),
+                    record.args()
+                )
+            })
+            .filter_level(log_level)
+            .init();
+    } else {
+        Builder::from_env(Env::default())
+            .format(|buf, record| {
+                writeln!(
+                    buf,
+                    "{} [{}] - {}",
+                    chrono::Local::now().format("%+"),
+                    record.level(),
+                    record.args()
+                )
+            })
+            .filter_level(log_level)
+            .init();
+    };
 
     info!("Starting up...");
     if log_level > LevelFilter::Info {
         info!("Debugging enabled to level {}", log_level);
-    }
-
-    // You can check the value provided by positional arguments, or option arguments
-    if let Some(hostname) = cli.hostname.as_deref() {
-        println!("Value for hostname: {}", hostname);
-    }
-
-    if let Some(username) = cli.superuser.as_deref() {
-        println!("Value for username: {}", username);
-    }
-
-    if let Some(port) = cli.port {
-        println!("Value for port: {}", port);
     }
 
     // try to read the pgpass file if Some is returned store tha values in a variable, else read them from the cli, and promt for password if not provided
@@ -216,6 +220,8 @@ async fn main() -> Result<(), PGCliError> {
             }
         }
     }
+
+    trace!("Using pgpass: {:?}", pgpass);
 
     // You can check for the existence of subcommands, and if found use their
     // matches just as you would the top level cmd
