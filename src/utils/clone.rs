@@ -1,7 +1,12 @@
-use crate::utils::db::{create_db, create_user, db_dump, delete_db, init_pgpass, postgres_connect};
+use crate::utils::db::{
+    change_owner_of_objects_in_db, create_db, create_user, db_dump, db_restore, delete_db,
+    init_pgpass, postgres_connect,
+};
 use crate::utils::structs::PostgresCredentials;
 use clap::Args;
-use tokio_postgres::Error;
+use log::{error, info};
+
+use super::structs::PGCliError;
 
 #[derive(Args)]
 pub struct CloneArgs {
@@ -30,24 +35,27 @@ pub struct CloneArgs {
     keep_dump: bool,
 }
 
-pub async fn clone_db(data: &CloneArgs, credentials: PostgresCredentials) -> Result<(), Error> {
-    println!(
+pub async fn clone_db(
+    data: &CloneArgs,
+    credentials: &PostgresCredentials,
+) -> Result<(), PGCliError> {
+    info!(
         "Cloning database {} to {}",
         data.database, data.new_database
     );
 
-    init_pgpass(&credentials).await?;
+    init_pgpass(credentials).await?;
 
     let dump_file = format!("/tmp/psql_backup/{}.bsql", data.new_database);
-    match db_dump(&credentials, &data.database, &dump_file).await {
-        Ok(_) => println!("Database dumped successfully"),
+    match db_dump(credentials, &data.database, &dump_file).await {
+        Ok(_) => info!("Database dumped successfully"),
         Err(e) => {
-            eprintln!("Failed to dump database: {}", e);
-            std::process::exit(1);
+            error!("Failed to dump database: {}", e);
+            return Err(e); // Convert String error to tokio_postgres::Error
         }
     }
 
-    let client = postgres_connect(&credentials).await?;
+    let client = postgres_connect(credentials, None).await?;
 
     // check if data.new_owner exists
     let new_owner_exists = client
@@ -60,21 +68,25 @@ pub async fn clone_db(data: &CloneArgs, credentials: PostgresCredentials) -> Res
 
     if !new_owner_exists && data.create_owner {
         if let Some(password) = &data.new_password {
-            println!("Creating new owner {}", &data.new_owner);
+            info!("Creating new owner {}", &data.new_owner);
             match create_user(&client, &data.new_owner, &password).await {
-                Ok(_) => println!("New owner created successfully"),
+                Ok(_) => info!("New owner created successfully"),
                 Err(e) => {
-                    eprintln!("Failed to create new owner: {}", e);
-                    std::process::exit(1);
+                    error!("Failed to create new owner: {}", e);
+                    return Err(PGCliError::from(e));
                 }
             }
         } else {
-            eprintln!("New owner does not exist and no password provided");
-            std::process::exit(1);
+            error!("New owner does not exist and no password provided");
+            return Err(PGCliError::Other(
+                "New owner does not exist and no password provided".to_string(),
+            ));
         }
     } else if !new_owner_exists && !data.create_owner {
-        eprintln!("New owner does not exist and create_owner is not set");
-        std::process::exit(1);
+        error!("New owner does not exist and create_owner is not set");
+        return Err(PGCliError::Other(
+            "New owner does not exist and create_owner is not set".to_string(),
+        ));
     }
 
     // check if data.new_database exists
@@ -87,25 +99,48 @@ pub async fn clone_db(data: &CloneArgs, credentials: PostgresCredentials) -> Res
         .get::<_, bool>(0);
 
     if new_database_exists && !data.overwrite {
-        eprintln!("New database already exists and overwrite is not set");
-        std::process::exit(1);
+        error!("New database already exists and overwrite is not set");
+        return Err(PGCliError::Other(
+            "New database already exists and overwrite is not set".to_string(),
+        ));
     } else if new_database_exists && data.overwrite {
-        println!("Dropping database {}", &data.new_database);
+        info!("Dropping database {}", &data.new_database);
         match delete_db(&client, &data.new_database).await {
-            Ok(_) => println!("Database dropped successfully"),
+            Ok(_) => info!("Database dropped successfully"),
             Err(e) => {
-                eprintln!("Failed to drop database: {}", e);
-                std::process::exit(1);
+                error!("Failed to drop database: {}", e);
+                return Err(PGCliError::from(e));
             }
         }
     }
 
-    println!("Creating database {}", &data.new_database);
+    info!("Creating database {}", &data.new_database);
     match create_db(&client, &data.new_database, &data.new_owner).await {
-        Ok(_) => println!("Database created successfully"),
+        Ok(_) => info!("Database created successfully"),
         Err(e) => {
-            eprintln!("Failed to create database: {}", e);
-            std::process::exit(1);
+            error!("Failed to create database: {}", e);
+            return Err(PGCliError::from(e));
+        }
+    }
+
+    info!("Restoring database {}", &data.new_database);
+    match db_restore(credentials, &data.new_database, &dump_file).await {
+        Ok(_) => info!("Database restored successfully"),
+        Err(e) => {
+            error!("Failed to restore database: {}", e);
+            return Err(e);
+        }
+    }
+
+    info!(
+        "Changing owner of objects in database {}",
+        &data.new_database
+    );
+    match change_owner_of_objects_in_db(credentials, &data.new_database, &data.new_owner).await {
+        Ok(_) => info!("Owner of objects changed successfully"),
+        Err(e) => {
+            error!("Failed to change owner of objects: {}", e);
+            return Err(e);
         }
     }
 

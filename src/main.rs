@@ -1,10 +1,13 @@
 mod utils;
 
 use clap::{Parser, Subcommand};
+use env_logger::{Builder, Env};
+use log::{error, info, LevelFilter};
 use rpassword::prompt_password;
-use tokio_postgres::Error;
+use std::io::Write;
 use utils::clone;
-use utils::structs::PostgresCredentials;
+use utils::db::try_read_pgpass;
+use utils::structs::{PGCliError, PostgresCredentials};
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -75,7 +78,7 @@ struct Cli {
     s3_prefix: Option<String>,
 
     /// Turn debugging information on
-    #[arg(short='D', long, global = true, action = clap::ArgAction::Count)]
+    #[arg(short='v', long="verbose", global = true, action = clap::ArgAction::Count)]
     debug: u8,
 
     #[command(subcommand)]
@@ -155,8 +158,33 @@ enum UserSubCommands {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Error> {
+async fn main() -> Result<(), PGCliError> {
     let cli = Cli::parse();
+
+    // Initialize the logger
+    let log_level = match cli.debug {
+        0 => LevelFilter::Info,
+        1 => LevelFilter::Debug,
+        _ => LevelFilter::Trace,
+    };
+
+    Builder::from_env(Env::default())
+        .format(|buf, record| {
+            writeln!(
+                buf,
+                "{} [{}] - {}",
+                chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
+                record.level(),
+                record.args()
+            )
+        })
+        .filter_level(log_level)
+        .init();
+
+    info!("Starting up...");
+    if log_level > LevelFilter::Info {
+        info!("Debugging enabled to level {}", log_level);
+    }
 
     // You can check the value provided by positional arguments, or option arguments
     if let Some(hostname) = cli.hostname.as_deref() {
@@ -167,12 +195,21 @@ async fn main() -> Result<(), Error> {
         println!("Value for username: {}", username);
     }
 
-    // check if password is defined, if not prompt for it
-    let mut pg_password = cli.password.as_deref().unwrap_or("").to_string();
+    if let Some(port) = cli.port {
+        println!("Value for port: {}", port);
+    }
 
-    if pg_password == "" {
+    // try to read the pgpass file if Some is returned store tha values in a variable, else read them from the cli, and promt for password if not provided
+    let mut pgpass: PostgresCredentials = try_read_pgpass().unwrap_or(PostgresCredentials {
+        pg_hostname: cli.hostname.as_deref().unwrap_or("localhost").to_string(),
+        pg_superuser: cli.superuser.as_deref().unwrap_or("postgres").to_string(),
+        pg_password: cli.password.as_deref().unwrap_or("").to_string(),
+        pg_port: cli.port.unwrap_or(5432),
+    });
+
+    if pgpass.pg_password == "" {
         match prompt_password("Postgres password: ") {
-            Ok(password) => pg_password = password,
+            Ok(password) => pgpass.pg_password = password,
             Err(e) => {
                 eprintln!("Failed to read password: {}", e);
                 std::process::exit(1);
@@ -180,30 +217,16 @@ async fn main() -> Result<(), Error> {
         }
     }
 
-    // You can see how many times a particular flag or argument occurred
-    // Note, only flags can have multiple occurrences
-    match cli.debug {
-        0 => println!("Debug mode is off"),
-        1 => println!("Debug mode is kind of on"),
-        2 => println!("Debug mode is on"),
-        _ => println!("Don't be crazy"),
-    }
-
     // You can check for the existence of subcommands, and if found use their
     // matches just as you would the top level cmd
     match &cli.command {
-        Some(Commands::Clone(clone_data)) => {
-            clone::clone_db(
-                clone_data,
-                PostgresCredentials {
-                    pg_hostname: cli.hostname.as_deref().unwrap_or("localhost").to_string(),
-                    pg_superuser: cli.superuser.as_deref().unwrap_or("postgres").to_string(),
-                    pg_password,
-                    pg_port: cli.port.unwrap_or(5432),
-                },
-            )
-            .await?;
-        }
+        Some(Commands::Clone(clone_data)) => match clone::clone_db(clone_data, &pgpass).await {
+            Ok(_) => info!("Database cloned successfully"),
+            Err(e) => {
+                error!("Failed to clone database: {}", e);
+                return Err(e);
+            }
+        },
         Some(Commands::Backup { target_database }) => {
             println!(
                 "Backing up database {}",
