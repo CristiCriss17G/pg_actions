@@ -1,0 +1,72 @@
+version: "3.8"
+
+services:
+  container:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      # Ensure that the variables in .env match the same variables in devcontainer.json
+      - devcontainer.env
+
+    volumes:
+      - ../..:/workspaces:cached
+
+    # Overrides default command so things don't shut down after the process ends.
+    command: sleep infinity
+
+    networks:
+      - postgres_db_actions_network
+
+    # Use "forwardPorts" in **devcontainer.json** to forward an app port locally.
+    # (Adding the "ports" property to this file will not forward from a Codespace.)
+  miniolocal:
+    image: quay.io/minio/minio
+    command: server /data --console-address ":9001" --certs-dir /opt/certs
+    ports:
+      - 9000:9000
+      - 9001:9001
+    networks:
+      - postgres_db_actions_network
+    volumes:
+      - ../data:/data
+      - ../certs:/opt/certs
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: minio123
+      MINIO_BROWSER_REDIRECT_URL: https://miniolocal:9001
+      MINIO_SERVER_URL: https://miniolocal:9000
+  db:
+    image: postgres:16-alpine
+    env_file:
+      - devcontainer.env
+    ports:
+      - 5432:5432
+    networks:
+      - postgres_db_actions_network
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - db:/var/lib/postgresql/data
+
+  adminer:
+    image: adminer
+    # restart: always
+    networks:
+      - postgres_db_actions_network
+    depends_on:
+      db:
+        condition: service_healthy
+        required: true
+    ports:
+      - 8081:8080
+
+volumes:
+  db:
+
+networks:
+  postgres_db_actions_network:
+    name: ${DOCKER_NETWORK_NAME}

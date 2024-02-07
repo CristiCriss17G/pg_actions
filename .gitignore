@@ -1,7 +1,8 @@
 *.bsql
+!tests/*.bsql
 .pgpass
-**/certs
 **/data
+.env
 
 # Added by cargo
 
