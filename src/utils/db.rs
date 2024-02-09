@@ -1,40 +1,11 @@
+use crate::utils::misc::{open_file_in_write_mode, open_file_path_in_write_mode};
 use crate::utils::structs::PGCliError;
 use crate::utils::structs::PostgresCredentials;
 use log::{debug, error, info, trace};
-use std::fs::{self, OpenOptions, Permissions};
-use std::io::{self, BufRead, BufReader, Write};
-use std::os::unix::fs::PermissionsExt;
-use std::{
-    path::Path,
-    process::{Command, Stdio},
-};
+use std::fs;
+use std::io::{BufRead, BufReader, Write};
+use std::process::{Command, Stdio};
 use tokio_postgres::{Client, Error, NoTls};
-
-fn open_file_in_write_mode(path: &str, permissions: Option<u32>) -> io::Result<fs::File> {
-    let path = Path::new(path);
-    let file = open_file_path_in_write_mode(path, permissions).expect("Failed to open file");
-    Ok(file)
-}
-
-fn open_file_path_in_write_mode(path: &Path, permissions: Option<u32>) -> io::Result<fs::File> {
-    if let Some(dir) = path.parent() {
-        if !dir.exists() {
-            fs::create_dir_all(dir)?;
-        }
-    }
-
-    let file = OpenOptions::new()
-        .write(true)
-        .create(true)
-        .truncate(true)
-        .open(path)?;
-
-    // Set the permissions for the file to 644 (owner: read-write, group: read, others: read)
-    let permissions = Permissions::from_mode(permissions.unwrap_or(0o644));
-    fs::set_permissions(path, permissions)?;
-
-    Ok(file)
-}
 
 fn validate_pg_names(name: &str) -> bool {
     name.chars().all(|c| c.is_alphanumeric() || c == '_')
@@ -223,11 +194,22 @@ pub async fn db_restore(
     }
 }
 
-pub async fn create_user(client: &Client, user: &str, password: &str) -> Result<u64, Error> {
+pub async fn create_user(client: &Client, user: &str, password: &str) -> Result<u64, PGCliError> {
     trace!("Creating user {}", user);
-    client
-        .execute("CREATE USER $1 WITH PASSWORD $2", &[&user, &password])
-        .await
+    if !validate_pg_names(user) {
+        error!("Invalid user name: {}", user);
+        return Err(PGCliError::Other("Invalid user name".to_string()));
+    }
+    if !validate_pg_names(password) {
+        error!("Invalid password");
+        return Err(PGCliError::Other("Invalid password".to_string()));
+    }
+
+    let statement = format!("CREATE USER {} WITH PASSWORD '{}'", user, password);
+    match client.execute(&statement, &[]).await {
+        Ok(r) => Ok(r),
+        Err(e) => Err(PGCliError::from(e)),
+    }
 }
 
 pub async fn create_db(client: &Client, db: &str, owner: &str) -> Result<u64, PGCliError> {
@@ -321,7 +303,7 @@ pub async fn change_owner_of_objects_in_db(
         debug!("Changing owner of type: {} to {}", typname, new_owner);
 
         // Dynamically build the ALTER TYPE command
-        let statement = format!("ALTER TYPE {} OWNER TO {}", typname, new_owner);
+        let statement = format!("ALTER TYPE \"{}\" OWNER TO {}", typname, new_owner);
 
         // Execute the ALTER TYPE command
         client.execute(&statement, &[]).await?;

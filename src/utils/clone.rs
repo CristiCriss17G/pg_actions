@@ -2,6 +2,7 @@ use crate::utils::db::{
     change_owner_of_objects_in_db, create_db, create_user, db_dump, db_restore, delete_db,
     init_pgpass, kill_connections_to_db, postgres_connect,
 };
+use crate::utils::misc::{delete_file, generate_random_string};
 use crate::utils::structs::PostgresCredentials;
 use clap::Args;
 use log::{error, info};
@@ -46,7 +47,11 @@ pub async fn clone_db(
 
     init_pgpass(credentials).await?;
 
-    let dump_file = format!("/tmp/psql_backup/{}.bsql", data.new_database);
+    let dump_file = format!(
+        "/tmp/psql_backup/{}-{}.bsql",
+        data.new_database,
+        generate_random_string(6)
+    );
     match db_dump(credentials, &data.database, &dump_file).await {
         Ok(_) => info!("Database dumped successfully"),
         Err(e) => {
@@ -150,6 +155,19 @@ pub async fn clone_db(
             error!("Failed to change owner of objects: {}", e);
             return Err(e);
         }
+    }
+
+    if !data.keep_dump {
+        info!("Deleting dump file {}", &dump_file);
+        match delete_file(&dump_file) {
+            Ok(_) => info!("Dump file deleted successfully"),
+            Err(e) => {
+                error!("Failed to delete dump file: {}", e);
+                return Err(PGCliError::from(e));
+            }
+        }
+    } else {
+        info!("Dump file kept at {}", &dump_file);
     }
 
     Ok(())

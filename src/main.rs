@@ -11,6 +11,7 @@ use utils::structs::{PGCliError, PostgresCredentials};
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
+/// A simple CLI tool for managing Postgres databases
 struct Cli {
     /// Sets Postgres connection URL
     #[arg(
@@ -78,6 +79,7 @@ struct Cli {
     s3_prefix: Option<String>,
 
     /// Turn debugging information on
+    /// repetitive use increases verbosity, at most 2 times
     #[arg(short='v', long="verbose", global = true, action = clap::ArgAction::Count)]
     debug: u8,
 

@@ -644,6 +644,7 @@ dependencies = [
  "dirs-next",
  "env_logger",
  "log",
+ "rand",
  "rpassword",
  "thiserror",
  "tokio",

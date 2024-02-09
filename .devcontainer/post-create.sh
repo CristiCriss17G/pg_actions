@@ -70,4 +70,4 @@ cargo fetch --locked
 # MiniO
 echo "Running minio setup"
 mc alias set locpg https://miniolocal:9000 minio minio123
-echo "See minio details with `mc admin info locpg`"
+echo "See minio details with \`mc admin info locpg\`"
