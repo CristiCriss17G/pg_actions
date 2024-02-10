@@ -5,9 +5,12 @@ use env_logger::{Builder, Env};
 use log::{error, info, trace, LevelFilter};
 use rpassword::prompt_password;
 use std::io::Write;
+use utils::backup;
 use utils::clone;
 use utils::db::try_read_pgpass;
 use utils::structs::{PGCliError, PostgresCredentials};
+
+use crate::utils::structs::S3Credentials;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -92,11 +95,7 @@ enum Commands {
     /// Clone a database
     Clone(clone::CloneArgs),
     /// Backup operations
-    Backup {
-        /// target database
-        /// default: all
-        target_database: Option<String>,
-    },
+    Backup(backup::BackupArgs),
     /// User operations
     User {
         /// action subcommand
@@ -223,6 +222,15 @@ async fn main() -> Result<(), PGCliError> {
         }
     }
 
+    let s3_credentials = S3Credentials {
+        s3_endpoint: cli.s3_endpoint,
+        s3_access_key: cli.s3_access_key,
+        s3_secret_key: cli.s3_secret_key,
+        s3_bucket: cli.s3_bucket,
+        s3_region: cli.s3_region,
+        s3_prefix: cli.s3_prefix,
+    };
+
     trace!("Using pgpass: {:?}", pgpass);
 
     // You can check for the existence of subcommands, and if found use their
@@ -235,11 +243,14 @@ async fn main() -> Result<(), PGCliError> {
                 return Err(e);
             }
         },
-        Some(Commands::Backup { target_database }) => {
-            println!(
-                "Backing up database {}",
-                target_database.as_deref().unwrap_or("all").to_string()
-            );
+        Some(Commands::Backup(backup_data)) => {
+            match backup::backup_db(backup_data, &pgpass, &s3_credentials).await {
+                Ok(_) => info!("Database backed up successfully"),
+                Err(e) => {
+                    error!("Failed to backup database: {}", e);
+                    return Err(e);
+                }
+            }
         }
         Some(Commands::User { subcommand }) => match subcommand {
             Some(UserSubCommands::List) => {

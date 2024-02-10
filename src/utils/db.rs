@@ -194,6 +194,16 @@ pub async fn db_restore(
     }
 }
 
+pub async fn list_databases(client: &Client) -> Result<Vec<String>, PGCliError> {
+    let rows = client.query("SELECT datname FROM pg_database WHERE datistemplate = false AND datname NOT IN ('postgres', 'template0', 'template1')", &[]).await?;
+    let mut databases = Vec::new();
+    for row in rows {
+        let db: String = row.get(0);
+        databases.push(db);
+    }
+    Ok(databases)
+}
+
 pub async fn create_user(client: &Client, user: &str, password: &str) -> Result<u64, PGCliError> {
     trace!("Creating user {}", user);
     if !validate_pg_names(user) {

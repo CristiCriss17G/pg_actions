@@ -56,7 +56,7 @@ pub async fn clone_db(
         Ok(_) => info!("Database dumped successfully"),
         Err(e) => {
             error!("Failed to dump database: {}", e);
-            return Err(e); // Convert String error to tokio_postgres::Error
+            return Err(e);
         }
     }
 
