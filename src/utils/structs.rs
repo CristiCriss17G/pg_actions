@@ -1,5 +1,5 @@
 use thiserror::Error;
-
+use tokio::task::JoinError;
 #[derive(Debug, Clone)]
 pub struct PostgresCredentials {
     pub pg_hostname: String,
@@ -20,9 +20,17 @@ pub struct S3Credentials {
 #[derive(Error, Debug)]
 pub enum PGCliError {
     #[error("I/O error: {0}")]
-    Io(#[from] std::io::Error),
+    Io(#[from] tokio::io::Error),
     #[error("Postgres error: {0}")]
     Postgres(#[from] tokio_postgres::Error),
+    #[error("Task join error: {0}")]
+    TaskJoin(#[from] JoinError),
+    #[error("XZ Error: {0}")]
+    Xz(#[from] xz2::stream::Error),
+    #[error("Walkdir Error: {0}")]
+    Walkdir(#[from] walkdir::Error),
+    #[error("Path StripPrefixError Error: {0}")]
+    StripPrefixError(#[from] std::path::StripPrefixError),
     #[error("Error: {0}")]
     Other(String),
 }

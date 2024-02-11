@@ -1,12 +1,16 @@
-use crate::utils::structs::S3Credentials;
+use super::structs::{PGCliError, S3Credentials};
+use log::{debug, trace};
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
-use std::fs::{self, OpenOptions, Permissions};
-use std::io;
+use std::fs::File;
+use std::fs::Permissions;
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
-
-use super::structs::PGCliError;
+use tar::Builder;
+use tokio::fs::{self, OpenOptions};
+use tokio::{io, task};
+use xz2::stream::{Check, Stream};
+use xz2::write::XzEncoder;
 
 pub fn generate_random_string(length: usize) -> String {
     let mut rng = thread_rng();
@@ -19,48 +23,65 @@ pub fn generate_random_string(length: usize) -> String {
     random_string
 }
 
-pub fn check_file_path_exists(path: &str) -> bool {
-    let path = Path::new(path);
+pub fn check_file_path_exists<P: AsRef<Path>>(path: P) -> bool {
+    let path = path.as_ref(); // Convert P to &Path
+    path.exists()
+}
+
+pub fn check_file_directory_path_exists<P: AsRef<Path>>(path: P) -> bool {
+    let path = path.as_ref(); // Convert P to &Path
     if let Some(dir) = path.parent() {
         return dir.exists();
     }
     false
 }
 
-pub fn open_file_in_write_mode(path: &str, permissions: Option<u32>) -> io::Result<fs::File> {
-    let path = Path::new(path);
-    let file = open_file_path_in_write_mode(path, permissions).expect("Failed to open file");
-    Ok(file)
+pub async fn ensure_file_path_exists<P: AsRef<Path>>(path: P) -> io::Result<()> {
+    let path = path.as_ref(); // Convert P to &Path
+    if let Some(dir) = path.parent() {
+        ensure_file_directory_path_exists(dir).await?;
+    }
+    Ok(())
 }
 
-pub fn open_file_path_in_write_mode(path: &Path, permissions: Option<u32>) -> io::Result<fs::File> {
-    if let Some(dir) = path.parent() {
-        if !dir.exists() {
-            fs::create_dir_all(dir)?;
-        }
+pub async fn ensure_file_directory_path_exists<P: AsRef<Path>>(path: P) -> io::Result<()> {
+    let path = path.as_ref(); // Convert P to &Path
+    if !path.exists() {
+        fs::create_dir_all(path).await?;
     }
+    Ok(())
+}
+
+pub async fn open_file_path_in_write_mode(
+    path: &Path,
+    permissions: Option<u32>,
+) -> io::Result<fs::File> {
+    ensure_file_path_exists(path).await?;
 
     let file = OpenOptions::new()
         .write(true)
         .create(true)
         .truncate(true)
-        .open(path)?;
+        .open(path)
+        .await?;
 
     // Set the permissions for the file to 644 (owner: read-write, group: read, others: read)
     let permissions = Permissions::from_mode(permissions.unwrap_or(0o644));
-    fs::set_permissions(path, permissions)?;
+    fs::set_permissions(path, permissions).await?;
 
     Ok(file)
 }
 
-pub fn delete_file_path(path: &Path) -> io::Result<()> {
-    fs::remove_file(path)?;
+pub async fn delete_file<P: AsRef<Path>>(path: P) -> io::Result<()> {
+    let path = path.as_ref(); // Convert P to &Path
+    fs::remove_file(path).await?;
     Ok(())
 }
 
-pub fn delete_file(path: &str) -> io::Result<()> {
-    let path = Path::new(path);
-    delete_file_path(path)
+pub async fn delete_directory<P: AsRef<Path>>(path: P) -> io::Result<()> {
+    let path = path.as_ref(); // Convert P to &Path
+    fs::remove_dir_all(path).await?;
+    Ok(())
 }
 
 pub fn validate_s3_credentials(credentials: &S3Credentials) -> Result<S3Credentials, PGCliError> {
@@ -103,4 +124,65 @@ pub fn validate_s3_credentials(credentials: &S3Credentials) -> Result<S3Credenti
         s3_region: Some(s3_region),
         s3_prefix: Some(s3_prefix),
     })
+}
+
+pub async fn create_compressed_archive(
+    input_dir: &str,
+    output_file: &str,
+) -> Result<(), PGCliError> {
+    debug!("Creating compressed archive");
+    // clone the input_dir and output_file to move into the blocking task
+    let input_dir = input_dir.to_string();
+    let mut output_file = output_file.to_string();
+
+    if !check_file_directory_path_exists(&input_dir) {
+        return Err(PGCliError::Other(
+            "Input directory does not exist".to_string(),
+        ));
+    }
+
+    // if the output file does not end with .tar.xz, append it
+    if !output_file.ends_with(".tar.xz") {
+        output_file.push_str(".tar.xz");
+    }
+
+    //if the output file exists, delete it
+    if check_file_path_exists(&output_file) {
+        delete_file(&output_file).await?;
+        trace!("Deleted existing file {:?}", output_file);
+    }
+
+    // spawn a blocking task to create the compressed archive
+    let output = task::spawn_blocking(move || {
+        // Create a file for the output
+        let file = File::create(&output_file)?;
+        let stream = Stream::new_easy_encoder(9, Check::Crc64)?;
+        let xz_encoder = XzEncoder::new_stream(file, stream);
+
+        let mut archive = Builder::new(xz_encoder);
+
+        debug!("Adding files to the archive");
+        // Recursively add files from input_dir to the archive.
+        // This part is simplified; you might want to add error handling and async file reads.
+        for entry in walkdir::WalkDir::new(&input_dir) {
+            let entry = entry?;
+            let path = entry.path();
+            debug!("Adding {:?}", path);
+            if path.is_file() {
+                trace!("Adding file {:?}", path);
+                archive.append_path_with_name(
+                    path,
+                    path.strip_prefix(&input_dir)?.to_str().unwrap(),
+                )?;
+            }
+        }
+
+        // Ensure all data is flushed and the archive is finished
+        archive.finish()?;
+
+        Ok(())
+    })
+    .await?;
+
+    output
 }

@@ -2,25 +2,6 @@
 
 echo "Running post-create.sh"
 
-# Docker network setup
-# echo "Setting up Docker network"
-# # DOCKER_NETWORK_NAME="helix_network"
-
-# # Check if the network exists
-# if ! docker network ls | grep -q $DOCKER_NETWORK_NAME; then
-#     echo "Creating Docker network: $DOCKER_NETWORK_NAME"
-#     docker network create $DOCKER_NETWORK_NAME
-# else
-#     echo "Docker network $DOCKER_NETWORK_NAME already exists"
-# fi
-
-# # Get the current container ID
-# CONTAINER_ID=$(hostname)
-
-# # Connect the current container to the network
-# echo "Connecting container $CONTAINER_ID to network $DOCKER_NETWORK_NAME"
-# docker network connect $DOCKER_NETWORK_NAME $CONTAINER_ID
-
 # Check if .env file exists and if not create it from .env.example
 if [ ! -f .env ]; then
     echo "Creating .env file from .env.example"
@@ -70,4 +51,7 @@ cargo fetch --locked
 # MiniO
 echo "Running minio setup"
 mc alias set locpg https://miniolocal:9000 minio minio123
+mc admin info locpg
+# create bucket
+mc mb locpg/$S3_BUCKET
 echo "See minio details with \`mc admin info locpg\`"

@@ -62,6 +62,8 @@ RUN adduser \
     appuser
 USER appuser
 
+WORKDIR /pghome
+
 # Copy the executable from the "build" stage.
 COPY --from=build /bin/${APP_NAME} /bin/
 

@@ -205,7 +205,7 @@ async fn main() -> Result<(), PGCliError> {
     }
 
     // try to read the pgpass file if Some is returned store tha values in a variable, else read them from the cli, and promt for password if not provided
-    let mut pgpass: PostgresCredentials = try_read_pgpass().unwrap_or(PostgresCredentials {
+    let mut pgpass: PostgresCredentials = try_read_pgpass().await.unwrap_or(PostgresCredentials {
         pg_hostname: cli.hostname.as_deref().unwrap_or("localhost").to_string(),
         pg_superuser: cli.superuser.as_deref().unwrap_or("postgres").to_string(),
         pg_password: cli.password.as_deref().unwrap_or("").to_string(),

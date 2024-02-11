@@ -31,11 +31,8 @@ services:
     volumes:
       - ../data:/data
       - ../certs:/opt/certs
-    environment:
-      MINIO_ROOT_USER: minio
-      MINIO_ROOT_PASSWORD: minio123
-      MINIO_BROWSER_REDIRECT_URL: https://miniolocal:9001
-      MINIO_SERVER_URL: https://miniolocal:9000
+    env_file:
+      - devcontainer.env
   db:
     image: postgres:16-alpine
     env_file:
@@ -69,4 +66,4 @@ volumes:
 
 networks:
   postgres_db_actions_network:
-    name: ${DOCKER_NETWORK_NAME}
+    name: postgres_db_actions_network

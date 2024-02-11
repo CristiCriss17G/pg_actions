@@ -52,7 +52,7 @@ pub async fn clone_db(
         data.new_database,
         generate_random_string(6)
     );
-    match db_dump(credentials, &data.database, &dump_file).await {
+    match db_dump(credentials.clone(), &data.database, &dump_file).await {
         Ok(_) => info!("Database dumped successfully"),
         Err(e) => {
             error!("Failed to dump database: {}", e);
@@ -137,7 +137,7 @@ pub async fn clone_db(
     }
 
     info!("Restoring database {}", &data.new_database);
-    match db_restore(credentials, &data.new_database, &dump_file).await {
+    match db_restore(credentials.clone(), &data.new_database, &dump_file).await {
         Ok(_) => info!("Database restored successfully"),
         Err(e) => {
             error!("Failed to restore database: {}", e);
@@ -159,7 +159,7 @@ pub async fn clone_db(
 
     if !data.keep_dump {
         info!("Deleting dump file {}", &dump_file);
-        match delete_file(&dump_file) {
+        match delete_file(&dump_file).await {
             Ok(_) => info!("Dump file deleted successfully"),
             Err(e) => {
                 error!("Failed to delete dump file: {}", e);
