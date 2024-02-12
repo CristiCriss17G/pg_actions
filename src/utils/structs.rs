@@ -1,3 +1,5 @@
+use rusoto_core::RusotoError;
+use rusoto_s3::{CompleteMultipartUploadError, CreateMultipartUploadError, UploadPartError};
 use thiserror::Error;
 use tokio::task::JoinError;
 #[derive(Debug, Clone)]
@@ -31,6 +33,14 @@ pub enum PGCliError {
     Walkdir(#[from] walkdir::Error),
     #[error("Path StripPrefixError Error: {0}")]
     StripPrefixError(#[from] std::path::StripPrefixError),
+    #[error("Rusoto TLS Error: {0}")]
+    RusotoTls(#[from] rusoto_core::request::TlsError),
+    #[error("Rusoto CreateMultipartUploadError Error: {0}")]
+    RusotoCreateMultipartUploadError(#[from] RusotoError<CreateMultipartUploadError>),
+    #[error("Rusoto UploadPartError Error: {0}")]
+    RusotoUploadPartError(#[from] RusotoError<UploadPartError>),
+    #[error("Rusoto CompleteMultipartUploadError Error: {0}")]
+    RusotoCompleteMultipartUploadError(#[from] RusotoError<CompleteMultipartUploadError>),
     #[error("Error: {0}")]
     Other(String),
 }

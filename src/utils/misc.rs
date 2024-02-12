@@ -2,12 +2,20 @@ use super::structs::{PGCliError, S3Credentials};
 use log::{debug, trace};
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
+use rusoto_core::{HttpClient, Region};
+use rusoto_credential::StaticProvider;
+use rusoto_s3::{
+    CompleteMultipartUploadRequest, CompletedMultipartUpload, CompletedPart,
+    CreateMultipartUploadRequest, S3Client, UploadPartRequest, S3,
+};
 use std::fs::File;
 use std::fs::Permissions;
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
+use std::str::FromStr;
 use tar::Builder;
-use tokio::fs::{self, OpenOptions};
+use tokio::fs::{self, File as AFile, OpenOptions};
+use tokio::io::AsyncReadExt;
 use tokio::{io, task};
 use xz2::stream::{Check, Stream};
 use xz2::write::XzEncoder;
@@ -84,48 +92,6 @@ pub async fn delete_directory<P: AsRef<Path>>(path: P) -> io::Result<()> {
     Ok(())
 }
 
-pub fn validate_s3_credentials(credentials: &S3Credentials) -> Result<S3Credentials, PGCliError> {
-    let s3_endpoint = credentials.s3_endpoint.as_deref().unwrap_or("").to_string();
-    let s3_access_key = credentials
-        .s3_access_key
-        .as_deref()
-        .unwrap_or("")
-        .to_string();
-    let s3_secret_key = credentials
-        .s3_secret_key
-        .as_deref()
-        .unwrap_or("")
-        .to_string();
-    let s3_bucket = credentials.s3_bucket.as_deref().unwrap_or("").to_string();
-    let s3_region = credentials.s3_region.as_deref().unwrap_or("").to_string();
-    let s3_prefix = credentials.s3_prefix.as_deref().unwrap_or("").to_string();
-
-    if s3_endpoint.is_empty() {
-        return Err(PGCliError::Other("S3 endpoint is required".to_string()));
-    }
-    if s3_access_key.is_empty() {
-        return Err(PGCliError::Other("S3 access key is required".to_string()));
-    }
-    if s3_secret_key.is_empty() {
-        return Err(PGCliError::Other("S3 secret key is required".to_string()));
-    }
-    if s3_bucket.is_empty() {
-        return Err(PGCliError::Other("S3 bucket is required".to_string()));
-    }
-    if s3_region.is_empty() {
-        return Err(PGCliError::Other("S3 region is required".to_string()));
-    }
-
-    Ok(S3Credentials {
-        s3_endpoint: Some(s3_endpoint),
-        s3_access_key: Some(s3_access_key),
-        s3_secret_key: Some(s3_secret_key),
-        s3_bucket: Some(s3_bucket),
-        s3_region: Some(s3_region),
-        s3_prefix: Some(s3_prefix),
-    })
-}
-
 pub async fn create_compressed_archive(
     input_dir: &str,
     output_file: &str,
@@ -185,4 +151,157 @@ pub async fn create_compressed_archive(
     .await?;
 
     output
+}
+
+impl S3Credentials {
+    pub fn validate_s3_credentials(&self) -> Result<&S3Credentials, PGCliError> {
+        let s3_endpoint = self.s3_endpoint.as_deref().unwrap_or("").to_string();
+        let s3_access_key = self.s3_access_key.as_deref().unwrap_or("").to_string();
+        let s3_secret_key = self.s3_secret_key.as_deref().unwrap_or("").to_string();
+        let s3_bucket = self.s3_bucket.as_deref().unwrap_or("").to_string();
+        let s3_region = self.s3_region.as_deref().unwrap_or("").to_string();
+        let s3_prefix = self.s3_prefix.as_deref().unwrap_or("").to_string();
+
+        if s3_endpoint.is_empty() {
+            return Err(PGCliError::Other("S3 endpoint is required".to_string()));
+        }
+        if s3_access_key.is_empty() {
+            return Err(PGCliError::Other("S3 access key is required".to_string()));
+        }
+        if s3_secret_key.is_empty() {
+            return Err(PGCliError::Other("S3 secret key is required".to_string()));
+        }
+        if s3_bucket.is_empty() {
+            return Err(PGCliError::Other("S3 bucket is required".to_string()));
+        }
+        if s3_region.is_empty() {
+            return Err(PGCliError::Other("S3 region is required".to_string()));
+        }
+        if s3_prefix.is_empty() || !s3_prefix.chars().all(|c| c.is_alphanumeric() || c == '_') {
+            return Err(PGCliError::Other(
+                "S3 prefix is required or invalid".to_string(),
+            ));
+        }
+
+        Ok(self)
+    }
+
+    async fn multipart_upload<P: AsRef<Path>>(
+        &self,
+        file_path: P,
+        file_key: &str,
+    ) -> Result<(), PGCliError> {
+        debug!("Starting multipart upload");
+        let file_path = file_path.as_ref();
+        let region = match self.s3_endpoint {
+            Some(ref endpoint) => Region::Custom {
+                name: self
+                    .s3_region
+                    .clone()
+                    .unwrap_or_else(|| "us-east-1".to_owned()),
+                endpoint: endpoint.clone(),
+            },
+            None => self
+                .s3_region
+                .clone()
+                .map_or(Region::UsEast1, |region_name| {
+                    Region::from_str(&region_name).unwrap_or(Region::UsEast1)
+                }),
+        };
+
+        let s3_client = S3Client::new_with(
+            HttpClient::new()?,
+            StaticProvider::new_minimal(
+                self.s3_access_key.clone().unwrap(),
+                self.s3_secret_key.clone().unwrap(),
+            ),
+            region,
+        );
+
+        let file_size = tokio::fs::metadata(file_path)
+            .await
+            .expect("it exists I swear")
+            .len();
+
+        debug!("File size: {}", file_size);
+
+        let file_key_prepared = format!(
+            "{}/{}",
+            self.s3_prefix.clone().unwrap_or_else(|| "".to_owned()),
+            file_key
+        );
+
+        let create_multipart_req = CreateMultipartUploadRequest {
+            bucket: self
+                .s3_bucket
+                .clone()
+                .ok_or_else(|| PGCliError::Other("S3 bucket is required".to_string()))?,
+            key: file_key_prepared.clone(),
+            ..Default::default()
+        };
+
+        let upload_id = s3_client
+            .create_multipart_upload(create_multipart_req)
+            .await?
+            .upload_id
+            .ok_or_else(|| PGCliError::Other("Failed to get upload ID".to_string()))?;
+
+        let mut file = AFile::open(file_path).await?;
+        let mut parts = Vec::new();
+        let mut part_number = 1;
+        let mut buffer;
+        let parts_number = (file_size as f64 / 10_000_000.0).ceil() as usize;
+
+        if file_size > 10 * 1024 * 1024 {
+            debug!("File size is greater than 10MB, using 10MB buffer");
+            buffer = vec![0; 10 * 1024 * 1024]; // 10MB buffer
+        } else {
+            debug!("File size is less than 10MB, using file size * 1.5 as buffer");
+            buffer = vec![0; (file_size as f64 * 1.5) as usize];
+        }
+
+        loop {
+            let bytes_read = file.read(&mut buffer).await?;
+            trace!("Read {} bytes", bytes_read);
+            if bytes_read == 0 {
+                break;
+            }
+
+            trace!("Uploading part {} of {}", part_number, parts_number);
+            let upload_part_req = UploadPartRequest {
+                bucket: self
+                    .s3_bucket
+                    .clone()
+                    .ok_or_else(|| PGCliError::Other("S3 bucket is required".to_string()))?,
+                key: file_key.to_string(),
+                upload_id: upload_id.clone(),
+                part_number: part_number as i64,
+                body: Some(buffer[..bytes_read].to_vec().into()),
+                ..Default::default()
+            };
+
+            let part_result = s3_client.upload_part(upload_part_req).await?;
+            parts.push(CompletedPart {
+                e_tag: part_result.e_tag,
+                part_number: Some(part_number as i64),
+            });
+
+            part_number += 1;
+        }
+
+        debug!("Uploaded all parts");
+
+        let complete_req = CompleteMultipartUploadRequest {
+            bucket: self.s3_bucket.clone().unwrap(),
+            key: file_key.to_string(),
+            upload_id,
+            multipart_upload: Some(CompletedMultipartUpload { parts: Some(parts) }),
+            ..Default::default()
+        };
+
+        debug!("Completing multipart upload");
+        s3_client.complete_multipart_upload(complete_req).await?;
+
+        Ok(())
+    }
 }

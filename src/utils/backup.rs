@@ -1,7 +1,7 @@
 use super::db::{db_dump, init_pgpass, list_databases, postgres_connect};
 use super::misc::{
     check_file_directory_path_exists, create_compressed_archive, delete_directory,
-    ensure_file_directory_path_exists, validate_s3_credentials,
+    ensure_file_directory_path_exists,
 };
 use super::structs::{PGCliError, PostgresCredentials, S3Credentials};
 use clap::Args;
@@ -45,7 +45,7 @@ pub async fn backup_db(
         info!("Backing up to file: {}", output_location.to_str().unwrap());
     } else {
         info!("Backing up to S3");
-        validate_s3_credentials(s3_credentials)?;
+        s3_credentials.validate_s3_credentials()?;
     }
 
     init_pgpass(credentials).await?;
