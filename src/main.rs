@@ -293,6 +293,4 @@ async fn main() -> Result<(), PGCliError> {
     }
 
     Ok(())
-
-    // Continued program logic goes here...
 }

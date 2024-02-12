@@ -29,8 +29,8 @@ services:
     networks:
       - postgres_db_actions_network
     volumes:
-      - ../data:/data
-      - ../certs:/opt/certs
+      - miniolocal:/data
+      - ../certs:/opt/certs:ro
     env_file:
       - devcontainer.env
   db:
@@ -63,7 +63,7 @@ services:
 
 volumes:
   db:
+  miniolocal:
 
 networks:
   postgres_db_actions_network:
-    name: postgres_db_actions_network

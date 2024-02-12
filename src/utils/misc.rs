@@ -1,5 +1,5 @@
 use super::structs::{PGCliError, S3Credentials};
-use log::{debug, trace};
+use log::{debug, info, trace};
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 use rusoto_core::{HttpClient, Region};
@@ -19,6 +19,19 @@ use tokio::io::AsyncReadExt;
 use tokio::{io, task};
 use xz2::stream::{Check, Stream};
 use xz2::write::XzEncoder;
+
+fn bytes_to_human_readable(size: u64) -> String {
+    let units = ["bytes", "KB", "MB", "GB", "TB", "PB"];
+    let mut size = size as f64;
+    let mut index = 0;
+
+    while size >= 1024.0 && index < units.len() - 1 {
+        size /= 1024.0;
+        index += 1;
+    }
+
+    format!("{:.2} {}", size, units[index])
+}
 
 pub fn generate_random_string(length: usize) -> String {
     let mut rng = thread_rng();
@@ -186,7 +199,7 @@ impl S3Credentials {
         Ok(self)
     }
 
-    async fn multipart_upload<P: AsRef<Path>>(
+    pub async fn multipart_upload<P: AsRef<Path>>(
         &self,
         file_path: P,
         file_key: &str,
@@ -223,7 +236,11 @@ impl S3Credentials {
             .expect("it exists I swear")
             .len();
 
-        debug!("File size: {}", file_size);
+        debug!(
+            "File size: {} bytes, {}",
+            file_size,
+            bytes_to_human_readable(file_size)
+        );
 
         let file_key_prepared = format!(
             "{}/{}",
@@ -240,11 +257,15 @@ impl S3Credentials {
             ..Default::default()
         };
 
+        info!("Creating multipart upload for {}", file_key_prepared);
+
         let upload_id = s3_client
             .create_multipart_upload(create_multipart_req)
             .await?
             .upload_id
             .ok_or_else(|| PGCliError::Other("Failed to get upload ID".to_string()))?;
+
+        trace!("Upload ID: {}", upload_id);
 
         let mut file = AFile::open(file_path).await?;
         let mut parts = Vec::new();
@@ -255,28 +276,49 @@ impl S3Credentials {
         if file_size > 10 * 1024 * 1024 {
             debug!("File size is greater than 10MB, using 10MB buffer");
             buffer = vec![0; 10 * 1024 * 1024]; // 10MB buffer
+            trace!("Buffer size: {}", buffer.len());
         } else {
             debug!("File size is less than 10MB, using file size * 1.5 as buffer");
             buffer = vec![0; (file_size as f64 * 1.5) as usize];
+            trace!("Buffer size: {}", buffer.len());
         }
 
         loop {
-            let bytes_read = file.read(&mut buffer).await?;
-            trace!("Read {} bytes", bytes_read);
-            if bytes_read == 0 {
+            let mut total_bytes_read = 0;
+
+            loop {
+                if total_bytes_read >= buffer.len() {
+                    break; // Exit if the buffer is full.
+                }
+
+                match file.read(&mut buffer[total_bytes_read..]).await {
+                    Ok(0) => break, // EOF reached.
+                    Ok(bytes_read) => {
+                        total_bytes_read += bytes_read;
+                        if total_bytes_read == buffer.len() {
+                            break; // Buffer is fully utilized.
+                        }
+                    }
+                    Err(e) => return Err(e.into()), // Handle errors appropriately.
+                }
+            }
+
+            trace!("Total bytes read: {}", total_bytes_read);
+            if total_bytes_read == 0 {
                 break;
             }
 
             trace!("Uploading part {} of {}", part_number, parts_number);
+            trace!("Upload ID: {}", upload_id);
             let upload_part_req = UploadPartRequest {
                 bucket: self
                     .s3_bucket
                     .clone()
                     .ok_or_else(|| PGCliError::Other("S3 bucket is required".to_string()))?,
-                key: file_key.to_string(),
+                key: file_key_prepared.clone(),
                 upload_id: upload_id.clone(),
                 part_number: part_number as i64,
-                body: Some(buffer[..bytes_read].to_vec().into()),
+                body: Some(buffer[..total_bytes_read].to_vec().into()),
                 ..Default::default()
             };
 
@@ -293,7 +335,7 @@ impl S3Credentials {
 
         let complete_req = CompleteMultipartUploadRequest {
             bucket: self.s3_bucket.clone().unwrap(),
-            key: file_key.to_string(),
+            key: file_key_prepared.clone(),
             upload_id,
             multipart_upload: Some(CompletedMultipartUpload { parts: Some(parts) }),
             ..Default::default()

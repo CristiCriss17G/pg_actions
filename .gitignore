@@ -3,7 +3,7 @@
 .pgpass
 **/data
 .env
-
+**/*.log
 # Added by cargo
 
 /target

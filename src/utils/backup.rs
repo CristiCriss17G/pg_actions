@@ -1,6 +1,6 @@
 use super::db::{db_dump, init_pgpass, list_databases, postgres_connect};
 use super::misc::{
-    check_file_directory_path_exists, create_compressed_archive, delete_directory,
+    check_file_directory_path_exists, create_compressed_archive, delete_directory, delete_file,
     ensure_file_directory_path_exists,
 };
 use super::structs::{PGCliError, PostgresCredentials, S3Credentials};
@@ -26,6 +26,9 @@ pub struct BackupArgs {
     /// defaults to 5
     #[arg(short, long, env, default_value = "5")]
     jobs: usize,
+    /// retry just archive upload, Path to the archive to retry from
+    #[arg(long)]
+    retry: Option<PathBuf>,
     /// owner password for db
     #[arg(short = 's', long)]
     password: Option<String>,
@@ -52,9 +55,16 @@ pub async fn backup_db(
 
     let client = postgres_connect(credentials, None).await?;
 
-    let databases = match data.database.as_str() {
-        "all" => list_databases(&client).await?,
-        _ => vec![data.database.clone()],
+    let databases: Vec<String> = match &data.retry {
+        Some(retry) => {
+            info!("Retrying backup from archive: {}", retry.to_str().unwrap());
+            // empty vector to indicate that we are retrying from an archive
+            vec![]
+        }
+        None => match data.database.as_str() {
+            "all" => list_databases(&client).await?,
+            _ => vec![data.database.clone()],
+        },
     };
     info!("Databases to backup: {:?}", databases);
 
@@ -93,20 +103,50 @@ pub async fn backup_db(
 
     info!("All databases dumped successfully");
 
-    let output_file = match &data.output_location {
-        None => format!(
-            "/tmp/psql_backup/postgresql-backup-{}.tar.xz",
-            chrono::Utc::now().format("%Y-%m-%d-%H-%M-%S")
-        ),
-        Some(output_location) => output_location.to_str().unwrap().to_string(),
+    let output_file = match &data.retry {
+        Some(retry) => retry.to_str().unwrap().to_string(),
+        None => match &data.output_location {
+            None => format!(
+                "/tmp/psql_backup/postgresql-backup-{}.tar.xz",
+                chrono::Utc::now().format("%Y-%m-%d-%H-%M-%S")
+            ),
+            Some(output_location) => output_location.to_str().unwrap().to_string(),
+        },
     };
 
-    info!("Creating compressed archive");
-    create_compressed_archive(&temp_folder, &output_file).await?;
-    info!("Compressed archive created successfully");
+    match &data.retry {
+        Some(_) => {
+            info!("Retrying from archive");
+            debug!("Deleting temp folder");
+            delete_directory(&temp_folder).await?;
+        }
+        None => {
+            info!("Creating compressed archive");
+            create_compressed_archive(&temp_folder, &output_file).await?;
+            info!("Compressed archive created successfully");
 
-    debug!("Deleting temp folder");
-    delete_directory(&temp_folder).await?;
+            debug!("Deleting temp folder");
+            delete_directory(&temp_folder).await?;
+        }
+    }
+
+    if None == data.output_location {
+        info!("Uploading to S3");
+        s3_credentials
+            .multipart_upload(
+                &output_file,
+                &format!(
+                    "postgresql-backup-{}.tar.xz",
+                    chrono::Utc::now().format("%Y-%m-%d-%H-%M-%S")
+                ),
+            )
+            .await?;
+        info!("Uploaded to S3 successfully");
+        debug!("Deleting local file");
+        delete_file(&output_file).await?;
+    }
+
+    debug!("Backup completed successfully");
 
     Ok(())
 }
