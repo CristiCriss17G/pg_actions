@@ -19,7 +19,6 @@
 **/*.dbmdl
 **/*.jfm
 **/charts
-**/certs
 **/data
 **/docker-compose*
 **/compose*

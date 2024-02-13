@@ -17,7 +17,7 @@ ARG APP_NAME
 WORKDIR /app
 
 # Install host build dependencies.
-RUN apk update && apk upgrade --no-cache && apk add --no-cache build-base clang lld musl-dev git file postgresql16-client && rm -rf /var/cache/apk/*
+RUN apk update && apk upgrade --no-cache && apk add --no-cache build-base clang lld musl-dev git file pkgconfig openssl-dev libcrypto3 libssl3 openssl-libs-static postgresql16-client && rm -rf /var/cache/apk/*
 
 # Copy Cargo.toml and Cargo.lock to cache dependencies.
 COPY Cargo.toml Cargo.lock ./
@@ -48,8 +48,12 @@ LABEL version="0.1.0"
 LABEL title="Postgres actions cli"
 LABEL description="This is a Dockerfile for running postgres-db-actions. For more information visit run with --help."
 
-RUN apk update && apk upgrade --no-cache && apk add --no-cache bash postgresql16-client && rm -rf /var/cache/apk/*
+RUN apk update && apk upgrade --no-cache && apk add --no-cache bash postgresql16-client ca-certificates && rm -rf /var/cache/apk/*
 SHELL [ "/bin/bash", "-c" ]
+
+# COPY ./certs/CAs/rootCA.crt /usr/local/share/ca-certificates/
+# RUN update-ca-certificates
+
 # Create a non-privileged user that the app will run under.
 # See https://docs.docker.com/go/dockerfile-user-best-practices/
 ARG UID=10001

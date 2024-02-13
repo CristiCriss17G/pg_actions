@@ -41,3 +41,5 @@ cargo run user create -vv -u abcdd7 -s lmk --createdb
 cargo run user -vv list --sort asc -q
 
 cargo run user -vv list
+
+docker run -e PG_HOSTNAME -e PG_SUPERUSER -e PG_PASS -e PG_PORT -e S3_ENDPOINT -e S3_ACCESS_KEY -e S3_SECRET_KEY -e S3_BUCKET -e S3_PREFIX -e S3_REGION --network=postgres-db-actions_devcontainer_postgres_db_actions_network -it --rm regcr.ivfuture.uk/devops-services/tools/postgres-db-actions:latest help
