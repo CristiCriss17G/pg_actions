@@ -190,7 +190,11 @@ impl S3Credentials {
         if s3_region.is_empty() {
             return Err(PGCliError::Other("S3 region is required".to_string()));
         }
-        if s3_prefix.is_empty() || !s3_prefix.chars().all(|c| c.is_alphanumeric() || c == '_') {
+        if s3_prefix.is_empty()
+            || !s3_prefix
+                .chars()
+                .all(|c| c.is_alphanumeric() || c == '_' || c == '/' || c == '-')
+        {
             return Err(PGCliError::Other(
                 "S3 prefix is required or invalid".to_string(),
             ));
