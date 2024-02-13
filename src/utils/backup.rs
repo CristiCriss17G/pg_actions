@@ -1,9 +1,10 @@
-use super::db::{db_dump, init_pgpass, list_databases, postgres_connect};
+use super::db::database::list_databases;
+use super::db::general::{db_dump, init_pgpass, postgres_connect};
 use super::misc::{
     check_file_directory_path_exists, create_compressed_archive, delete_directory, delete_file,
     ensure_file_directory_path_exists,
 };
-use super::structs::{PGCliError, PostgresCredentials, S3Credentials};
+use super::structs::{DatabaseDetails, PGCliError, PostgresCredentials, S3Credentials};
 use clap::Args;
 use log::{debug, error, info};
 use std::path::PathBuf;
@@ -62,7 +63,14 @@ pub async fn backup_db(
             vec![]
         }
         None => match data.database.as_str() {
-            "all" => list_databases(&client).await?,
+            "all" => list_databases(&client, &None, false)
+                .await?
+                .iter()
+                .map(|x| match &x {
+                    DatabaseDetails::Name(name) => name.clone(),
+                    DatabaseDetails::Extra { name, .. } => name.clone(),
+                })
+                .collect(),
             _ => vec![data.database.clone()],
         },
     };

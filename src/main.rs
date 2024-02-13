@@ -5,10 +5,9 @@ use env_logger::{Builder, Env};
 use log::{error, info, trace, LevelFilter};
 use rpassword::prompt_password;
 use std::io::Write;
-use utils::backup;
-use utils::clone;
-use utils::db::try_read_pgpass;
+use utils::db::general::try_read_pgpass;
 use utils::structs::{PGCliError, PostgresCredentials};
+use utils::{backup, clone, database, user};
 
 use crate::utils::structs::S3Credentials;
 
@@ -24,7 +23,7 @@ struct Cli {
         global = true,
         default_value = "localhost"
     )]
-    hostname: Option<String>,
+    pg_hostname: Option<String>,
 
     /// Sets Postgres username
     #[arg(
@@ -34,18 +33,18 @@ struct Cli {
         global = true,
         default_value = "postgres"
     )]
-    superuser: Option<String>,
+    pg_superuser: Option<String>,
 
     /// Sets Postgres password
     #[arg(
         short = 'P',
-        long = "Password",
+        long,
         env = "PG_PASS",
         global = true,
         hide_env_values = true,
         default_value = "postgres"
     )]
-    password: Option<String>,
+    pg_password: Option<String>,
 
     /// Sets Postgres port
     #[arg(
@@ -55,7 +54,7 @@ struct Cli {
         global = true,
         default_value = "5432"
     )]
-    port: Option<u16>,
+    pg_port: Option<u16>,
 
     /// S3/Minio endpoint
     #[arg(long, env, global = true)]
@@ -97,65 +96,9 @@ enum Commands {
     /// Backup operations
     Backup(backup::BackupArgs),
     /// User operations
-    User {
-        /// action subcommand
-        #[command(subcommand)]
-        subcommand: Option<UserSubCommands>,
-    },
-}
-
-#[derive(Subcommand)]
-enum UserSubCommands {
-    /// List users
-    List,
-    /// Create a user
-    Create {
-        /// username
-        #[arg(short, long)]
-        username: String,
-        /// password
-        #[arg(short, long)]
-        password: String,
-        /// superuser
-        #[arg(long)]
-        superuser: bool,
-        /// createdb
-        #[arg(long)]
-        createdb: bool,
-        /// createrole
-        #[arg(long)]
-        createrole: bool,
-        /// login
-        #[arg(short, long)]
-        login: bool,
-    },
-    /// Delete a user
-    Delete {
-        /// username
-        #[arg(short, long)]
-        username: String,
-    },
-    /// Update a user
-    Update {
-        /// username
-        #[arg(short, long)]
-        username: String,
-        /// password
-        #[arg(short, long)]
-        password: String,
-        /// superuser
-        #[arg(long)]
-        superuser: bool,
-        /// createdb
-        #[arg(long)]
-        createdb: bool,
-        /// createrole
-        #[arg(long)]
-        createrole: bool,
-        /// login
-        #[arg(short, long)]
-        login: bool,
-    },
+    User(user::UserArgs),
+    /// Database operations
+    Database(database::DatabaseArgs),
 }
 
 #[tokio::main]
@@ -206,10 +149,18 @@ async fn main() -> Result<(), PGCliError> {
 
     // try to read the pgpass file if Some is returned store tha values in a variable, else read them from the cli, and promt for password if not provided
     let mut pgpass: PostgresCredentials = try_read_pgpass().await.unwrap_or(PostgresCredentials {
-        pg_hostname: cli.hostname.as_deref().unwrap_or("localhost").to_string(),
-        pg_superuser: cli.superuser.as_deref().unwrap_or("postgres").to_string(),
-        pg_password: cli.password.as_deref().unwrap_or("").to_string(),
-        pg_port: cli.port.unwrap_or(5432),
+        pg_hostname: cli
+            .pg_hostname
+            .as_deref()
+            .unwrap_or("localhost")
+            .to_string(),
+        pg_superuser: cli
+            .pg_superuser
+            .as_deref()
+            .unwrap_or("postgres")
+            .to_string(),
+        pg_password: cli.pg_password.as_deref().unwrap_or("").to_string(),
+        pg_port: cli.pg_port.unwrap_or(5432),
     });
 
     if pgpass.pg_password == "" {
@@ -252,43 +203,22 @@ async fn main() -> Result<(), PGCliError> {
                 }
             }
         }
-        Some(Commands::User { subcommand }) => match subcommand {
-            Some(UserSubCommands::List) => {
-                println!("Listing users...");
+        Some(Commands::User(user_data)) => match user::user(user_data, &pgpass).await {
+            Ok(_) => info!("User operation completed successfully"),
+            Err(e) => {
+                error!("Failed to perform user operation: {}", e);
+                return Err(e);
             }
-            Some(UserSubCommands::Create {
-                username,
-                password: _,
-                superuser,
-                createdb,
-                createrole,
-                login,
-            }) => {
-                println!("Creating user {}...", username);
-                println!("Superuser: {}", superuser);
-                println!("Createdb: {}", createdb);
-                println!("Createrole: {}", createrole);
-                println!("Login: {}", login);
-            }
-            Some(UserSubCommands::Delete { username }) => {
-                println!("Deleting user {}...", username);
-            }
-            Some(UserSubCommands::Update {
-                username,
-                password: _,
-                superuser,
-                createdb,
-                createrole,
-                login,
-            }) => {
-                println!("Updating user {}...", username);
-                println!("Superuser: {}", superuser);
-                println!("Createdb: {}", createdb);
-                println!("Createrole: {}", createrole);
-                println!("Login: {}", login);
-            }
-            None => {}
         },
+        Some(Commands::Database(database_data)) => {
+            match database::database(database_data, &pgpass).await {
+                Ok(_) => info!("Database operation completed successfully"),
+                Err(e) => {
+                    error!("Failed to perform database operation: {}", e);
+                    return Err(e);
+                }
+            }
+        }
         None => {}
     }
 

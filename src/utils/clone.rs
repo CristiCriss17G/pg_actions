@@ -1,7 +1,9 @@
-use crate::utils::db::{
-    change_owner_of_objects_in_db, create_db, create_user, db_dump, db_restore, delete_db,
-    init_pgpass, kill_connections_to_db, postgres_connect,
+use super::db::database::{
+    change_owner_of_objects_in_db, check_database_exists, create_db, delete_db,
+    kill_connections_to_db,
 };
+use super::db::general::{db_dump, db_restore, init_pgpass, postgres_connect};
+use super::db::user::{check_user_exists, create_user};
 use crate::utils::misc::{delete_file, generate_random_string};
 use crate::utils::structs::PostgresCredentials;
 use clap::Args;
@@ -47,11 +49,21 @@ pub async fn clone_db(
 
     init_pgpass(credentials).await?;
 
+    let client = postgres_connect(credentials, None).await?;
+    if !check_database_exists(&client, &data.database).await? {
+        error!("Database {} does not exist", &data.database);
+        return Err(PGCliError::Other(format!(
+            "Database {} does not exist",
+            &data.database
+        )));
+    }
+
     let dump_file = format!(
         "/tmp/psql_backup/{}-{}.bsql",
         data.new_database,
         generate_random_string(6)
     );
+
     match db_dump(credentials.clone(), &data.database, &dump_file).await {
         Ok(_) => info!("Database dumped successfully"),
         Err(e) => {
@@ -60,16 +72,8 @@ pub async fn clone_db(
         }
     }
 
-    let client = postgres_connect(credentials, None).await?;
-
     // check if data.new_owner exists
-    let new_owner_exists = client
-        .query_one(
-            "SELECT EXISTS(SELECT 1 FROM pg_roles WHERE rolname=$1)",
-            &[&data.new_owner],
-        )
-        .await?
-        .get::<_, bool>(0);
+    let new_owner_exists = check_user_exists(&client, &data.new_owner).await?;
 
     if !new_owner_exists && data.create_owner {
         if let Some(password) = &data.new_password {
@@ -95,13 +99,7 @@ pub async fn clone_db(
     }
 
     // check if data.new_database exists
-    let new_database_exists = client
-        .query_one(
-            "SELECT EXISTS(SELECT 1 FROM pg_database WHERE datname=$1)",
-            &[&data.new_database],
-        )
-        .await?
-        .get::<_, bool>(0);
+    let new_database_exists = check_database_exists(&client, &data.new_database).await?;
 
     if new_database_exists && !data.overwrite {
         error!("New database already exists and overwrite is not set");

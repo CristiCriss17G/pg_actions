@@ -294,6 +294,7 @@ impl S3Credentials {
                 match file.read(&mut buffer[total_bytes_read..]).await {
                     Ok(0) => break, // EOF reached.
                     Ok(bytes_read) => {
+                        trace!("Bytes read: {}", bytes_read);
                         total_bytes_read += bytes_read;
                         if total_bytes_read == buffer.len() {
                             break; // Buffer is fully utilized.

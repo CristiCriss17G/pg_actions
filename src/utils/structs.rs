@@ -44,3 +44,25 @@ pub enum PGCliError {
     #[error("Error: {0}")]
     Other(String),
 }
+
+#[derive(Debug, Clone)]
+pub enum UserDetails {
+    Extra {
+        username: String,
+        createdb: bool,
+        superuser: bool,
+        login: bool,
+        oid: u32,
+    },
+    Username(String),
+}
+
+#[derive(Debug, Clone)]
+pub enum DatabaseDetails {
+    Extra {
+        name: String,
+        owner: String,
+        oid: u32,
+    },
+    Name(String),
+}
