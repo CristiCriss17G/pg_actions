@@ -1,2 +1,9 @@
 *.bsql
+!tests/*.bsql
 .pgpass
+**/data
+.env
+**/*.log
+# Added by cargo
+
+/target

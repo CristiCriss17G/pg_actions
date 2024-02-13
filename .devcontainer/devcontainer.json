@@ -1,0 +1,77 @@
+// For format details, see https://aka.ms/devcontainer.json. For config options, see the
+// README at: https://github.com/devcontainers/templates/tree/main/src/rust-postgres
+{
+  "name": "Rust",
+  "dockerComposeFile": "docker-compose.yml",
+	"service": "container",
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
+      "moby": true,
+      "installDockerBuildx": true,
+      "version": "latest",
+      "dockerDashComposeVersion": "v2"
+    },
+    "ghcr.io/devcontainers/features/git:1": {
+      "ppa": true,
+      "version": "latest"
+    },
+    "ghcr.io/christophermacgown/devcontainer-features/minio-client:1": {
+      "vendor": "linux",
+      "architecture": "amd64"
+    }
+  },
+
+  // Features to add to the dev container. More info: https://containers.dev/features.
+  // "features": {},
+
+  // Use 'forwardPorts' to make a list of ports inside the container available locally.
+  // "forwardPorts": [5432, 9000, 9001],
+
+  // Use 'postCreateCommand' to run commands after the container is created.
+  "postCreateCommand": ["bash", ".devcontainer/post-create.sh"],
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "mikestead.dotenv",
+        "formulahendry.auto-rename-tag",
+        "ms-vscode-remote.remote-containers",
+        "hediet.vscode-drawio",
+        "GitHub.codespaces",
+        "ms-vscode-remote.remote-ssh",
+        "ms-vscode-remote.vscode-remote-extensionpack",
+        "dustypomerleau.rust-syntax",
+        "vscode-icons-team.vscode-icons",
+        "vadimcn.vscode-lldb",
+        "streetsidesoftware.code-spell-checker",
+        "serayuzgur.crates",
+        "ms-azuretools.vscode-docker",
+        "cschlosser.doxdocgen",
+        "tamasfe.even-better-toml",
+        "GitHub.copilot",
+        "GitHub.copilot-chat",
+        "GitLab.gitlab-workflow",
+        "eamodio.gitlens",
+        "ms-vscode.hexeditor",
+        "DavidAnson.vscode-markdownlint",
+        "christian-kohler.path-intellisense",
+        "esbenp.prettier-vscode",
+        "redhat.fabric8-analytics",
+        "1YiB.rust-bundle",
+        "SonarSource.sonarlint-vscode",
+        "redhat.vscode-yaml",
+        "DotJoshJohnson.xml"
+      ]
+    }
+  },
+
+  "containerEnv": {
+    "DOCKER_NETWORK_NAME": "postgres_db_actions_network"
+  }
+
+  // Configure tool-specific properties.
+  // "customizations": {},
+
+  // Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.
+  // "remoteUser": "root"
+}
