@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: backup-postgres-hourly
+  name: backup-postgres-hourly-dev
   namespace: database-backup
 spec:
   concurrencyPolicy: Allow
@@ -18,10 +18,13 @@ spec:
               envFrom:
                 - secretRef:
                     name: database-backup-secret-postgres-dev
-              args: ["backup", "all", "-v"]
+              args:
+                - "backup"
+                - "all"
+                - "-v"
               image: regcr.ivfuture.uk/devops-services/tools/postgres-db-actions:latest
               imagePullPolicy: Always
-              name: backup-mongo
+              name: backup-postgres-dev
               resources: {}
               terminationMessagePath: /dev/termination-log
               terminationMessagePolicy: File
