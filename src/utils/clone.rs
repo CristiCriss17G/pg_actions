@@ -1,6 +1,6 @@
 use super::db::database::{
-    change_owner_of_objects_in_db, check_database_exists, create_db, delete_db,
-    kill_connections_to_db,
+    change_owner_of_objects_in_db, change_owner_of_tables_in_db, check_database_exists, create_db,
+    delete_db, kill_connections_to_db,
 };
 use super::db::general::{db_dump, db_restore, init_pgpass, postgres_connect};
 use super::db::user::{check_user_exists, create_user};
@@ -139,6 +139,18 @@ pub async fn clone_db(
         Ok(_) => info!("Database restored successfully"),
         Err(e) => {
             error!("Failed to restore database: {}", e);
+            return Err(e);
+        }
+    }
+
+    info!(
+        "Changing owner of tables in database {}",
+        &data.new_database
+    );
+    match change_owner_of_tables_in_db(credentials, &data.new_database, &data.new_owner).await {
+        Ok(_) => info!("Owner of tables changed successfully"),
+        Err(e) => {
+            error!("Failed to change owner of tables: {}", e);
             return Err(e);
         }
     }
