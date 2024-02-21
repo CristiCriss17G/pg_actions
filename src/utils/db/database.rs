@@ -136,6 +136,12 @@ pub async fn change_whole_owner_of_db(
     trace!("Changing owner of database {} to {}", db, new_owner);
     change_owner_of_db(client, db, new_owner).await?;
     trace!(
+        "Changing owner of tables in database {} to {}",
+        db,
+        new_owner
+    );
+    change_owner_of_tables_in_db(credentials, db, new_owner).await?;
+    trace!(
         "Changing owner of objects in database {} to {}",
         db,
         new_owner
@@ -162,6 +168,56 @@ pub async fn change_owner_of_db(
         Ok(r) => Ok(r),
         Err(e) => Err(PGCliError::from(e)),
     }
+}
+
+pub async fn change_owner_of_tables_in_db(
+    credentials: &PostgresCredentials,
+    db: &str,
+    new_owner: &str,
+) -> Result<(), PGCliError> {
+    trace!(
+        "Changing owner of tables in database {} to {}",
+        db,
+        new_owner
+    );
+    debug!("Connecting to postgres to change owner of database {}", db);
+    if !validate_pg_names(new_owner) {
+        error!("Invalid new owner name: {}", new_owner);
+        return Err(PGCliError::Other("Invalid new owner name".to_string()));
+    }
+    if !validate_pg_names(db) {
+        error!("Invalid database name: {}", db);
+        return Err(PGCliError::Other("Invalid database name".to_string()));
+    }
+
+    let client = postgres_connect(credentials, Some(db.to_string())).await?;
+
+    // Query to select table names
+    debug!("Querying tables to change owner");
+    let rows = client
+        .query(
+            "SELECT tablename FROM pg_tables WHERE schemaname = 'public'",
+            &[],
+        )
+        .await?;
+    trace!("Tables to change owner: {:?} ({})", rows, rows.len());
+
+    // Loop through each table and change its owner
+    for row in rows {
+        let tablename: &str = row.get(0);
+        debug!("Changing owner of table: {} to {}", tablename, new_owner);
+
+        // Dynamically build the ALTER TABLE command
+        let statement = format!(
+            "ALTER TABLE \"public\".\"{}\" OWNER TO {}",
+            tablename, new_owner
+        );
+
+        // Execute the ALTER TABLE command
+        client.execute(&statement, &[]).await?;
+    }
+
+    Ok(())
 }
 
 pub async fn change_owner_of_objects_in_db(

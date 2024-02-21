@@ -4,7 +4,7 @@ FROM mcr.microsoft.com/devcontainers/rust:1-1-bookworm
 # RUSTFLAGS="-C link-arg=-fuse-ld=lld" or with Cargo's configuration file (i.e see .cargo/config.toml).
 RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
    && apt-get upgrade -y \
-   && apt-get -y install clang lld nala build-essential vim wget \
+   && apt-get -y install clang lld nala build-essential vim wget nodejs \
    && apt-get autoremove -y && apt-get clean -y
 
 # Install postgrsql apt repo

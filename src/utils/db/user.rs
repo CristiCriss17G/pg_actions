@@ -19,7 +19,10 @@ pub async fn list_roles(
     sort: &Option<String>,
     extra: bool,
 ) -> Result<Vec<UserDetails>, PGCliError> {
-    let ignored_roles= "'pg_checkpoint','pg_create_subscription','pg_database_owner','pg_execute_server_program','pg_monitor','pg_read_all_data','pg_read_all_settings','pg_read_all_stats','pg_read_server_files','pg_stat_scan_tables','pg_use_reserved_connections','pg_write_all_data','pg_write_server_files','pg_signal_backend'";
+    let ignored_roles= "'pg_checkpoint','pg_create_subscription','pg_database_owner','pg_execute_server_program',\
+    'pg_monitor','pg_read_all_data','pg_read_all_settings','pg_read_all_stats','pg_read_server_files',\
+    'pg_stat_scan_tables','pg_use_reserved_connections','pg_write_all_data','pg_write_server_files',\
+    'pg_signal_backend'";
     let fields = match extra {
         true => "rolname, rolsuper, rolcreatedb, rolcanlogin, oid",
         false => "rolname",
