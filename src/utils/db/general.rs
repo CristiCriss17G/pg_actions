@@ -8,7 +8,7 @@ use tokio::task;
 use tokio_postgres::{Client, NoTls};
 
 pub(super) fn validate_pg_names(name: &str) -> bool {
-    name.chars().all(|c| c.is_alphanumeric() || c == '_')
+    name.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '-')
 }
 
 fn compare_pgpass_credentials(

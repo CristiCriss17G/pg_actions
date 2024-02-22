@@ -70,7 +70,7 @@ pub async fn create_db(client: &Client, db: &str, owner: &str) -> Result<u64, PG
         return Err(PGCliError::Other("Database already exists".to_string()));
     }
 
-    let statement = format!("CREATE DATABASE {} WITH OWNER {}", db, owner);
+    let statement = format!("CREATE DATABASE \"{}\" WITH OWNER \"{}\"", db, owner);
     match client.execute(&statement, &[]).await {
         Ok(r) => Ok(r),
         Err(e) => Err(PGCliError::from(e)),
@@ -89,7 +89,7 @@ pub async fn delete_db(client: &Client, db: &str) -> Result<u64, PGCliError> {
         return Err(PGCliError::Other("Database does not exist".to_string()));
     }
 
-    let statement = format!("DROP DATABASE {}", db);
+    let statement = format!("DROP DATABASE \"{}\"", db);
     match client.execute(&statement, &[]).await {
         Ok(r) => Ok(r),
         Err(e) => Err(PGCliError::from(e)),
@@ -163,7 +163,7 @@ pub async fn change_owner_of_db(
         error!("Invalid database name: {}", db);
         return Err(PGCliError::Other("Invalid database name".to_string()));
     }
-    let statement = format!("ALTER DATABASE {} OWNER TO {}", db, new_owner);
+    let statement = format!("ALTER DATABASE \"{}\" OWNER TO \"{}\"", db, new_owner);
     match client.execute(&statement, &[]).await {
         Ok(r) => Ok(r),
         Err(e) => Err(PGCliError::from(e)),
@@ -255,7 +255,7 @@ pub async fn change_owner_of_objects_in_db(
         debug!("Changing owner of type: {} to {}", typname, new_owner);
 
         // Dynamically build the ALTER TYPE command
-        let statement = format!("ALTER TYPE \"{}\" OWNER TO {}", typname, new_owner);
+        let statement = format!("ALTER TYPE \"{}\" OWNER TO \"{}\"", typname, new_owner);
 
         // Execute the ALTER TYPE command
         client.execute(&statement, &[]).await?;

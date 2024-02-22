@@ -109,7 +109,7 @@ pub async fn create_role(
         createdb,
         no_login
     );
-    let mut statement = format!("CREATE ROLE {} WITH PASSWORD '{}'", role, password);
+    let mut statement = format!("CREATE ROLE \"{}\" WITH PASSWORD '{}'", role, password);
     if superuser {
         statement.push_str(" SUPERUSER");
     }
@@ -138,7 +138,7 @@ pub async fn delete_role(client: &Client, role: &str) -> Result<u64, PGCliError>
         return Err(PGCliError::Other("Role does not exist".to_string()));
     }
 
-    let statement = format!("DROP ROLE {}", role);
+    let statement = format!("DROP ROLE \"{}\"", role);
     match client.execute(&statement, &[]).await {
         Ok(r) => Ok(r),
         Err(e) => Err(PGCliError::from(e)),
