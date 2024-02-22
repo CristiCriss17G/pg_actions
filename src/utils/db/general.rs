@@ -80,7 +80,13 @@ pub async fn try_read_pgpass() -> Option<PostgresCredentials> {
         }
     };
 
-    let mut parts = file.trim().split(':');
+    let mut lines = file.lines();
+
+    let mut parts = lines
+        .next()
+        .expect("Failed to read pgpass file")
+        .trim()
+        .split(':');
     let hostname = parts.next().expect("Failed to read hostname");
     let port = parts
         .next()

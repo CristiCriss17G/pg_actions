@@ -47,7 +47,7 @@ prepare:
     - export LONG_TAG=$(echo $CI_COMMIT_REF_NAME | sed 's/[^a-zA-Z0-9]/-/g' | tr '[:upper:]' '[:lower:]')-$CI_COMMIT_SHORT_SHA-$CI_PIPELINE_CREATED_AT
   script:
     - echo $CI_PIPELINE_CREATED_AT > $TIMESTAMP
-    - echo "latest" > $TAGS
+    - if [ "$CI_COMMIT_REF_NAME" == "main" ]; then echo "latest" > $TAGS; fi
     - echo $LONG_TAG >> $TAGS
     - echo $SHORT_TAG >> $TAGS
   artifacts:
