@@ -4,6 +4,7 @@ use clap::{Parser, Subcommand};
 use env_logger::{Builder, Env};
 use log::{error, info, trace, LevelFilter};
 use rpassword::prompt_password;
+use std::collections::HashMap;
 use std::io::Write;
 use utils::db::general::try_read_pgpass;
 use utils::structs::{PGCliError, PostgresCredentials};
@@ -23,7 +24,7 @@ struct Cli {
         global = true,
         default_value = "localhost"
     )]
-    pg_hostname: Option<String>,
+    pg_hostname: String,
 
     /// Sets Postgres username
     #[arg(
@@ -85,6 +86,7 @@ struct Cli {
     #[arg(short='v', long="verbose", global = true, action = clap::ArgAction::Count)]
     debug: u8,
 
+    /// Subcommands
     #[command(subcommand)]
     command: Option<Commands>,
 }
@@ -147,55 +149,68 @@ async fn main() -> Result<(), PGCliError> {
         info!("Debugging enabled to level {}", log_level);
     }
 
-    // try to read the pgpass file if Some is returned store tha values in a variable, else read them from the cli, and promt for password if not provided
-    let mut pgpass: PostgresCredentials = try_read_pgpass().await.unwrap_or(PostgresCredentials {
-        pg_hostname: cli
-            .pg_hostname
-            .as_deref()
-            .unwrap_or("localhost")
-            .to_string(),
-        pg_superuser: cli
-            .pg_superuser
-            .as_deref()
-            .unwrap_or("postgres")
-            .to_string(),
-        pg_password: cli.pg_password.as_deref().unwrap_or("").to_string(),
-        pg_port: cli.pg_port.unwrap_or(5432),
-    });
+    let pg_main_hostname = cli.pg_hostname.clone();
 
-    if pgpass.pg_password == "" {
-        match prompt_password("Postgres password: ") {
-            Ok(password) => pgpass.pg_password = password,
-            Err(e) => {
-                eprintln!("Failed to read password: {}", e);
-                std::process::exit(1);
+    let mut pgpass = {
+        let pgpass = try_read_pgpass().await;
+        if !pgpass.is_empty() && pgpass.contains_key(&pg_main_hostname) {
+            pgpass
+        } else {
+            let mut pgpassword = cli.pg_password.as_deref().unwrap_or("").to_string();
+            if pgpassword == "" {
+                match prompt_password("Postgres password: ") {
+                    Ok(password) => pgpassword = password,
+                    Err(e) => {
+                        eprintln!("Failed to read password: {}", e);
+                        std::process::exit(1);
+                    }
+                }
             }
+            let mut new_pgpass = HashMap::from([(
+                cli.pg_hostname.clone(),
+                PostgresCredentials::new(
+                    cli.pg_hostname.to_string(),
+                    cli.pg_superuser
+                        .as_deref()
+                        .unwrap_or("postgres")
+                        .to_string(),
+                    pgpassword,
+                    cli.pg_port.unwrap_or(5432),
+                ),
+            )]);
+            if !pgpass.is_empty() {
+                new_pgpass.extend(pgpass);
+            }
+            new_pgpass
         }
-    }
-
-    let s3_credentials = S3Credentials {
-        s3_endpoint: cli.s3_endpoint,
-        s3_access_key: cli.s3_access_key,
-        s3_secret_key: cli.s3_secret_key,
-        s3_bucket: cli.s3_bucket,
-        s3_region: cli.s3_region,
-        s3_prefix: cli.s3_prefix,
     };
+
+    let s3_credentials = S3Credentials::new(
+        cli.s3_endpoint,
+        cli.s3_access_key,
+        cli.s3_secret_key,
+        cli.s3_bucket,
+        cli.s3_region,
+        cli.s3_prefix,
+    );
 
     trace!("Using pgpass: {:?}", pgpass);
 
     // You can check for the existence of subcommands, and if found use their
     // matches just as you would the top level cmd
     match &cli.command {
-        Some(Commands::Clone(clone_data)) => match clone::clone_db(clone_data, &pgpass).await {
-            Ok(_) => info!("Database cloned successfully"),
-            Err(e) => {
-                error!("Failed to clone database: {}", e);
-                return Err(e);
+        Some(Commands::Clone(clone_data)) => {
+            match clone::clone_db(clone_data, &mut pgpass, &pg_main_hostname).await {
+                Ok(_) => info!("Database cloned successfully"),
+                Err(e) => {
+                    error!("Failed to clone database: {}", e);
+                    return Err(e);
+                }
             }
-        },
+        }
         Some(Commands::Backup(backup_data)) => {
-            match backup::backup_db(backup_data, &pgpass, &s3_credentials).await {
+            match backup::backup_db(backup_data, &pgpass, &pg_main_hostname, &s3_credentials).await
+            {
                 Ok(_) => info!("Database backed up successfully"),
                 Err(e) => {
                     error!("Failed to backup database: {}", e);
@@ -203,15 +218,17 @@ async fn main() -> Result<(), PGCliError> {
                 }
             }
         }
-        Some(Commands::User(user_data)) => match user::user(user_data, &pgpass).await {
-            Ok(_) => info!("User operation completed successfully"),
-            Err(e) => {
-                error!("Failed to perform user operation: {}", e);
-                return Err(e);
+        Some(Commands::User(user_data)) => {
+            match user::user(user_data, &pgpass, &pg_main_hostname).await {
+                Ok(_) => info!("User operation completed successfully"),
+                Err(e) => {
+                    error!("Failed to perform user operation: {}", e);
+                    return Err(e);
+                }
             }
-        },
+        }
         Some(Commands::Database(database_data)) => {
-            match database::database(database_data, &pgpass).await {
+            match database::database(database_data, &pgpass, &pg_main_hostname).await {
                 Ok(_) => info!("Database operation completed successfully"),
                 Err(e) => {
                     error!("Failed to perform database operation: {}", e);

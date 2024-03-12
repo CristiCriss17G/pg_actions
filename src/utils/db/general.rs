@@ -1,6 +1,7 @@
 use crate::utils::misc::{ensure_file_path_exists, open_file_path_in_write_mode};
 use crate::utils::structs::{PGCliError, PostgresCredentials};
 use log::{debug, error, info};
+use std::collections::HashMap;
 use std::io::{BufRead, BufReader};
 use std::process::{Command, Stdio};
 use tokio::io::AsyncWriteExt;
@@ -8,29 +9,42 @@ use tokio::task;
 use tokio_postgres::{Client, NoTls};
 
 pub(super) fn validate_pg_names(name: &str) -> bool {
-    name.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '-')
+    name.chars()
+        .all(|c| c.is_alphanumeric() || c == '_' || c == '-')
 }
 
 fn compare_pgpass_credentials(
-    credentials: &PostgresCredentials,
+    credentials: &Vec<PostgresCredentials>,
     pgpass: &PostgresCredentials,
 ) -> bool {
-    credentials.pg_hostname == pgpass.pg_hostname
-        && credentials.pg_port == pgpass.pg_port
-        && credentials.pg_superuser == pgpass.pg_superuser
-        && credentials.pg_password == pgpass.pg_password
+    credentials.iter().any(|c| {
+        c.pg_hostname == pgpass.pg_hostname
+            && c.pg_port == pgpass.pg_port
+            && c.pg_superuser == pgpass.pg_superuser
+            && c.pg_password == pgpass.pg_password
+    })
 }
 
 /// Initialize the .pgpass file with the credentials
-pub async fn init_pgpass(credentials: &PostgresCredentials) -> Result<(), PGCliError> {
+pub async fn init_pgpass(credentials: &Vec<PostgresCredentials>) -> Result<(), PGCliError> {
     let home = dirs_next::home_dir().expect("Home directory not found");
     let pgpass_file = home.join(".pgpass");
 
     if pgpass_file.exists() {
         debug!("pgpass file already exists");
         let pgpass = try_read_pgpass().await;
-        if let Some(pgpass) = pgpass {
-            if compare_pgpass_credentials(credentials, &pgpass) {
+
+        if pgpass.is_empty() {
+            debug!("pgpass file is empty");
+        } else {
+            let mut valid = true;
+            for (_, value) in pgpass.iter() {
+                if !compare_pgpass_credentials(credentials, value) {
+                    debug!("pgpass file already contains some good credentials");
+                    valid = false;
+                }
+            }
+            if valid {
                 debug!("pgpass file already contains the credentials");
                 return Ok(());
             }
@@ -41,20 +55,18 @@ pub async fn init_pgpass(credentials: &PostgresCredentials) -> Result<(), PGCliE
         .await
         .expect(format!("Failed to open file {}", pgpass_file.display()).as_str());
 
-    let pgpass_line = format!(
-        "{}:{}:{}:{}:{}",
-        credentials.pg_hostname,
-        credentials.pg_port,
-        "*",
-        credentials.pg_superuser,
-        credentials.pg_password
-    );
+    for (i, value) in credentials.iter().enumerate() {
+        let pgpass_line = format!(
+            "{}:{}:{}:{}:{}\n",
+            value.pg_hostname, value.pg_port, "*", value.pg_superuser, value.pg_password
+        );
 
-    match file.write_all(pgpass_line.as_bytes()).await {
-        Ok(_) => debug!("pgpass file created successfully"),
-        Err(e) => {
-            error!("Failed to write to pgpass file: {}", e);
-            return Err(PGCliError::Io(e));
+        match file.write_all(pgpass_line.as_bytes()).await {
+            Ok(_) => debug!("pgpass written line {}", i),
+            Err(e) => {
+                error!("Failed to write to pgpass file: {}", e);
+                return Err(PGCliError::Io(e));
+            }
         }
     }
 
@@ -64,45 +76,50 @@ pub async fn init_pgpass(credentials: &PostgresCredentials) -> Result<(), PGCliE
 /// try to find a .pgpass file in the home directory and read its content
 /// returns the content of the file as a PostgresCredentials struct
 /// if the file is not found or is invalid, returns None
-pub async fn try_read_pgpass() -> Option<PostgresCredentials> {
+pub async fn try_read_pgpass() -> HashMap<String, PostgresCredentials> {
     let home = dirs_next::home_dir().expect("Home directory not found");
     let pgpass_file = home.join(".pgpass");
 
     if !pgpass_file.exists() {
-        return None;
+        return HashMap::new();
     }
 
     let file = match tokio::fs::read_to_string(&pgpass_file).await {
         Ok(f) => f,
         Err(e) => {
             error!("Failed to read pgpass file: {}", e);
-            return None;
+            return HashMap::new();
         }
     };
 
-    let mut lines = file.lines();
+    let mut result = HashMap::new();
 
-    let mut parts = lines
-        .next()
-        .expect("Failed to read pgpass file")
-        .trim()
-        .split(':');
-    let hostname = parts.next().expect("Failed to read hostname");
-    let port = parts
-        .next()
-        .expect("Failed to read port")
-        .parse::<u16>()
-        .expect("Failed to parse port");
-    let _ = parts.next().expect("Failed to read database");
-    let username = parts.next().expect("Failed to read username");
-    let password = parts.next().expect("Failed to read password");
+    let lines = file.lines();
 
-    Some(PostgresCredentials {
-        pg_hostname: hostname.to_string(),
-        pg_port: port,
-        pg_superuser: username.to_string(),
-        pg_password: password.to_string(),
-    })
+    for line in lines {
+        let mut parts = line.trim().split(':');
+        let hostname = parts.next().expect("Failed to read hostname");
+        let port = parts
+            .next()
+            .expect("Failed to read port")
+            .parse::<u16>()
+            .expect("Failed to parse port");
+        let _ = parts.next().expect("Failed to read database");
+        let username = parts.next().expect("Failed to read username");
+        let password = parts.next().expect("Failed to read password");
+
+        result.insert(
+            hostname.to_string(),
+            PostgresCredentials::new(
+                hostname.to_string(),
+                username.to_string(),
+                password.to_string(),
+                port,
+            ),
+        );
+    }
+
+    result
 }
 
 pub async fn postgres_connect(

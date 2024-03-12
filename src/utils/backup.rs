@@ -7,6 +7,7 @@ use super::misc::{
 use super::structs::{DatabaseDetails, PGCliError, PostgresCredentials, S3Credentials};
 use clap::Args;
 use log::{debug, error, info};
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Semaphore;
@@ -37,7 +38,8 @@ pub struct BackupArgs {
 
 pub async fn backup_db(
     data: &BackupArgs,
-    credentials: &PostgresCredentials,
+    credentials: &HashMap<String, PostgresCredentials>,
+    pg_main_hostname: &String,
     s3_credentials: &S3Credentials,
 ) -> Result<(), PGCliError> {
     if let Some(output_location) = &data.output_location {
@@ -52,9 +54,17 @@ pub async fn backup_db(
         s3_credentials.validate_s3_credentials()?;
     }
 
-    init_pgpass(credentials).await?;
+    init_pgpass(
+        &credentials
+            .values()
+            .cloned()
+            .collect::<Vec<PostgresCredentials>>(),
+    )
+    .await?;
 
-    let client = postgres_connect(credentials, None).await?;
+    let main_credentials = credentials.get(pg_main_hostname).unwrap();
+
+    let client = postgres_connect(main_credentials, None).await?;
 
     let databases: Vec<String> = match &data.retry {
         Some(retry) => {
@@ -90,7 +100,7 @@ pub async fn backup_db(
         .into_iter()
         .map(|database| {
             let permit = semaphore.clone().acquire_owned(); // Get a permit to execute the task
-            let credentials = credentials.clone();
+            let credentials = main_credentials.clone();
             let temp_folder = temp_folder.clone();
 
             task::spawn(async move {

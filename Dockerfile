@@ -6,7 +6,7 @@
 
 # Want to help us make this template better? Share your feedback here: https://forms.gle/ybq9Krt8jtBL3iCk7
 
-ARG RUST_VERSION=1.75.0
+ARG RUST_VERSION=1.76.0
 ARG ALPINE_VERSION=3.19
 ARG APP_NAME=postgres-db-actions
 
@@ -44,7 +44,7 @@ ARG APP_NAME
 ENV APP_NAME=${APP_NAME}
 
 LABEL maintainer="Cristian Iordachescu <cristian.iordachescu@ivfuture.uk>"
-LABEL version="0.1.0"
+LABEL version="0.2.0"
 LABEL title="Postgres actions cli"
 LABEL description="This is a Dockerfile for running postgres-db-actions. For more information visit run with --help."
 

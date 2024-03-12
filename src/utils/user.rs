@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use super::db::general::postgres_connect;
 use super::db::user::{alter_role, create_role, delete_role, list_roles};
 use super::structs::{PGCliError, PostgresCredentials, UserDetails};
@@ -68,8 +70,13 @@ pub enum UserSubCommands {
     },
 }
 
-pub async fn user(data: &UserArgs, credentials: &PostgresCredentials) -> Result<(), PGCliError> {
-    let client = postgres_connect(&credentials, None).await?;
+pub async fn user(
+    data: &UserArgs,
+    credentials: &HashMap<String, PostgresCredentials>,
+    pg_main_hostname: &String,
+) -> Result<(), PGCliError> {
+    let main_credentials = credentials.get(pg_main_hostname).unwrap();
+    let client = postgres_connect(main_credentials, None).await?;
     match &data.subcommand {
         Some(UserSubCommands::List { sort, quiet, extra }) => {
             debug!("List users, sort: {:?}, quiet: {:?}", sort, quiet);

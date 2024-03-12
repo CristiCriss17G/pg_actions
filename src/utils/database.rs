@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use super::db::database::{
     change_whole_owner_of_db, create_db, delete_db, kill_connections_to_db, list_databases,
 };
@@ -53,9 +55,11 @@ pub enum DatabaseSubCommands {
 
 pub async fn database(
     data: &DatabaseArgs,
-    credentials: &PostgresCredentials,
+    credentials: &HashMap<String, PostgresCredentials>,
+    pg_main_hostname: &String,
 ) -> Result<(), PGCliError> {
-    let client = postgres_connect(&credentials, None).await?;
+    let main_credentials = credentials.get(pg_main_hostname).unwrap();
+    let client = postgres_connect(&main_credentials, None).await?;
     match &data.subcommand {
         Some(DatabaseSubCommands::List { sort, quiet, extra }) => {
             debug!("List databases");
@@ -124,7 +128,7 @@ pub async fn database(
             create_db(
                 &client,
                 database,
-                &owner.unwrap_or(credentials.pg_superuser.clone()),
+                &owner.unwrap_or(main_credentials.pg_superuser.clone()),
             )
             .await?;
             info!("Database {} created", database);
@@ -143,9 +147,9 @@ pub async fn database(
             let new_owner = new_owner.clone();
             change_whole_owner_of_db(
                 &client,
-                credentials,
+                main_credentials,
                 database,
-                &new_owner.unwrap_or(credentials.pg_superuser.clone()),
+                &new_owner.unwrap_or(main_credentials.pg_superuser.clone()),
             )
             .await?;
             info!("Database {} updated", database);

@@ -1,18 +1,18 @@
 [package]
 name = "postgres-db-actions"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 authors = ['Cristian Iordachescu <cristian.iordachescu@ivfuture.uk>']
-rust-version = "1.75"
+rust-version = "1.76"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-chrono = "0.4.34"
-clap = { version = "4.5.0", features = ["derive", "env"] }
+chrono = "0.4.35"
+clap = { version = "4.5.2", features = ["derive", "env"] }
 dirs-next = "2.0.0"
-env_logger = "0.11.1"
-log = "0.4.20"
+env_logger = "0.11.3"
+log = "0.4.21"
 prettytable-rs = "0.10.0"
 rand = "0.8.5"
 rpassword = "7.3.1"
@@ -20,8 +20,8 @@ rusoto_core = "0.48.0"
 rusoto_credential = "0.48.0"
 rusoto_s3 = "0.48.0"
 tar = "0.4.40"
-thiserror = "1.0.57"
+thiserror = "1.0.58"
 tokio = { version = "1.36.0", features = ["full"] }
 tokio-postgres = "0.7.10"
-walkdir = "2.4.0"
+walkdir = "2.5.0"
 xz2 = { version = "0.1.7", features = ["tokio"] }
