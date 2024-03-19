@@ -7,10 +7,8 @@ use rpassword::prompt_password;
 use std::collections::HashMap;
 use std::io::Write;
 use utils::db::general::try_read_pgpass;
-use utils::structs::{PGCliError, PostgresCredentials};
+use utils::structs::{PGCliError, PostgresCredentials,S3Credentials};
 use utils::{backup, clone, database, user};
-
-use crate::utils::structs::S3Credentials;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -161,7 +159,7 @@ async fn main() -> Result<(), PGCliError> {
                 match prompt_password("Postgres password: ") {
                     Ok(password) => pgpassword = password,
                     Err(e) => {
-                        eprintln!("Failed to read password: {}", e);
+                        error!("Failed to read password: {}", e);
                         std::process::exit(1);
                     }
                 }
