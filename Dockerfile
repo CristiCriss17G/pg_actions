@@ -1,11 +1,5 @@
 # syntax=docker/dockerfile:1
 
-# Comments are provided throughout this file to help you get started.
-# If you need more help, visit the Dockerfile reference guide at
-# https://docs.docker.com/go/dockerfile-reference/
-
-# Want to help us make this template better? Share your feedback here: https://forms.gle/ybq9Krt8jtBL3iCk7
-
 ARG RUST_VERSION=1.76.0
 ARG ALPINE_VERSION=3.19
 ARG APP_NAME=postgres-db-actions
@@ -29,16 +23,7 @@ COPY src ./src
 # Build the application.
 RUN cargo build --locked --release --target-dir ./target && cp ./target/release/${APP_NAME} /bin/${APP_NAME}
 
-################################################################################
-# Create a new stage for running the application that contains the minimal
-# runtime dependencies for the application. This often uses a different base
-# image from the build stage where the necessary files are copied from the build
-# stage.
-#
-# The example below uses the alpine image as the foundation for running the app.
-# By specifying the "3.18" tag, it will use version 3.18 of alpine. If
-# reproducability is important, consider using a digest
-# (e.g., alpine@sha256:664888ac9cfd28068e062c991ebcff4b4c7307dc8dd4df9e728bedde5c449d91).
+
 FROM alpine:${ALPINE_VERSION} AS final
 ARG APP_NAME
 ENV APP_NAME=${APP_NAME}
