@@ -10,6 +10,22 @@ pub struct PostgresCredentials {
     pub pg_port: u16,
 }
 
+impl PostgresCredentials {
+    pub fn new(
+        pg_hostname: String,
+        pg_superuser: String,
+        pg_password: String,
+        pg_port: u16,
+    ) -> PostgresCredentials {
+        PostgresCredentials {
+            pg_hostname,
+            pg_superuser,
+            pg_password,
+            pg_port,
+        }
+    }
+}
+
 pub struct S3Credentials {
     pub s3_endpoint: Option<String>,
     pub s3_access_key: Option<String>,
@@ -17,6 +33,26 @@ pub struct S3Credentials {
     pub s3_bucket: Option<String>,
     pub s3_region: Option<String>,
     pub s3_prefix: Option<String>,
+}
+
+impl S3Credentials {
+    pub fn new(
+        s3_endpoint: Option<String>,
+        s3_access_key: Option<String>,
+        s3_secret_key: Option<String>,
+        s3_bucket: Option<String>,
+        s3_region: Option<String>,
+        s3_prefix: Option<String>,
+    ) -> S3Credentials {
+        S3Credentials {
+            s3_endpoint,
+            s3_access_key,
+            s3_secret_key,
+            s3_bucket,
+            s3_region,
+            s3_prefix,
+        }
+    }
 }
 
 #[derive(Error, Debug)]
