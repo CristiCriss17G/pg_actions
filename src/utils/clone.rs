@@ -42,7 +42,7 @@ pub struct CloneArgs {
     #[arg(long, env)]
     pg_hostname2: Option<String>,
     /// Optional new port
-    #[arg(long, env)]
+    #[arg(long, env, default_value = "5432")]
     pg_port2: Option<u16>,
     /// Optional user for new host
     #[arg(long, env)]

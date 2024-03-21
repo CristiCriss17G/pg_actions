@@ -1,6 +1,9 @@
 use super::general::validate_pg_names;
-use crate::utils::structs::{PGCliError, UserDetails};
-use log::{error, trace};
+use crate::utils::{
+    db::general::postgres_connect,
+    structs::{PGCliError, PostgresCredentials, UserDetails},
+};
+use log::{debug, error, trace};
 use tokio_postgres::Client;
 
 pub async fn check_user_exists(client: &Client, user: &str) -> Result<bool, PGCliError> {
@@ -202,4 +205,223 @@ pub async fn alter_role(
         Ok(r) => Ok(r),
         Err(e) => Err(PGCliError::from(e)),
     }
+}
+
+pub async fn grant_privileges(
+    client: &Client,
+    credentials: &PostgresCredentials,
+    role: &str,
+    database: &str,
+    schema: &str,
+    privileges: &Vec<String>,
+) -> Result<u64, PGCliError> {
+    trace!("Granting privileges to role {}", role);
+    if !validate_pg_names(role) {
+        error!("Invalid role name: {}", role);
+        return Err(PGCliError::Other("Invalid role name".to_string()));
+    }
+
+    if !check_user_exists(&client, role).await? {
+        error!("Role {} does not exist", role);
+        return Err(PGCliError::Other("Role does not exist".to_string()));
+    }
+    let mut res: u64 = 0;
+
+    // TODO: Implement this
+
+    // let global_allowed_privileges = vec!["ALL", "CONNECT", "CREATE"];
+
+    // let mut global_good_privileges = Vec::new();
+
+    // for privilege in privileges {
+    //     if !global_allowed_privileges.contains(&privilege.to_uppercase().as_str()) {
+    //         warn!("Privilege {} not allowed", privilege);
+    //         continue;
+    //     }
+    //     global_good_privileges.push(privilege.to_uppercase());
+    // }
+    // if !global_good_privileges.is_empty() {
+    //     if !global_good_privileges.contains(&"ALL".to_string()) {
+    //         if !global_good_privileges.contains(&"CONNECT".to_string()) {
+    //             global_good_privileges.push("CONNECT".to_string());
+    //         }
+    //     }
+
+    //     let global_statement = format!(
+    //         "GRANT {} ON DATABASE \"{}\" TO \"{}\"",
+    //         global_good_privileges.join(", "),
+    //         database,
+    //         role
+    //     );
+
+    //     match client.execute(&global_statement, &[]).await {
+    //         Ok(r) => res+=r,
+    //         Err(e) => Err(PGCliError::from(e)),
+    //     }
+    // }
+
+    // let db_client = postgres_connect(&credentials, Some(database.to_string())).await?;
+
+    // let schema_allowed_privileges = vec!["ALL", "SELECT", "INSERT", "UPDATE", "DELETE", "TRUNCATE", "REFERENCES", "TRIGGER", "CREATE", "USAGE"];
+
+    // let mut schema_good_privileges = Vec::new();
+
+    // for privilege in privileges {
+    //     if !schema_allowed_privileges.contains(&privilege.to_uppercase().as_str()) {
+    //         warn!("Privilege {} not allowed", privilege);
+    //         continue;
+    //     }
+    //     schema_good_privileges.push(privilege.to_uppercase());
+    // }
+
+    // if !schema_good_privileges.is_empty() {
+    //     if !schema_good_privileges.contains(&"ALL".to_string()) {
+    //         if !schema_good_privileges.contains(&"SELECT".to_string()) {
+    //             schema_good_privileges.push("SELECT".to_string());
+    //         }
+    //     }
+
+    //     let schema_statement = format!(
+    //         "GRANT {} ON SCHEMA \"{}\" TO \"{}\"",
+    //         schema_good_privileges.join(", "),
+    //         schema,
+    //         role
+    //     );
+
+    //     let sequence_statement = format!(
+    //         "GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA \"{}\" TO \"{}\"",
+    //         schema,
+    //         role
+    //     );
+
+    //     match db_client.execute(&schema_statement, &[]).await {
+    //         Ok(r) => res+=r,
+    //         Err(e) => Err(PGCliError::from(e)),
+    //     }
+    // }
+
+    if !privileges.contains(&"ALL".to_string()) {
+        error!("Privilege ALL is required, others not implemented yet");
+        return Err(PGCliError::Other(
+            "Privilege ALL is required, others not implemented yet".to_string(),
+        ));
+    }
+
+    let statement = format!(
+        "GRANT ALL PRIVILEGES ON DATABASE \"{}\" TO \"{}\"",
+        database, role
+    );
+
+    match client.execute(&statement, &[]).await {
+        Ok(r) => res += r,
+        Err(e) => return Err(PGCliError::from(e)),
+    };
+
+    let db_client = postgres_connect(&credentials, Some(database.to_string())).await?;
+
+    let schema_statement = format!(
+        "GRANT ALL PRIVILEGES ON SCHEMA \"{}\" TO \"{}\"",
+        schema, role
+    );
+    let table_statement = format!(
+        "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA \"{}\" TO \"{}\"",
+        schema, role
+    );
+    let sequence_statement = format!(
+        "GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA \"{}\" TO \"{}\"",
+        schema, role
+    );
+
+    match db_client.execute(&schema_statement, &[]).await {
+        Ok(r) => res += r,
+        Err(e) => return Err(PGCliError::from(e)),
+    };
+
+    match db_client.execute(&table_statement, &[]).await {
+        Ok(r) => res += r,
+        Err(e) => return Err(PGCliError::from(e)),
+    };
+
+    match db_client.execute(&sequence_statement, &[]).await {
+        Ok(r) => res += r,
+        Err(e) => return Err(PGCliError::from(e)),
+    };
+
+    debug!("Privileges granted to role {}", role);
+
+    Ok(res)
+}
+
+pub async fn revoke_privileges(
+    client: &Client,
+    credentials: &PostgresCredentials,
+    role: &str,
+    database: &str,
+    schema: &str,
+    privileges: &Vec<String>,
+) -> Result<u64, PGCliError> {
+    trace!("Revoking privileges from role {}", role);
+    if !validate_pg_names(role) {
+        error!("Invalid role name: {}", role);
+        return Err(PGCliError::Other("Invalid role name".to_string()));
+    }
+
+    if !check_user_exists(&client, role).await? {
+        error!("Role {} does not exist", role);
+        return Err(PGCliError::Other("Role does not exist".to_string()));
+    }
+    let mut res: u64 = 0;
+
+    if !privileges.contains(&"ALL".to_string()) {
+        error!("Privilege ALL is required, others not implemented yet");
+        return Err(PGCliError::Other(
+            "Privilege ALL is required, others not implemented yet".to_string(),
+        ));
+    }
+
+    let db_client = postgres_connect(&credentials, Some(database.to_string())).await?;
+
+    let schema_statement = format!(
+        "REVOKE ALL PRIVILEGES ON SCHEMA \"{}\" FROM \"{}\"",
+        schema, role
+    );
+
+    let table_statement = format!(
+        "REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA \"{}\" FROM \"{}\"",
+        schema, role
+    );
+
+    let sequence_statement = format!(
+        "REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA \"{}\" FROM \"{}\"",
+        schema, role
+    );
+
+    match db_client.execute(&schema_statement, &[]).await {
+        Ok(r) => res += r,
+        Err(e) => return Err(PGCliError::from(e)),
+    };
+
+    match db_client.execute(&table_statement, &[]).await {
+        Ok(r) => res += r,
+        Err(e) => return Err(PGCliError::from(e)),
+    };
+
+    match db_client.execute(&sequence_statement, &[]).await {
+        Ok(r) => res += r,
+        Err(e) => return Err(PGCliError::from(e)),
+    };
+
+    let statement = format!(
+        "REVOKE ALL PRIVILEGES ON DATABASE \"{}\" FROM \"{}\"",
+        database, role
+    );
+
+    match client.execute(&statement, &[]).await {
+        Ok(r) => res += r,
+        Err(e) => return Err(PGCliError::from(e)),
+    };
+
+    debug!("Privileges revoked from role {}", role);
+
+    Ok(res)
 }
