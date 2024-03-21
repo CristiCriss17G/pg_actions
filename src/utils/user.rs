@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 
 use super::db::general::postgres_connect;
-use super::db::user::{alter_role, create_role, delete_role, list_roles};
+use super::db::user::{
+    alter_role, create_role, delete_role, grant_privileges, list_roles, revoke_privileges,
+};
 use super::structs::{PGCliError, PostgresCredentials, UserDetails};
 use clap::{Args, Subcommand};
 use log::{debug, error, info, trace};
@@ -67,6 +69,34 @@ pub enum UserSubCommands {
         /// role with no login
         #[arg(short, long)]
         no_login: Option<bool>,
+    },
+    /// Grant privileges to a user
+    Grant {
+        /// username
+        username: String,
+        /// database
+        #[arg(short, long)]
+        database: String,
+        /// schema
+        #[arg(long)]
+        schema: String,
+        /// privileges
+        #[arg(short = 'g', long)]
+        privileges: Vec<String>,
+    },
+    /// Revoke privileges from a user
+    Revoke {
+        /// username
+        username: String,
+        /// database
+        #[arg(short, long)]
+        database: String,
+        /// schema
+        #[arg(long)]
+        schema: String,
+        /// privileges
+        #[arg(short = 'g', long)]
+        privileges: Vec<String>,
     },
 }
 
@@ -197,6 +227,56 @@ pub async fn user(
         }
         None => {
             error!("No subcommand provided");
+        }
+        Some(UserSubCommands::Grant {
+            username,
+            database,
+            schema,
+            privileges,
+        }) => {
+            info!(
+                "Grant privileges: username: {}, database: {}, schema: {}, privileges: {:?}",
+                username, database, schema, privileges
+            );
+            debug!(
+                "Grant privileges: username: {}, database: {}, schema: {}, privileges: {:?}",
+                username, database, schema, privileges
+            );
+            grant_privileges(
+                &client,
+                main_credentials,
+                username,
+                database,
+                schema,
+                privileges,
+            )
+            .await?;
+            info!("Privileges granted successfully")
+        }
+        Some(UserSubCommands::Revoke {
+            username,
+            database,
+            schema,
+            privileges,
+        }) => {
+            info!(
+                "Revoke privileges: username: {}, database: {}, schema: {}, privileges: {:?}",
+                username, database, schema, privileges
+            );
+            debug!(
+                "Revoke privileges: username: {}, database: {}, schema: {}, privileges: {:?}",
+                username, database, schema, privileges
+            );
+            revoke_privileges(
+                &client,
+                main_credentials,
+                username,
+                database,
+                schema,
+                privileges,
+            )
+            .await?;
+            info!("Privileges revoked successfully")
         }
     }
 
