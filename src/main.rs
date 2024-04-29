@@ -1,16 +1,18 @@
 mod utils;
 
-use clap::{Parser, Subcommand};
+use clap::{Command, CommandFactory, Parser, Subcommand};
+use clap_complete::{generate, Generator, Shell};
 use env_logger::{Builder, Env};
-use log::{error, info, trace, LevelFilter};
+use log::{debug, error, info, trace, LevelFilter};
 use rpassword::prompt_password;
 use std::collections::HashMap;
+use std::io;
 use std::io::Write;
 use utils::db::general::try_read_pgpass;
-use utils::structs::{PGCliError, PostgresCredentials,S3Credentials};
+use utils::structs::{PGCliError, PostgresCredentials, S3Credentials};
 use utils::{backup, clone, database, user};
 
-#[derive(Parser)]
+#[derive(Parser, Debug, PartialEq)]
 #[command(author, version, about, long_about = None)]
 /// A simple CLI tool for managing Postgres databases
 struct Cli {
@@ -89,7 +91,7 @@ struct Cli {
     command: Option<Commands>,
 }
 
-#[derive(Subcommand)]
+#[derive(Subcommand, Debug, PartialEq)]
 enum Commands {
     /// Clone a database
     Clone(clone::CloneArgs),
@@ -99,6 +101,16 @@ enum Commands {
     User(user::UserArgs),
     /// Database operations
     Database(database::DatabaseArgs),
+    /// Generate shell completions
+    Generate {
+        /// The shell to generate the script for
+        #[arg(value_enum)]
+        shell: Shell,
+    },
+}
+
+fn print_completions<G: Generator>(gen: G, cmd: &mut Command) {
+    generate(gen, cmd, cmd.get_name().to_string(), &mut io::stdout());
 }
 
 #[tokio::main]
@@ -233,6 +245,10 @@ async fn main() -> Result<(), PGCliError> {
                     return Err(e);
                 }
             }
+        }
+        Some(Commands::Generate { shell }) => {
+            debug!("Generating completions for {:?}", shell);
+            print_completions(*shell, &mut Cli::command());
         }
         None => {}
     }

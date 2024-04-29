@@ -13,7 +13,7 @@ use log::{debug, error, info};
 
 use super::structs::PGCliError;
 
-#[derive(Args)]
+#[derive(Args, Debug, PartialEq)]
 pub struct CloneArgs {
     /// database to clone
     #[arg(short, long)]

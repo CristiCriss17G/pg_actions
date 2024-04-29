@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-ARG RUST_VERSION=1.76.0
+ARG RUST_VERSION=1.77
 ARG ALPINE_VERSION=3.19
 ARG APP_NAME=postgres-db-actions
 

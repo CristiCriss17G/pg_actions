@@ -9,14 +9,14 @@ use clap::{Args, Subcommand};
 use log::{debug, error, info, trace};
 use prettytable::{row, Table};
 
-#[derive(Args)]
+#[derive(Args, Debug, PartialEq)]
 pub struct DatabaseArgs {
     /// action subcommand
     #[command(subcommand)]
     subcommand: Option<DatabaseSubCommands>,
 }
 
-#[derive(Subcommand)]
+#[derive(Subcommand, Debug, PartialEq)]
 pub enum DatabaseSubCommands {
     /// List databases
     List {
