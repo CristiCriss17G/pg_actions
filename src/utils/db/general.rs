@@ -1,12 +1,14 @@
 use crate::utils::misc::{ensure_file_path_exists, open_file_path_in_write_mode};
 use crate::utils::structs::{PGCliError, PostgresCredentials};
 use log::{debug, error, info};
+use native_tls::TlsConnector;
+use postgres_native_tls::MakeTlsConnector;
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader};
 use std::process::{Command, Stdio};
 use tokio::io::AsyncWriteExt;
 use tokio::task;
-use tokio_postgres::{Client, NoTls};
+use tokio_postgres::Client;
 
 pub(super) fn validate_pg_names(name: &str) -> bool {
     name.chars()
@@ -98,6 +100,10 @@ pub async fn try_read_pgpass() -> HashMap<String, PostgresCredentials> {
 
     for line in lines {
         let mut parts = line.trim().split(':');
+        if parts.clone().count() != 5 {
+            error!("Invalid .pgpass line: {}", line);
+            continue;
+        }
         let hostname = parts.next().expect("Failed to read hostname");
         let port = parts
             .next()
@@ -126,6 +132,12 @@ pub async fn postgres_connect(
     credentials: &PostgresCredentials,
     db: Option<String>,
 ) -> Result<Client, PGCliError> {
+    let tls = TlsConnector::builder()
+        .danger_accept_invalid_certs(true) // Allows self-signed certificates
+        .build()
+        .map_err(|e| PGCliError::ConnectionError(e.to_string()))?;
+    let connector = MakeTlsConnector::new(tls);
+
     let (client, connection) = tokio_postgres::connect(
         &format!(
             "host={} port={} user={} password='{}' dbname={}",
@@ -135,7 +147,7 @@ pub async fn postgres_connect(
             credentials.pg_password,
             db.unwrap_or("postgres".to_string())
         ),
-        NoTls,
+        connector,
     )
     .await?;
 

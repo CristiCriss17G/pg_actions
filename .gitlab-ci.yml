@@ -110,3 +110,29 @@ build-manual:
       - $TAGS
   rules:
     - if: $CI_COMMIT_BRANCH != "main" && $CI_COMMIT_BRANCH != "dev"
+
+compile:
+  stage: build
+  dependencies:
+    - prepare
+  image:
+    name: rust:${RUST_VERSION}-alpine${ALPINE_VERSION}
+  tags:
+    - ivfhq
+  interruptible: true
+  cache: {}
+  variables:
+    APP_NAME: postgres-db-actions
+  before_script:
+    - echo "Building ..."
+    - path=$(pwd)
+    - apk update && apk upgrade --no-cache && apk add --no-cache build-base clang lld musl-dev git file pkgconfig openssl-dev libcrypto3 libssl3 openssl-libs-static postgresql16-client
+  script:
+    - cargo fetch --locked
+    - cargo build --locked --release --target-dir ./target
+  artifacts:
+    paths:
+      - target/release/$APP_NAME
+    expire_in: 1 week
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "dev"

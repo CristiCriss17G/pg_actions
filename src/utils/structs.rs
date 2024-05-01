@@ -81,6 +81,8 @@ pub enum PGCliError {
     RusotoUploadPartError(#[from] RusotoError<UploadPartError>),
     #[error("Rusoto CompleteMultipartUploadError Error: {0}")]
     RusotoCompleteMultipartUploadError(#[from] RusotoError<CompleteMultipartUploadError>),
+    #[error("ConnectionError: {0}")]
+    ConnectionError(String),
     #[error("Error: {0}")]
     Other(String),
 }

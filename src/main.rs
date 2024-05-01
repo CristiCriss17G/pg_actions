@@ -102,7 +102,7 @@ enum Commands {
     /// Database operations
     Database(database::DatabaseArgs),
     /// Generate shell completions
-    Generate {
+    Completions {
         /// The shell to generate the script for
         #[arg(value_enum)]
         shell: Shell,
@@ -246,7 +246,7 @@ async fn main() -> Result<(), PGCliError> {
                 }
             }
         }
-        Some(Commands::Generate { shell }) => {
+        Some(Commands::Completions { shell }) => {
             debug!("Generating completions for {:?}", shell);
             print_completions(*shell, &mut Cli::command());
         }

@@ -5,6 +5,11 @@ edition = "2021"
 authors = ['Cristian Iordachescu <cristian.iordachescu@ivfuture.uk>']
 rust-version = "1.77"
 
+[profile.release]
+debug = false # This strips the debug information
+lto = true
+opt-level = 3 # Optimize for minimal binary size
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
@@ -14,6 +19,8 @@ clap_complete = "4.5.2"
 dirs-next = "2.0.0"
 env_logger = "0.11.3"
 log = "0.4.21"
+native-tls = "0.2.11"
+postgres-native-tls = "0.5.0"
 prettytable-rs = "0.10.0"
 rand = "0.8.5"
 rpassword = "7.3.1"
