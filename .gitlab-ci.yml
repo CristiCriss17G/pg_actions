@@ -116,7 +116,7 @@ compile:
   dependencies:
     - prepare
   image:
-    name: rust:${RUST_VERSION}-alpine${ALPINE_VERSION}
+    name: rust:${RUST_VERSION}
   tags:
     - ivfhq
   interruptible: true
@@ -126,7 +126,10 @@ compile:
   before_script:
     - echo "Building ..."
     - path=$(pwd)
-    - apk update && apk upgrade --no-cache && apk add --no-cache build-base clang lld musl-dev git file pkgconfig openssl-dev libcrypto3 libssl3 openssl-libs-static postgresql16-client
+    - apt update && apt upgrade -y && apt install -y clang lld nala build-essential sudo wget
+    - wget -qO - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /usr/share/keyrings/postgresql-archive-keyring.gpg
+    - echo "deb [signed-by=/usr/share/keyrings/postgresql-archive-keyring.gpg] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+    - apt update && apt install -y postgresql-client
   script:
     - cargo fetch --locked
     - cargo build --locked --release --target-dir ./target

@@ -25,7 +25,7 @@ pub struct CloneArgs {
     #[arg(long)]
     overwrite: bool,
     /// owner user for db
-    #[arg(short = 'o', long)]
+    #[arg(short = 'o', long, default_value = "postgres")]
     new_owner: String,
     /// create the new owner user
     #[arg(short, long)]

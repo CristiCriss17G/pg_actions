@@ -6,7 +6,7 @@ use std::str::FromStr;
 use thiserror::Error;
 use tokio::task::JoinError;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct PostgresCredentials {
     pub pg_hostname: String,
     pub pg_superuser: String,
