@@ -31,9 +31,41 @@ pub async fn list_roles(
         false => "rolname",
     };
     let rows = match sort {
-        Some(SortingOrder::Ascending) => client.query(&format!("SELECT {fields} FROM pg_roles WHERE rolname NOT IN ({ignored_roles}) ORDER BY rolname ASC"), &[]).await?,
-        Some(SortingOrder::Descending) => client.query(&format!("SELECT {fields} FROM pg_roles WHERE rolname NOT IN ({ignored_roles}) ORDER BY rolname DESC"), &[]).await?,
-        None => client.query(&format!("SELECT {fields} FROM pg_roles WHERE rolname NOT IN ({ignored_roles})"), &[]).await?,
+        Some(SortingOrder::Ascending) => {
+            client
+                .query(
+                    &format!(
+                        "SELECT {fields} FROM pg_roles \
+        WHERE rolname NOT IN ({ignored_roles}) \
+        ORDER BY rolname ASC"
+                    ),
+                    &[],
+                )
+                .await?
+        }
+        Some(SortingOrder::Descending) => {
+            client
+                .query(
+                    &format!(
+                        "SELECT {fields} FROM pg_roles \
+        WHERE rolname NOT IN ({ignored_roles}) \
+        ORDER BY rolname DESC"
+                    ),
+                    &[],
+                )
+                .await?
+        }
+        None => {
+            client
+                .query(
+                    &format!(
+                        "SELECT {fields} FROM pg_roles \
+        WHERE rolname NOT IN ({ignored_roles})"
+                    ),
+                    &[],
+                )
+                .await?
+        }
     };
 
     let mut roles = Vec::new();

@@ -26,9 +26,47 @@ pub async fn list_databases(
         false => "d.datname",
     };
     let rows = match sort {
-        Some(SortingOrder::Ascending) => client.query(&format!("SELECT {fields} FROM pg_database d LEFT JOIN pg_roles r ON d.datdba = r.oid WHERE d.datistemplate = false AND d.datname NOT IN ({ignored_databases}) ORDER BY d.datname ASC"), &[]).await?,
-        Some(SortingOrder::Descending) => client.query(&format!("SELECT {fields} FROM pg_database d LEFT JOIN pg_roles r ON d.datdba = r.oid WHERE d.datistemplate = false AND d.datname NOT IN ({ignored_databases}) ORDER BY d.datname DESC"), &[]).await?,
-        None => client.query(&format!("SELECT {fields} FROM pg_database d LEFT JOIN pg_roles r ON d.datdba = r.oid WHERE d.datistemplate = false AND d.datname NOT IN ({ignored_databases})"), &[]).await?,
+        Some(SortingOrder::Ascending) => {
+            client
+                .query(
+                    &format!(
+                        "SELECT {fields} FROM pg_database d \
+        LEFT JOIN pg_roles r ON d.datdba = r.oid \
+        WHERE d.datistemplate = false \
+        AND d.datname NOT IN ({ignored_databases}) \
+        ORDER BY d.datname ASC"
+                    ),
+                    &[],
+                )
+                .await?
+        }
+        Some(SortingOrder::Descending) => {
+            client
+                .query(
+                    &format!(
+                        "SELECT {fields} FROM pg_database d \
+        LEFT JOIN pg_roles r ON d.datdba = r.oid \
+        WHERE d.datistemplate = false \
+        AND d.datname NOT IN ({ignored_databases}) \
+        ORDER BY d.datname DESC"
+                    ),
+                    &[],
+                )
+                .await?
+        }
+        None => {
+            client
+                .query(
+                    &format!(
+                        "SELECT {fields} FROM pg_database d \
+        LEFT JOIN pg_roles r ON d.datdba = r.oid \
+        WHERE d.datistemplate = false \
+        AND d.datname NOT IN ({ignored_databases})"
+                    ),
+                    &[],
+                )
+                .await?
+        }
     };
 
     let mut databases = Vec::new();
