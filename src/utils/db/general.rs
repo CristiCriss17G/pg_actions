@@ -1,12 +1,14 @@
 use crate::utils::misc::{ensure_file_path_exists, open_file_path_in_write_mode};
 use crate::utils::structs::{PGCliError, PostgresCredentials};
-use log::{debug, error, info};
-use std::collections::HashMap;
+use log::{debug, error, info, trace};
+use native_tls::TlsConnector;
+use postgres_native_tls::MakeTlsConnector;
+use std::collections::{HashMap, HashSet};
 use std::io::{BufRead, BufReader};
 use std::process::{Command, Stdio};
 use tokio::io::AsyncWriteExt;
 use tokio::task;
-use tokio_postgres::{Client, NoTls};
+use tokio_postgres::Client;
 
 pub(super) fn validate_pg_names(name: &str) -> bool {
     name.chars()
@@ -14,7 +16,7 @@ pub(super) fn validate_pg_names(name: &str) -> bool {
 }
 
 fn compare_pgpass_credentials(
-    credentials: &Vec<PostgresCredentials>,
+    credentials: &Vec<&PostgresCredentials>,
     pgpass: &PostgresCredentials,
 ) -> bool {
     credentials.iter().any(|c| {
@@ -30,6 +32,8 @@ pub async fn init_pgpass(credentials: &Vec<PostgresCredentials>) -> Result<(), P
     let home = dirs_next::home_dir().expect("Home directory not found");
     let pgpass_file = home.join(".pgpass");
 
+    let mut credentials = credentials.clone();
+
     if pgpass_file.exists() {
         debug!("pgpass file already exists");
         let pgpass = try_read_pgpass().await;
@@ -38,16 +42,23 @@ pub async fn init_pgpass(credentials: &Vec<PostgresCredentials>) -> Result<(), P
             debug!("pgpass file is empty");
         } else {
             let mut valid = true;
-            for (_, value) in pgpass.iter() {
-                if !compare_pgpass_credentials(credentials, value) {
-                    debug!("pgpass file already contains some good credentials");
+            let pgpass_values = pgpass.values().collect();
+            for value in credentials.iter() {
+                trace!("Checking pgpass line: {:?}", value);
+                if !compare_pgpass_credentials(&pgpass_values, value) {
+                    debug!("pgpass does not contain all the good credentials");
                     valid = false;
+                    break;
                 }
             }
             if valid {
                 debug!("pgpass file already contains the credentials");
                 return Ok(());
             }
+            let mut credentials_set: HashSet<_> = credentials.iter().collect();
+            credentials_set.extend(pgpass_values);
+            trace!("Merging credentials {:?}", credentials_set);
+            credentials = credentials_set.into_iter().cloned().collect();
         }
     }
 
@@ -62,13 +73,14 @@ pub async fn init_pgpass(credentials: &Vec<PostgresCredentials>) -> Result<(), P
         );
 
         match file.write_all(pgpass_line.as_bytes()).await {
-            Ok(_) => debug!("pgpass written line {}", i),
+            Ok(_) => trace!("pgpass written line {}", i),
             Err(e) => {
                 error!("Failed to write to pgpass file: {}", e);
                 return Err(PGCliError::Io(e));
             }
         }
     }
+    debug!("pgpass file written");
 
     Ok(())
 }
@@ -98,6 +110,10 @@ pub async fn try_read_pgpass() -> HashMap<String, PostgresCredentials> {
 
     for line in lines {
         let mut parts = line.trim().split(':');
+        if parts.clone().count() != 5 {
+            error!("Invalid .pgpass line: {}", line);
+            continue;
+        }
         let hostname = parts.next().expect("Failed to read hostname");
         let port = parts
             .next()
@@ -126,6 +142,12 @@ pub async fn postgres_connect(
     credentials: &PostgresCredentials,
     db: Option<String>,
 ) -> Result<Client, PGCliError> {
+    let tls = TlsConnector::builder()
+        .danger_accept_invalid_certs(true) // Allows self-signed certificates
+        .build()
+        .map_err(|e| PGCliError::ConnectionError(e.to_string()))?;
+    let connector = MakeTlsConnector::new(tls);
+
     let (client, connection) = tokio_postgres::connect(
         &format!(
             "host={} port={} user={} password='{}' dbname={}",
@@ -135,7 +157,7 @@ pub async fn postgres_connect(
             credentials.pg_password,
             db.unwrap_or("postgres".to_string())
         ),
-        NoTls,
+        connector,
     )
     .await?;
 

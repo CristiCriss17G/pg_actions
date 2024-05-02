@@ -1,8 +1,8 @@
 # syntax=docker/dockerfile:1
 
-ARG RUST_VERSION=1.76.0
+ARG RUST_VERSION=1.77
 ARG ALPINE_VERSION=3.19
-ARG APP_NAME=postgres-db-actions
+ARG APP_NAME=pg_actions
 
 ################################################################################
 # Create a stage for building the application.
@@ -29,7 +29,7 @@ ARG APP_NAME
 ENV APP_NAME=${APP_NAME}
 
 LABEL maintainer="Cristian Iordachescu <cristian.iordachescu@ivfuture.uk>"
-LABEL version="0.2.0"
+LABEL version="1.0.0"
 LABEL title="Postgres actions cli"
 LABEL description="This is a Dockerfile for running postgres-db-actions. For more information visit run with --help."
 
@@ -68,4 +68,4 @@ ENV S3_REGION="eu-east-1"
 ENV S3_PREFIX="backups"
 
 # What the container should run when it is started.
-ENTRYPOINT ["/bin/postgres-db-actions"]
+ENTRYPOINT ["/bin/pg_actions"]

@@ -1,5 +1,5 @@
 use super::general::{postgres_connect, validate_pg_names};
-use crate::utils::structs::{DatabaseDetails, PGCliError, PostgresCredentials};
+use crate::utils::structs::{DatabaseDetails, PGCliError, PostgresCredentials, SortingOrder};
 use log::{debug, error, trace};
 use tokio_postgres::{Client, Error};
 
@@ -17,23 +17,56 @@ pub async fn check_database_exists(client: &Client, db: &str) -> Result<bool, PG
 
 pub async fn list_databases(
     client: &Client,
-    sort: &Option<String>,
+    sort: &Option<SortingOrder>,
     extra: bool,
 ) -> Result<Vec<DatabaseDetails>, PGCliError> {
-    let ignored_databases = "'postgres','template0','template1'";
+    let ignored_databases = "'template0','template1'";
     let fields = match extra {
         true => "d.datname, d.oid, r.rolname",
         false => "d.datname",
     };
     let rows = match sort {
-        Some(sort) => {
-            match sort.as_str() {
-                "asc" => client.query(&format!("SELECT {fields} FROM pg_database d LEFT JOIN pg_roles r ON d.datdba = r.oid WHERE d.datistemplate = false AND d.datname NOT IN ({ignored_databases}) ORDER BY d.datname ASC"), &[]).await?,
-                "desc" => client.query(&format!("SELECT {fields} FROM pg_database d LEFT JOIN pg_roles r ON d.datdba = r.oid WHERE d.datistemplate = false AND d.datname NOT IN ({ignored_databases}) ORDER BY d.datname DESC"), &[]).await?,
-                _ => client.query(&format!("SELECT {fields} FROM pg_database d LEFT JOIN pg_roles r ON d.datdba = r.oid WHERE d.datistemplate = false AND d.datname NOT IN ({ignored_databases})"), &[]).await?,
-            }
-        },
-        None => client.query(&format!("SELECT {fields} FROM pg_database d LEFT JOIN pg_roles r ON d.datdba = r.oid WHERE d.datistemplate = false AND d.datname NOT IN ({ignored_databases})"), &[]).await?,
+        Some(SortingOrder::Ascending) => {
+            client
+                .query(
+                    &format!(
+                        "SELECT {fields} FROM pg_database d \
+        LEFT JOIN pg_roles r ON d.datdba = r.oid \
+        WHERE d.datistemplate = false \
+        AND d.datname NOT IN ({ignored_databases}) \
+        ORDER BY d.datname ASC"
+                    ),
+                    &[],
+                )
+                .await?
+        }
+        Some(SortingOrder::Descending) => {
+            client
+                .query(
+                    &format!(
+                        "SELECT {fields} FROM pg_database d \
+        LEFT JOIN pg_roles r ON d.datdba = r.oid \
+        WHERE d.datistemplate = false \
+        AND d.datname NOT IN ({ignored_databases}) \
+        ORDER BY d.datname DESC"
+                    ),
+                    &[],
+                )
+                .await?
+        }
+        None => {
+            client
+                .query(
+                    &format!(
+                        "SELECT {fields} FROM pg_database d \
+        LEFT JOIN pg_roles r ON d.datdba = r.oid \
+        WHERE d.datistemplate = false \
+        AND d.datname NOT IN ({ignored_databases})"
+                    ),
+                    &[],
+                )
+                .await?
+        }
     };
 
     let mut databases = Vec::new();

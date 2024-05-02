@@ -2,6 +2,7 @@ stages:
   - checks
   - prepare-build
   - build
+  - release
 
 variables:
   SERVICE_NAME: "tools/postgres-db-actions"
@@ -10,6 +11,7 @@ variables:
   TAGS: ./tags.txt
   KANIKO_IMAGE: gcr.io/kaniko-project/executor:debug
   DOCKER_CONFIG: /kaniko/.docker/
+  APP_NAME: pg_actions
 
 sonarqube-check:
   stage: checks
@@ -110,3 +112,49 @@ build-manual:
       - $TAGS
   rules:
     - if: $CI_COMMIT_BRANCH != "main" && $CI_COMMIT_BRANCH != "dev"
+
+compile:
+  stage: build
+  dependencies:
+    - prepare
+  image:
+    name: rust:${RUST_VERSION}
+  tags:
+    - ivfhq
+  interruptible: true
+  cache: {}
+  before_script:
+    - echo "Building ..."
+    - path=$(pwd)
+    - apt update && apt upgrade -y && apt install -y clang lld nala build-essential sudo wget
+    - wget -qO - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /usr/share/keyrings/postgresql-archive-keyring.gpg
+    - echo "deb [signed-by=/usr/share/keyrings/postgresql-archive-keyring.gpg] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+    - apt update && apt install -y postgresql-client
+  script:
+    - cargo fetch --locked
+    - cargo build --locked --release --target-dir ./target
+    - cp target/release/$APP_NAME $CI_PROJECT_DIR
+  artifacts:
+    paths:
+      - $APP_NAME
+    expire_in: 1 week
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "dev"
+
+create_release:
+  stage: release
+  image: alpine:latest # Any lightweight image that has 'curl' and 'jq'
+  dependencies:
+    - compile # Ensures this job runs after the compile job
+  script:
+    - apk update && apk upgrade --no-cache && apk add --no-cache curl jq sed git
+    - RELEASE_VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml)
+    - git tag -a "$RELEASE_VERSION" -m "Release version $RELEASE_VERSION"
+    - git push origin "$RELEASE_VERSION"
+    - |
+      curl --header "PRIVATE-TOKEN: $CI_JOB_TOKEN" --upload-file $APP_NAME "https://gitlab.com/api/v4/projects/$CI_PROJECT_ID/uploads"
+      OUTPUT=$(curl --header "PRIVATE-TOKEN: $CI_JOB_TOKEN" "https://gitlab.com/api/v4/projects/$CI_PROJECT_ID/releases")
+      URL=$(echo $OUTPUT | jq -r '.url')
+      curl --request POST --header "PRIVATE-TOKEN: $CI_JOB_TOKEN" --data "name='Release $CI_COMMIT_REF_NAME'" --data "tag_name='$CI_COMMIT_REF_NAME'" --data "description='Download the new release [here]($URL)'" "https://gitlab.com/api/v4/projects/$CI_PROJECT_ID/releases"
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"

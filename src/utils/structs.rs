@@ -1,8 +1,12 @@
+use clap::ValueEnum;
 use rusoto_core::RusotoError;
 use rusoto_s3::{CompleteMultipartUploadError, CreateMultipartUploadError, UploadPartError};
+use std::fmt;
+use std::str::FromStr;
 use thiserror::Error;
 use tokio::task::JoinError;
-#[derive(Debug, Clone)]
+
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct PostgresCredentials {
     pub pg_hostname: String,
     pub pg_superuser: String,
@@ -77,6 +81,8 @@ pub enum PGCliError {
     RusotoUploadPartError(#[from] RusotoError<UploadPartError>),
     #[error("Rusoto CompleteMultipartUploadError Error: {0}")]
     RusotoCompleteMultipartUploadError(#[from] RusotoError<CompleteMultipartUploadError>),
+    #[error("ConnectionError: {0}")]
+    ConnectionError(String),
     #[error("Error: {0}")]
     Other(String),
 }
@@ -101,4 +107,84 @@ pub enum DatabaseDetails {
         oid: u32,
     },
     Name(String),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum UserPrivileges {
+    Full,
+    ReadOnly,
+}
+
+impl FromStr for UserPrivileges {
+    type Err = PGCliError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "full" => Ok(UserPrivileges::Full),
+            "read-only" => Ok(UserPrivileges::ReadOnly),
+            _ => Err(PGCliError::Other(format!("Invalid privilege: {}", s))),
+        }
+    }
+}
+
+impl fmt::Display for UserPrivileges {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            UserPrivileges::Full => write!(f, "full"),
+            UserPrivileges::ReadOnly => write!(f, "read-only"),
+        }
+    }
+}
+
+impl ValueEnum for UserPrivileges {
+    fn value_variants<'a>() -> &'a [Self] {
+        &[UserPrivileges::Full, UserPrivileges::ReadOnly]
+    }
+
+    fn to_possible_value<'a>(&self) -> Option<clap::builder::PossibleValue> {
+        Some(match self {
+            UserPrivileges::Full => clap::builder::PossibleValue::new("full"),
+            UserPrivileges::ReadOnly => clap::builder::PossibleValue::new("read-only"),
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum SortingOrder {
+    Ascending,
+    Descending,
+}
+
+impl FromStr for SortingOrder {
+    type Err = PGCliError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "asc" => Ok(SortingOrder::Ascending),
+            "desc" => Ok(SortingOrder::Descending),
+            _ => Err(PGCliError::Other(format!("Invalid sorting order: {}", s))),
+        }
+    }
+}
+
+impl fmt::Display for SortingOrder {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            SortingOrder::Ascending => write!(f, "asc"),
+            SortingOrder::Descending => write!(f, "desc"),
+        }
+    }
+}
+
+impl ValueEnum for SortingOrder {
+    fn value_variants<'a>() -> &'a [Self] {
+        &[SortingOrder::Ascending, SortingOrder::Descending]
+    }
+
+    fn to_possible_value<'a>(&self) -> Option<clap::builder::PossibleValue> {
+        Some(match self {
+            SortingOrder::Ascending => clap::builder::PossibleValue::new("asc"),
+            SortingOrder::Descending => clap::builder::PossibleValue::new("desc"),
+        })
+    }
 }

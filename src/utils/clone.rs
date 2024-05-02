@@ -13,7 +13,7 @@ use log::{debug, error, info};
 
 use super::structs::PGCliError;
 
-#[derive(Args)]
+#[derive(Args, Debug, PartialEq)]
 pub struct CloneArgs {
     /// database to clone
     #[arg(short, long)]
@@ -25,7 +25,7 @@ pub struct CloneArgs {
     #[arg(long)]
     overwrite: bool,
     /// owner user for db
-    #[arg(short = 'o', long)]
+    #[arg(short = 'o', long, default_value = "postgres")]
     new_owner: String,
     /// create the new owner user
     #[arg(short, long)]

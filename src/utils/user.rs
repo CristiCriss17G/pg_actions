@@ -4,25 +4,25 @@ use super::db::general::postgres_connect;
 use super::db::user::{
     alter_role, create_role, delete_role, grant_privileges, list_roles, revoke_privileges,
 };
-use super::structs::{PGCliError, PostgresCredentials, UserDetails};
+use super::structs::{PGCliError, PostgresCredentials, SortingOrder, UserDetails, UserPrivileges};
 use clap::{Args, Subcommand};
 use log::{debug, error, info, trace};
 use prettytable::{row, Table};
 
-#[derive(Args)]
+#[derive(Args, Debug, PartialEq)]
 pub struct UserArgs {
     /// action subcommand
     #[command(subcommand)]
     subcommand: Option<UserSubCommands>,
 }
 
-#[derive(Subcommand)]
+#[derive(Subcommand, Debug, PartialEq)]
 pub enum UserSubCommands {
     /// List users
     List {
         /// sort by username
-        #[arg(long)]
-        sort: Option<String>,
+        #[arg(long, value_enum)]
+        sort: Option<SortingOrder>,
         ///quite mode
         #[arg(short, long)]
         quiet: bool,
@@ -81,8 +81,9 @@ pub enum UserSubCommands {
         #[arg(long)]
         schema: String,
         /// privileges
-        #[arg(short = 'g', long)]
-        privileges: Vec<String>,
+        /// full or read-only
+        #[arg(short = 'g', long, value_enum)]
+        privileges: UserPrivileges,
     },
     /// Revoke privileges from a user
     Revoke {
@@ -95,8 +96,8 @@ pub enum UserSubCommands {
         #[arg(long)]
         schema: String,
         /// privileges
-        #[arg(short = 'g', long)]
-        privileges: Vec<String>,
+        #[arg(short = 'g', long, value_enum)]
+        privileges: UserPrivileges,
     },
 }
 

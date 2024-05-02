@@ -13,7 +13,7 @@ use std::sync::Arc;
 use tokio::sync::Semaphore;
 use tokio::task;
 
-#[derive(Args)]
+#[derive(Args, Debug, PartialEq)]
 pub struct BackupArgs {
     /// database to backup
     /// defaults to all
