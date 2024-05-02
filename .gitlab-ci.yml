@@ -146,8 +146,14 @@ create_release:
   image: alpine:latest # Any lightweight image that has 'curl' and 'jq'
   dependencies:
     - compile # Ensures this job runs after the compile job
-  script:
+  tags:
+    - ivfhq
+  interruptible: true
+  cache: {}
+  before_script:
+    - echo "Releasing ..."
     - apk update && apk upgrade --no-cache && apk add --no-cache curl jq sed git
+  script:
     - RELEASE_VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml)
     - git tag -a "$RELEASE_VERSION" -m "Release version $RELEASE_VERSION"
     - git push origin "$RELEASE_VERSION"
