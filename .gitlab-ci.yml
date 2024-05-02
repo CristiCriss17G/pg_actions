@@ -154,7 +154,9 @@ create_release:
     - echo "Releasing ..."
     - apk update && apk upgrade --no-cache && apk add --no-cache curl jq sed git
   script:
-    - RELEASE_VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml)
+    - git config --global user.email "$GITLAB_USER_EMAIL"
+    - git config --global user.name "$GITLAB_USER_NAME"
+    - export RELEASE_VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml)
     - git tag -a "$RELEASE_VERSION" -m "Release version $RELEASE_VERSION"
     - git push origin "$RELEASE_VERSION"
     - |
