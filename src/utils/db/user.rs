@@ -1,7 +1,7 @@
 use super::general::validate_pg_names;
 use crate::utils::{
     db::general::postgres_connect,
-    structs::{PGCliError, PostgresCredentials, UserDetails, UserPrivileges},
+    structs::{PGCliError, PostgresCredentials, SortingOrder, UserDetails, UserPrivileges},
 };
 use log::{debug, error, trace};
 use tokio_postgres::Client;
@@ -19,7 +19,7 @@ pub async fn check_user_exists(client: &Client, user: &str) -> Result<bool, PGCl
 
 pub async fn list_roles(
     client: &Client,
-    sort: &Option<String>,
+    sort: &Option<SortingOrder>,
     extra: bool,
 ) -> Result<Vec<UserDetails>, PGCliError> {
     let ignored_roles= "'pg_checkpoint','pg_create_subscription','pg_database_owner','pg_execute_server_program',\
@@ -31,13 +31,8 @@ pub async fn list_roles(
         false => "rolname",
     };
     let rows = match sort {
-        Some(sort) => {
-            match sort.as_str() {
-                "asc" => client.query(&format!("SELECT {fields} FROM pg_roles WHERE rolname NOT IN ({ignored_roles}) ORDER BY rolname ASC"), &[]).await?,
-                "desc" => client.query(&format!("SELECT {fields} FROM pg_roles WHERE rolname NOT IN ({ignored_roles}) ORDER BY rolname DESC"), &[]).await?,
-                _ => client.query(&format!("SELECT {fields} FROM pg_roles WHERE rolname NOT IN ({ignored_roles})"), &[]).await?,
-            }
-        },
+        Some(SortingOrder::Ascending) => client.query(&format!("SELECT {fields} FROM pg_roles WHERE rolname NOT IN ({ignored_roles}) ORDER BY rolname ASC"), &[]).await?,
+        Some(SortingOrder::Descending) => client.query(&format!("SELECT {fields} FROM pg_roles WHERE rolname NOT IN ({ignored_roles}) ORDER BY rolname DESC"), &[]).await?,
         None => client.query(&format!("SELECT {fields} FROM pg_roles WHERE rolname NOT IN ({ignored_roles})"), &[]).await?,
     };
 

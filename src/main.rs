@@ -13,7 +13,7 @@ use utils::structs::{PGCliError, PostgresCredentials, S3Credentials};
 use utils::{backup, clone, database, user};
 
 #[derive(Parser, Debug, PartialEq)]
-#[command(author, version, about, long_about = None)]
+#[command(name = "pg_actions", author, version, about, long_about = None)]
 /// A simple CLI tool for managing Postgres databases
 struct Cli {
     /// Sets Postgres connection URL

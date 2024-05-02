@@ -1,6 +1,6 @@
 [package]
 name = "postgres-db-actions"
-version = "0.3.0"
+version = "1.0.0"
 edition = "2021"
 authors = ['Cristian Iordachescu <cristian.iordachescu@ivfuture.uk>']
 rust-version = "1.77"
@@ -9,6 +9,10 @@ rust-version = "1.77"
 debug = false # This strips the debug information
 lto = true
 opt-level = 3 # Optimize for minimal binary size
+
+[[bin]]
+name = "pg_actions"
+path = "src/main.rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

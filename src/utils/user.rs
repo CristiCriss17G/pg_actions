@@ -4,7 +4,7 @@ use super::db::general::postgres_connect;
 use super::db::user::{
     alter_role, create_role, delete_role, grant_privileges, list_roles, revoke_privileges,
 };
-use super::structs::{PGCliError, PostgresCredentials, UserDetails, UserPrivileges};
+use super::structs::{PGCliError, PostgresCredentials, SortingOrder, UserDetails, UserPrivileges};
 use clap::{Args, Subcommand};
 use log::{debug, error, info, trace};
 use prettytable::{row, Table};
@@ -21,8 +21,8 @@ pub enum UserSubCommands {
     /// List users
     List {
         /// sort by username
-        #[arg(long)]
-        sort: Option<String>,
+        #[arg(long, value_enum)]
+        sort: Option<SortingOrder>,
         ///quite mode
         #[arg(short, long)]
         quiet: bool,

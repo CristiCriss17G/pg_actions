@@ -4,7 +4,7 @@ use super::db::database::{
     change_whole_owner_of_db, create_db, delete_db, kill_connections_to_db, list_databases,
 };
 use super::db::general::postgres_connect;
-use super::structs::{DatabaseDetails, PGCliError, PostgresCredentials};
+use super::structs::{DatabaseDetails, PGCliError, PostgresCredentials, SortingOrder};
 use clap::{Args, Subcommand};
 use log::{debug, error, info, trace};
 use prettytable::{row, Table};
@@ -21,8 +21,8 @@ pub enum DatabaseSubCommands {
     /// List databases
     List {
         /// sort by database name
-        #[arg(long)]
-        sort: Option<String>,
+        #[arg(long, value_enum)]
+        sort: Option<SortingOrder>,
         /// quite mode
         #[arg(short, long)]
         quiet: bool,

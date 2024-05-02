@@ -148,3 +148,43 @@ impl ValueEnum for UserPrivileges {
         })
     }
 }
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum SortingOrder {
+    Ascending,
+    Descending,
+}
+
+impl FromStr for SortingOrder {
+    type Err = PGCliError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "asc" => Ok(SortingOrder::Ascending),
+            "desc" => Ok(SortingOrder::Descending),
+            _ => Err(PGCliError::Other(format!("Invalid sorting order: {}", s))),
+        }
+    }
+}
+
+impl fmt::Display for SortingOrder {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            SortingOrder::Ascending => write!(f, "asc"),
+            SortingOrder::Descending => write!(f, "desc"),
+        }
+    }
+}
+
+impl ValueEnum for SortingOrder {
+    fn value_variants<'a>() -> &'a [Self] {
+        &[SortingOrder::Ascending, SortingOrder::Descending]
+    }
+
+    fn to_possible_value<'a>(&self) -> Option<clap::builder::PossibleValue> {
+        Some(match self {
+            SortingOrder::Ascending => clap::builder::PossibleValue::new("asc"),
+            SortingOrder::Descending => clap::builder::PossibleValue::new("desc"),
+        })
+    }
+}

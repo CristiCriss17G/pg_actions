@@ -1,5 +1,9 @@
 # Postgres database actions
 
+[![pipeline status](https://gitlab.com/iv_future/infrastructure/docker-tools/postgres-db-actions/badges/main/pipeline.svg)](https://gitlab.com/iv_future/infrastructure/docker-tools/postgres-db-actions/-/commits/main)
+
+[![Latest Release](https://gitlab.com/iv_future/infrastructure/docker-tools/postgres-db-actions/-/badges/release.svg)](https://gitlab.com/iv_future/infrastructure/docker-tools/postgres-db-actions/-/releases)
+
 ## Description
 
 This script is used to perform various actions on a postgres server.
