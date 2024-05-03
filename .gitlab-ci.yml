@@ -134,68 +134,43 @@ compile:
     - cargo fetch --locked
     - cargo build --locked --release --target-dir ./target
     - cp target/release/$APP_NAME $CI_PROJECT_DIR
-    - mkdir -p artifacts && echo "JOB_ID=$CI_JOB_ID" > artifacts/job.env
+    - echo "JOB_ID=$CI_JOB_ID" > variables.env && echo "RELEASE_VERSION=v$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml)" >> variables.env
   after_script:
-    - cat artifacts/job.env # Debug: Check the content of job.env
+    - cat variables.env # Debug: Check the content of job.env
   artifacts:
     paths:
       - $APP_NAME
-      - artifacts/
     expire_in: 1 year
     reports:
-      dotenv: artifacts/job.env # Specify the path to the job.env file
+      dotenv: variables.env # Specify the path to the job.env file
   rules:
     - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "dev"
-
-create_tag:
-  stage: release
-  image: alpine:latest # Any lightweight image that has 'curl' and 'jq'
-  dependencies:
-    - compile # Ensures this job runs after the compile job
-  tags:
-    - ivfhq
-  interruptible: true
-  cache: {}
-  before_script:
-    - echo "Releasing ..."
-    - apk update && apk upgrade --no-cache && apk add --no-cache curl jq sed git
-  script:
-    - git config --global user.email "$GITLAB_USER_EMAIL"
-    - git config --global user.name "$GITLAB_USER_NAME"
-    - git remote set-url origin "https://gitlab.com:$GITLAB_TOKEN@gitlab.com/$CI_PROJECT_PATH.git"
-    - export RELEASE_VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml)
-    - |
-      if git rev-parse "$RELEASE_VERSION" >/dev/null 2>&1; then
-        echo "Tag $RELEASE_VERSION already exists. Skipping tag creation."
-      else
-        git tag -a "$RELEASE_VERSION" -m "Release version $RELEASE_VERSION"
-        git push origin "$RELEASE_VERSION"
-      fi
-  rules:
-    - if: $CI_COMMIT_BRANCH == "main"
 
 create_release:
   stage: release
   image: registry.gitlab.com/gitlab-org/release-cli:latest
   dependencies:
     - compile
+  needs:
+    - job: compile
+      artifacts: true
   tags:
     - ivfhq
   interruptible: true
   cache: {}
   before_script:
     - echo "Releasing ..."
-    - export RELEASE_VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml)
   script:
-    - export JOB_ID=$(cat artifacts/job.env) # Read JOB_ID from job.env
+    - echo $RELEASE_VERSION
     - echo $JOB_ID
   release:
-    name: "Version $RELEASE_VERSION"
+    name: "Release $RELEASE_VERSION"
     tag_name: "$RELEASE_VERSION"
     description: "Release created using the release-cli. Release '$RELEASE_VERSION'" # Use double quotes for variable interpolation
+    ref: "$CI_COMMIT_SHA"
     assets:
       links:
         - name: "$APP_NAME"
-          url: "$CI_SERVER_URL/$CI_PROJECT_PATH/-/jobs/$JOB_ID/artifacts/file/$APP_NAME"
+          url: "$CI_SERVER_URL/$CI_PROJECT_PATH/-/jobs/$JOB_ID/artifacts/raw/$APP_NAME"
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
