@@ -134,14 +134,20 @@ compile:
     - cargo fetch --locked
     - cargo build --locked --release --target-dir ./target
     - cp target/release/$APP_NAME $CI_PROJECT_DIR
+    - mkdir -p artifacts && echo "JOB_ID=$CI_JOB_ID" > artifacts/job.env
+  after_script:
+    - cat artifacts/job.env # Debug: Check the content of job.env
   artifacts:
     paths:
       - $APP_NAME
-    expire_in: 1 week
+      - artifacts/
+    expire_in: 1 year
+    reports:
+      dotenv: artifacts/job.env # Specify the path to the job.env file
   rules:
     - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "dev"
 
-create_release:
+create_tag:
   stage: release
   image: alpine:latest # Any lightweight image that has 'curl' and 'jq'
   dependencies:
@@ -158,12 +164,38 @@ create_release:
     - git config --global user.name "$GITLAB_USER_NAME"
     - git remote set-url origin "https://gitlab.com:$GITLAB_TOKEN@gitlab.com/$CI_PROJECT_PATH.git"
     - export RELEASE_VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml)
-    - git tag -a "$RELEASE_VERSION" -m "Release version $RELEASE_VERSION"
-    - git push origin "$RELEASE_VERSION"
     - |
-      curl --header "PRIVATE-TOKEN: $CI_JOB_TOKEN" --upload-file $APP_NAME "https://gitlab.com/api/v4/projects/$CI_PROJECT_ID/uploads"
-      OUTPUT=$(curl --header "PRIVATE-TOKEN: $CI_JOB_TOKEN" "https://gitlab.com/api/v4/projects/$CI_PROJECT_ID/releases")
-      URL=$(echo $OUTPUT | jq -r '.url')
-      curl --request POST --header "PRIVATE-TOKEN: $CI_JOB_TOKEN" --data "name='Release $CI_COMMIT_REF_NAME'" --data "tag_name='$CI_COMMIT_REF_NAME'" --data "description='Download the new release [here]($URL)'" "https://gitlab.com/api/v4/projects/$CI_PROJECT_ID/releases"
+      if git rev-parse "$RELEASE_VERSION" >/dev/null 2>&1; then
+        echo "Tag $RELEASE_VERSION already exists. Skipping tag creation."
+      else
+        git tag -a "$RELEASE_VERSION" -m "Release version $RELEASE_VERSION"
+        git push origin "$RELEASE_VERSION"
+      fi
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+
+create_release:
+  stage: release
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  dependencies:
+    - compile
+  tags:
+    - ivfhq
+  interruptible: true
+  cache: {}
+  before_script:
+    - echo "Releasing ..."
+    - export RELEASE_VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml)
+  script:
+    - export JOB_ID=$(cat artifacts/job.env) # Read JOB_ID from job.env
+    - echo $JOB_ID
+  release:
+    name: "Version $RELEASE_VERSION"
+    tag_name: "$RELEASE_VERSION"
+    description: "Release created using the release-cli. Release '$RELEASE_VERSION'" # Use double quotes for variable interpolation
+    assets:
+      links:
+        - name: "$APP_NAME"
+          url: "$CI_SERVER_URL/$CI_PROJECT_PATH/-/jobs/$JOB_ID/artifacts/file/$APP_NAME"
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
