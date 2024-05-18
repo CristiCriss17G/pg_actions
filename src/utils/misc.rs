@@ -1,5 +1,5 @@
-use super::structs::{PGCliError, S3Credentials};
-use log::{debug, info, trace};
+use super::structs::{PGCliError, PGTools, S3Credentials};
+use log::{debug, info, trace, warn};
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 use rusoto_core::{HttpClient, Region};
@@ -8,10 +8,12 @@ use rusoto_s3::{
     CompleteMultipartUploadRequest, CompletedMultipartUpload, CompletedPart,
     CreateMultipartUploadRequest, S3Client, UploadPartRequest, S3,
 };
+use std::collections::HashMap;
 use std::fs::File;
 use std::fs::Permissions;
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
+use std::process::{Command, Output, Stdio};
 use std::str::FromStr;
 use tar::Builder;
 use tokio::fs::{self, File as AFile, OpenOptions};
@@ -350,5 +352,97 @@ impl S3Credentials {
         s3_client.complete_multipart_upload(complete_req).await?;
 
         Ok(())
+    }
+}
+
+fn check_command_availability(command: &str) -> Result<Output, io::Error> {
+    Command::new(command)
+        .arg("--version")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()
+}
+
+fn parse_version(version_output: &str) -> Option<u32> {
+    // Split by whitespace and find the part that starts with the version number
+    version_output
+        .split_whitespace()
+        .find(|&part| part.chars().next().unwrap_or(' ').is_digit(10))
+        .and_then(|version| version.split('.').next())
+        .and_then(|major| major.parse::<u32>().ok())
+}
+
+fn pg_tools_error_messages(
+    pg_dump_version: Option<u32>,
+    pg_restore_version: Option<u32>,
+    min_version: u32,
+) -> Option<String> {
+    let mut error_message = String::new();
+
+    let format_error = |tool_name: &str, version: Option<u32>| {
+        if let Some(v) = version {
+            if v < min_version {
+                format!(
+                    "{} version {} is not supported. Minimum supported version is {}.",
+                    tool_name, v, min_version
+                )
+            } else {
+                String::new()
+            }
+        } else {
+            format!("{} tool not found.", tool_name)
+        }
+    };
+
+    error_message.push_str(&format_error("pg_dump", pg_dump_version));
+    error_message.push_str(&format_error("pg_restore", pg_restore_version));
+
+    if !error_message.is_empty() {
+        error_message.push_str(&format!("\nPlease install {} {} or later.\nFor more information, visit: https://www.postgresql.org/download/", "PostgreSQL", min_version));
+        Some(error_message)
+    } else {
+        None
+    }
+}
+
+pub fn check_pg_tools_version(
+    commands: &HashMap<String, String>,
+    min_version: u32,
+    warn: bool,
+) -> Result<PGTools, PGCliError> {
+    let pg_dump = match commands.get("pg_dump") {
+        Some(path) => {
+            debug!("Using pg_dump from: {}", path);
+            path
+        }
+        _ => "pg_dump",
+    };
+    let pg_restore = match commands.get("pg_restore") {
+        Some(path) => {
+            debug!("Using pg_restore from: {}", path);
+            path
+        }
+        _ => "pg_restore",
+    };
+
+    let pg_dump_version = check_command_availability(pg_dump)
+        .map(|output| String::from_utf8_lossy(&output.stdout).to_string())
+        .and_then(|version_output| Ok(parse_version(&version_output)))
+        .unwrap_or(None);
+
+    let pg_restore_version = check_command_availability(pg_restore)
+        .map(|output| String::from_utf8_lossy(&output.stdout).to_string())
+        .and_then(|version_output| Ok(parse_version(&version_output)))
+        .unwrap_or(None);
+
+    if let Some(error_message) =
+        pg_tools_error_messages(pg_dump_version, pg_restore_version, min_version)
+    {
+        if warn {
+            warn!("{}", error_message);
+        }
+        return Err(PGCliError::PGToolsError(error_message));
+    } else {
+        Ok(PGTools::new(pg_dump.to_string(), pg_restore.to_string()))
     }
 }

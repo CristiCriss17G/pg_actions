@@ -4,6 +4,8 @@
 **/data
 .env
 **/*.log
+**/*.deb
+**/pg_actions
 # Added by cargo
 
 /target

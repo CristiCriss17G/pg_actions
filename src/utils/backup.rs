@@ -4,7 +4,7 @@ use super::misc::{
     check_file_directory_path_exists, create_compressed_archive, delete_directory, delete_file,
     ensure_file_directory_path_exists,
 };
-use super::structs::{DatabaseDetails, PGCliError, PostgresCredentials, S3Credentials};
+use super::structs::{DatabaseDetails, PGCliError, PGTools, PostgresCredentials, S3Credentials};
 use clap::Args;
 use log::{debug, error, info};
 use std::collections::HashMap;
@@ -41,6 +41,7 @@ pub async fn backup_db(
     credentials: &HashMap<String, PostgresCredentials>,
     pg_main_hostname: &String,
     s3_credentials: &S3Credentials,
+    pg_tools: &PGTools,
 ) -> Result<(), PGCliError> {
     if let Some(output_location) = &data.output_location {
         if !check_file_directory_path_exists(&output_location) {
@@ -96,17 +97,20 @@ pub async fn backup_db(
 
     ensure_file_directory_path_exists(&temp_folder).await?;
 
+    let pg_tools = Arc::new(pg_tools.clone()); // Wrap pg_tools in an Arc
+
     let tasks: Vec<_> = databases
         .into_iter()
         .map(|database| {
             let permit = semaphore.clone().acquire_owned(); // Get a permit to execute the task
             let credentials = main_credentials.clone();
             let temp_folder = temp_folder.clone();
+            let pg_tools = Arc::clone(&pg_tools); // Clone the Arc, not the data
 
             task::spawn(async move {
                 let _permit = permit.await.expect("Failed to acquire semaphore permit");
                 let output_file = format!("{}/{}.bsql", temp_folder, database);
-                match db_dump(credentials, &database, &output_file).await {
+                match db_dump(credentials, &database, &output_file, &*pg_tools).await {
                     Ok(_) => info!("Database {} dumped successfully", database),
                     Err(e) => error!("Failed to dump database {}: {}", database, e),
                 }

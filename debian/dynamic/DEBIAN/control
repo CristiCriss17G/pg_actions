@@ -1,0 +1,9 @@
+Package: pg-actions
+Version: 1.0.1-1
+Section: utils
+Priority: optional
+Architecture: amd64
+Maintainer: Cristian Iordachescu <cristian.iordachescu@ivfuture.uk>
+Depends: openssl (>= 3.0.0)
+Description: pg_actions - Dynamic Version
+  This executable is used to perform various actions on a postgres server.
