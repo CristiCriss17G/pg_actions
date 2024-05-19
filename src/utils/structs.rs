@@ -121,6 +121,7 @@ pub enum DatabaseDetails {
     Extra {
         name: String,
         owner: String,
+        size_pretty: String,
         oid: u32,
     },
     Name(String),

@@ -72,8 +72,13 @@ pub async fn database(
                     true => {
                         for db in databases {
                             match db {
-                                DatabaseDetails::Extra { name, oid, owner } => {
-                                    println!("{}\t{}\t{}", name, owner, oid);
+                                DatabaseDetails::Extra {
+                                    name,
+                                    oid,
+                                    size_pretty,
+                                    owner,
+                                } => {
+                                    println!("{}\t{}\t{}\t{}", name, owner, size_pretty, oid);
                                 }
                                 DatabaseDetails::Name(name) => {
                                     println!("{}", name);
@@ -90,12 +95,18 @@ pub async fn database(
                                     "IDX",
                                     "DB name",
                                     "Owner",
+                                    "Size",
                                     "OID"
                                 ]);
                                 for (i, db) in databases.iter().enumerate() {
                                     match db {
-                                        DatabaseDetails::Extra { name, oid, owner } => {
-                                            table.add_row(row![i, name, owner, oid]);
+                                        DatabaseDetails::Extra {
+                                            name,
+                                            oid,
+                                            size_pretty,
+                                            owner,
+                                        } => {
+                                            table.add_row(row![i, name, owner, size_pretty, oid]);
                                         }
                                         DatabaseDetails::Name(name) => {
                                             table.add_row(row![i, name]);

@@ -22,7 +22,7 @@ pub async fn list_databases(
 ) -> Result<Vec<DatabaseDetails>, PGCliError> {
     let ignored_databases = "'template0','template1'";
     let fields = match extra {
-        true => "d.datname, d.oid, r.rolname",
+        true => "d.datname, d.oid, pg_size_pretty(pg_database_size(d.datname)), r.rolname",
         false => "d.datname",
     };
     let rows = match sort {
@@ -75,8 +75,14 @@ pub async fn list_databases(
             true => {
                 let name: String = row.get(0);
                 let oid: u32 = row.get(1);
-                let owner: String = row.get(2);
-                databases.push(DatabaseDetails::Extra { name, oid, owner });
+                let size_pretty: String = row.get(2);
+                let owner: String = row.get(3);
+                databases.push(DatabaseDetails::Extra {
+                    name,
+                    oid,
+                    size_pretty,
+                    owner,
+                });
             }
             false => {
                 let name: String = row.get(0);
