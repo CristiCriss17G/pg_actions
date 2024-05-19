@@ -28,7 +28,7 @@ ARG APP_NAME
 ENV APP_NAME=${APP_NAME}
 
 LABEL maintainer="Cristian Iordachescu <cristian.iordachescu@ivfuture.uk>"
-LABEL version="1.0.0"
+LABEL version="1.1.0"
 LABEL title="Postgres actions cli"
 LABEL description="This is a Dockerfile for running postgres-db-actions. For more information visit run with --help."
 

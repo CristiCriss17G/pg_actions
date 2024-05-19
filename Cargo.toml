@@ -1,6 +1,6 @@
 [package]
 name = "postgres-db-actions"
-version = "1.0.1"
+version = "1.1.0"
 edition = "2021"
 authors = ['Cristian Iordachescu <cristian.iordachescu@ivfuture.uk>']
 rust-version = "1.78"
