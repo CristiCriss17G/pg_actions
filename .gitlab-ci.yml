@@ -197,6 +197,7 @@ make_deb_files:
     - 'sed -i "s/\(Version: \)[0-9]\+\.[0-9]\+\.[0-9]\+\(-[0-9]\+\)/\1${RELEASE_VERSION#v}\2/" debian/dynamic/DEBIAN/control'
     - cp $CI_PROJECT_DIR/$APP_NAME $CI_PROJECT_DIR/debian/dynamic/usr/local/bin/$APP_NAME && rm $CI_PROJECT_DIR/debian/dynamic/usr/local/bin/.gitkeep
     - cp $CI_PROJECT_DIR/${APP_NAME}-static $CI_PROJECT_DIR/debian/static/usr/local/bin/${APP_NAME} && rm $CI_PROJECT_DIR/debian/static/usr/local/bin/.gitkeep
+    - chmod -R 755 debian/
     - dpkg-deb --build debian/dynamic $CI_PROJECT_DIR/${APP_NAME}_${RELEASE_VERSION#v}_amd64.deb
     - dpkg-deb --build debian/static $CI_PROJECT_DIR/${APP_NAME}-static_${RELEASE_VERSION#v}_amd64.deb
     - echo "JOB_ID_DEB=$CI_JOB_ID" > variables.env
