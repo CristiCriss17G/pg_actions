@@ -2,6 +2,7 @@ stages:
   - checks
   - prepare-build
   - build
+  - deb
   - release
 
 variables:
@@ -113,7 +114,7 @@ build-manual:
   rules:
     - if: $CI_COMMIT_BRANCH != "main" && $CI_COMMIT_BRANCH != "dev"
 
-compile:
+compile_dynamic:
   stage: build
   dependencies:
     - prepare
@@ -134,7 +135,7 @@ compile:
     - cargo fetch --locked
     - cargo build --locked --release --target-dir ./target
     - cp target/release/$APP_NAME $CI_PROJECT_DIR
-    - echo "JOB_ID=$CI_JOB_ID" > variables.env && echo "RELEASE_VERSION=v$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml)" >> variables.env
+    - echo "JOB_ID_DYNAMIC=$CI_JOB_ID" > variables.env && echo "RELEASE_VERSION=v$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml)" >> variables.env
   after_script:
     - cat variables.env # Debug: Check the content of job.env
   artifacts:
@@ -146,13 +147,83 @@ compile:
   rules:
     - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "dev"
 
+compile_static:
+  stage: build
+  dependencies:
+    - prepare
+  image:
+    name: rust:${RUST_VERSION}-alpine
+  tags:
+    - ivfhq
+  interruptible: true
+  cache: {}
+  before_script:
+    - echo "Building ..."
+    - path=$(pwd)
+    - apk update && apk upgrade --no-cache && apk add --no-cache build-base clang lld musl-dev git file pkgconfig openssl-dev libcrypto3 libssl3 openssl-libs-static postgresql16-client
+  script:
+    - cargo fetch --locked
+    - cargo build --locked --release --target-dir ./target
+    - cp target/release/${APP_NAME} $CI_PROJECT_DIR/${APP_NAME}-static
+    - echo "JOB_ID_STATIC=$CI_JOB_ID" > variables.env
+  after_script:
+    - cat variables.env # Debug: Check the content of job.env
+  artifacts:
+    paths:
+      - ${APP_NAME}-static
+    expire_in: 1 year
+    reports:
+      dotenv: variables.env # Specify the path to the job.env file
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "dev"
+
+make_deb_files:
+  stage: deb
+  dependencies:
+    - compile_dynamic
+    - compile_static
+  image:
+    name: ubuntu:24.04
+  tags:
+    - ivfhq
+  interruptible: true
+  cache: {}
+  before_script:
+    - echo "Creating deb files ..."
+    - apt update && apt upgrade -y && apt install -y build-essential devscripts
+  script:
+    - 'sed -i "s/\(Version: \)[0-9]\+\.[0-9]\+\.[0-9]\+\(-static\.[0-9]\+\)/\1${RELEASE_VERSION#v}\2/" debian/static/DEBIAN/control'
+    - 'sed -i "s/\(Version: \)[0-9]\+\.[0-9]\+\.[0-9]\+\(-[0-9]\+\)/\1${RELEASE_VERSION#v}\2/" debian/dynamic/DEBIAN/control'
+    - cp $CI_PROJECT_DIR/$APP_NAME $CI_PROJECT_DIR/debian/dynamic/usr/bin/$APP_NAME && rm $CI_PROJECT_DIR/debian/dynamic/usr/bin/.gitkeep
+    - cp $CI_PROJECT_DIR/${APP_NAME}-static $CI_PROJECT_DIR/debian/static/usr/bin/${APP_NAME} && rm $CI_PROJECT_DIR/debian/static/usr/bin/.gitkeep
+    - dpkg-deb --build debian/dynamic $CI_PROJECT_DIR/${APP_NAME}_${RELEASE_VERSION#v}_amd64.deb
+    - dpkg-deb --build debian/static $CI_PROJECT_DIR/${APP_NAME}-static_${RELEASE_VERSION#v}_amd64.deb
+    - echo "JOB_ID_DEB=$CI_JOB_ID" > variables.env
+  after_script:
+    - cat variables.env # Debug: Check the content of job.env
+  artifacts:
+    paths:
+      - ${APP_NAME}_${RELEASE_VERSION#v}_amd64.deb
+      - ${APP_NAME}-static_${RELEASE_VERSION#v}_amd64.deb
+    expire_in: 1 year
+    reports:
+      dotenv: variables.env # Specify the path to the job.env file
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "dev"
+
 create_release:
   stage: release
   image: registry.gitlab.com/gitlab-org/release-cli:latest
   dependencies:
-    - compile
+    - compile_dynamic
+    - compile_static
+    - make_deb_files
   needs:
-    - job: compile
+    - job: compile_dynamic
+      artifacts: true
+    - job: compile_static
+      artifacts: true
+    - job: make_deb_files
       artifacts: true
   tags:
     - ivfhq
@@ -162,7 +233,9 @@ create_release:
     - echo "Releasing ..."
   script:
     - echo $RELEASE_VERSION
-    - echo $JOB_ID
+    - echo $JOB_ID_DYNAMIC
+    - echo $JOB_ID_STATIC
+    - echo $JOB_ID_DEB
   release:
     name: "Release $RELEASE_VERSION"
     tag_name: "$RELEASE_VERSION"
@@ -171,6 +244,12 @@ create_release:
     assets:
       links:
         - name: "$APP_NAME"
-          url: "$CI_SERVER_URL/$CI_PROJECT_PATH/-/jobs/$JOB_ID/artifacts/raw/$APP_NAME"
+          url: "$CI_SERVER_URL/$CI_PROJECT_PATH/-/jobs/$JOB_ID_DYNAMIC/artifacts/raw/$APP_NAME"
+        - name: "${APP_NAME}-static"
+          url: "$CI_SERVER_URL/$CI_PROJECT_PATH/-/jobs/$JOB_ID_STATIC/artifacts/raw/${APP_NAME}-static"
+        - name: "${APP_NAME}_${RELEASE_VERSION#v}_amd64.deb"
+          url: "$CI_SERVER_URL/$CI_PROJECT_PATH/-/jobs/$JOB_ID_DEB/artifacts/raw/${APP_NAME}_${RELEASE_VERSION#v}_amd64.deb"
+        - name: "${APP_NAME}-static_${RELEASE_VERSION#v}_amd64.deb"
+          url: "$CI_SERVER_URL/$CI_PROJECT_PATH/-/jobs/$JOB_ID_DEB/artifacts/raw/${APP_NAME}-static_${RELEASE_VERSION#v}_amd64.deb"
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
