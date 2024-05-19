@@ -15,6 +15,20 @@
 - `openssl (>= 3.0.0)` - Required for the `pg_actions` executable, it is used for the encryption and decryption of the database connection and S3/Minio authentication.
 - `xz-utils` - Required for the `pg_actions` executable, it is used for the compression and decompression of the backup files.
 - `pg_dump` and `pg_restore` `(>=16.0)` - Optional, but recommended, they are used for the backup and clone operations, if they are not installed, the executable will fail to perform these operations. For installation, see the [Postgres documentation](https://www.postgresql.org/download/).
+  - Ubuntu/Debian:
+
+  ```bash
+  sudo apt update && sudo apt upgrade -y && sudo apt install gpg wget lsb-release apt-transport-https -y
+  wget -qO - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /usr/share/keyrings/postgresql-archive-keyring.gpg
+  echo "deb [signed-by=/usr/share/keyrings/postgresql-archive-keyring.gpg] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+  sudo apt update && sudo apt install -y postgresql-client
+  ```
+
+  - Alpine:
+
+  ```bash
+  apk add postgresql16-client
+  ```
 
 ### Distribution
 
