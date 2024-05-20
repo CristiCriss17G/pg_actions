@@ -4,18 +4,69 @@
 
 [![Latest Release](https://gitlab.com/iv_future/infrastructure/docker-tools/postgres-db-actions/-/badges/release.svg)](https://gitlab.com/iv_future/infrastructure/docker-tools/postgres-db-actions/-/releases)
 
-## Description
+## Table of contents
+<!-- vscode-markdown-toc -->
+* 1. [Description](#Description)
+* 2. [Installation](#Installation)
+  * 2.1. [Requirements](#Requirements)
+  * 2.2. [Distribution](#Distribution)
+  * 2.3. [Utilization](#Utilization)
+    * 2.3.1. [Docker](#Docker)
+    * 2.3.2. [Executables](#Executables)
+    * 2.3.3. [Deb package](#Debpackage)
+* 3. [Usage](#Usage)
+  * 3.1. [Docker run](#Dockerrun)
+    * 3.1.1. [Mount .pgpass file](#Mount.pgpassfile)
+  * 3.2. [Executables run](#Executablesrun)
+  * 3.3. [Main variables](#Mainvariables)
+  * 3.4. [Authentication](#Authentication)
+    * 3.4.1. [Example](#Example)
+  * 3.5. [Mention](#Mention)
+* 4. [CLI structure and examples](#CLIstructureandexamples)
+  * 4.1. [Help command](#Helpcommand)
+  * 4.2. [Clone command](#Clonecommand)
+    * 4.2.1. [Help section](#Helpsection)
+    * 4.2.2. [Example](#Example-1)
+  * 4.3. [Backup command](#Backupcommand)
+    * 4.3.1. [Help section](#Helpsection-1)
+    * 4.3.2. [Example](#Example-1)
+  * 4.4. [User operations](#Useroperations)
+    * 4.4.1. [Help section](#Helpsection-1)
+    * 4.4.2. [List users](#Listusers)
+    * 4.4.3. [Create a user](#Createauser)
+    * 4.4.4. [Delete a user](#Deleteauser)
+    * 4.4.5. [Update a user](#Updateauser)
+    * 4.4.6. [Grant privileges to a user](#Grantprivilegestoauser)
+    * 4.4.7. [Revoke privileges from a user](#Revokeprivilegesfromauser)
+  * 4.5. [Database operations](#Databaseoperations)
+    * 4.5.1. [Help section](#Helpsection-1)
+    * 4.5.2. [List databases](#Listdatabases)
+    * 4.5.3. [Create a database](#Createadatabase)
+    * 4.5.4. [Delete a database](#Deleteadatabase)
+    * 4.5.5. [Update a database](#Updateadatabase)
+  * 4.6. [CLI completion](#CLIcompletion)
+    * 4.6.1. [Help section](#Helpsection-1)
+  * 4.7. [Tools checking](#Toolschecking)
+    * 4.7.1. [Help section](#Helpsection-1)
+
+<!-- vscode-markdown-toc-config
+	numbering=true
+	autoSave=true
+	/vscode-markdown-toc-config -->
+<!-- /vscode-markdown-toc -->
+
+## 1. <a name='Description'></a>Description
 
 `pg_actions` is a small executable that allows various operation on a PostgreSQL database, form the administrative side. It can clone a database, backup a database, create, delete, update a user, create, delete, update a database, and list users and databases.
 
-## Installation
+## 2. <a name='Installation'></a>Installation
 
-### Requirements
+### 2.1. <a name='Requirements'></a>Requirements
 
-- `openssl (>= 3.0.0)` - Required for the `pg_actions` executable, it is used for the encryption and decryption of the database connection and S3/Minio authentication.
-- `xz-utils` - Required for the `pg_actions` executable, it is used for the compression and decompression of the backup files.
-- `pg_dump` and `pg_restore` `(>=16.0)` - Optional, but recommended, they are used for the backup and clone operations, if they are not installed, the executable will fail to perform these operations. For installation, see the [Postgres documentation](https://www.postgresql.org/download/).
-  - Ubuntu/Debian:
+* `openssl (>= 3.0.0)` - Required for the `pg_actions` executable, it is used for the encryption and decryption of the database connection and S3/Minio authentication.
+* `xz-utils` - Required for the `pg_actions` executable, it is used for the compression and decompression of the backup files.
+* `pg_dump` and `pg_restore` `(>=16.0)` - Optional, but recommended, they are used for the backup and clone operations, if they are not installed, the executable will fail to perform these operations. For installation, see the [Postgres documentation](https://www.postgresql.org/download/).
+  * Ubuntu/Debian:
 
   ```bash
   sudo apt update && sudo apt upgrade -y && sudo apt install gpg wget lsb-release apt-transport-https -y
@@ -24,35 +75,35 @@
   sudo apt update && sudo apt install -y postgresql-client
   ```
 
-  - Alpine:
+  * Alpine:
 
   ```bash
   apk add postgresql16-client
   ```
 
-### Distribution
+### 2.2. <a name='Distribution'></a>Distribution
 
 There are 3 main ways to get the executable:
 
-- `Docker` - Recommended for CI/CD pipelines, cronjobs, or any other automated process, or unsupported platforms: `regcr.ivfuture.uk/devops-services/tools/postgres-db-actions:latest`
-- `Direct executables` - For local development or testing, or local execution without installation. This is also split into 2 subcategories:
-  - `pg_actions` - the main executable, smallest, and most efficient, but it relies on a linux system that has `openssl (>= 3.0.0)` and `xz-utils` installed.
-  - `pg_actions-static` - the same as `pg_actions` but statically compiled, so it does not rely on the system libraries.
-- `Deb package` - For installation on a Debian-based system, it is the most convenient way to install and use the executable. Also split into 2 subcategories:
-  - `pg-actions_${RELEASE_VERSION}_amd64.deb` - the main package, it installs the executable, recommended for Ubuntu 22.04 or newer and Debian 11 or newer.
-  - `pg-actions-static_${RELEASE_VERSION}_amd64.deb` - the static package, it installs the statically compiled executable, recommended for older systems or systems that do not have the required libraries.
+* `Docker` - Recommended for CI/CD pipelines, cronjobs, or any other automated process, or unsupported platforms: `regcr.ivfuture.uk/devops-services/tools/postgres-db-actions:latest`
+* `Direct executables` - For local development or testing, or local execution without installation. This is also split into 2 subcategories:
+  * `pg_actions` - the main executable, smallest, and most efficient, but it relies on a linux system that has `openssl (>= 3.0.0)` and `xz-utils` installed.
+  * `pg_actions-static` - the same as `pg_actions` but statically compiled, so it does not rely on the system libraries.
+* `Deb package` - For installation on a Debian-based system, it is the most convenient way to install and use the executable. Also split into 2 subcategories:
+  * `pg-actions_${RELEASE_VERSION}_amd64.deb` - the main package, it installs the executable, recommended for Ubuntu 22.04 or newer and Debian 11 or newer.
+  * `pg-actions-static_${RELEASE_VERSION}_amd64.deb` - the static package, it installs the statically compiled executable, recommended for older systems or systems that do not have the required libraries.
 
 All downloads can be found in the [releases](https://gitlab.com/iv_future/infrastructure/docker-tools/postgres-db-actions/-/releases) section.
 
-### Utilization
+### 2.3. <a name='Utilization'></a>Utilization
 
-#### Docker
+#### 2.3.1. <a name='Docker'></a>Docker
 
 ```bash
 docker run -e PG_HOSTNAME -e PG_SUPERUSER -e PG_PASS -e PG_PORT -e S3_ENDPOINT -e S3_ACCESS_KEY -e S3_SECRET_KEY -e S3_BUCKET -e S3_PREFIX -e S3_REGION -it --rm regcr.ivfuture.uk/devops-services/tools/postgres-db-actions:latest help
 ```
 
-#### Executables
+#### 2.3.2. <a name='Executables'></a>Executables
 
 ```bash
 ./pg_actions help
@@ -62,7 +113,7 @@ docker run -e PG_HOSTNAME -e PG_SUPERUSER -e PG_PASS -e PG_PORT -e S3_ENDPOINT -
 ./pg_actions-static help
 ```
 
-#### Deb package
+#### 2.3.3. <a name='Debpackage'></a>Deb package
 
 *Note: replace `${RELEASE_VERSION}` with the desired version.*
 
@@ -84,15 +135,15 @@ pg_actions help
 
 > Note 2: The `apt install` method is proffered compared to `dpkg -i` because it will automatically install the dependencies.
 
-## Usage
+## 3. <a name='Usage'></a>Usage
 
-### Docker run
+### 3.1. <a name='Dockerrun'></a>Docker run
 
 ```bash
 docker run -e PG_HOSTNAME -e PG_SUPERUSER -e PG_PASS -e PG_PORT -e S3_ENDPOINT -e S3_ACCESS_KEY -e S3_SECRET_KEY -e S3_BUCKET -e S3_PREFIX -e S3_REGION -it --rm regcr.ivfuture.uk/devops-services/tools/postgres-db-actions:latest help
 ```
 
-#### Mount .pgpass file
+#### 3.1.1. <a name='Mount.pgpassfile'></a>Mount .pgpass file
 
 ```bash
 docker run -v $HOME/.pgpass:/pghome/.pgpass -e PG_HOSTNAME -e PG_SUPERUSER -e PG_PASS -e PG_PORT -e S3_ENDPOINT -e S3_ACCESS_KEY -e S3_SECRET_KEY -e S3_BUCKET -e S3_PREFIX -e S3_REGION -it --rm regcr.ivfuture.uk/devops-services/tools/postgres-db-actions:latest help
@@ -100,7 +151,7 @@ docker run -v $HOME/.pgpass:/pghome/.pgpass -e PG_HOSTNAME -e PG_SUPERUSER -e PG
 
 > The flags with `-e` are optional and can be passed as arguments to the command.
 
-### Executables run
+### 3.2. <a name='Executablesrun'></a>Executables run
 
 ```bash
 pg_actions help
@@ -114,44 +165,61 @@ pg_actions help
 
 > For the rest of the documentation, the `pg_actions` command will be used, but it can be replaced with `./pg_actions-static` if the static executable is used; or the docker command.
 
-### Main variables
+### 3.3. <a name='Mainvariables'></a>Main variables
 
 They can be either set as environment variables or passed as arguments.
 
 Main variables for database connection:
 
-- `PG_HOSTNAME` - `-H, --pg-hostname` - Postgres connection URL
-- `PG_SUPERUSER` - `-U, --pg-superuser` - Postgres username
-- `PG_PASS` - `-P, --pg-password` - Postgres password
-- `PG_PORT` - `-p, --pg-port` - Postgres port
+* `PG_HOSTNAME` - `-H, --pg-hostname` - Postgres connection URL
+* `PG_SUPERUSER` - `-U, --pg-superuser` - Postgres username
+* `PG_PASS` - `-P, --pg-password` - Postgres password
+* `PG_PORT` - `-p, --pg-port` - Postgres port
 
 These variables can be simplified by using a `.pgpass` file in the user's home directory. For more information about the `.pgpass` file, see the [Postgres documentation](https://www.postgresql.org/docs/current/libpq-pgpass.html).
 
 Main variables for S3/Minio, these are required just for the backup operation, but they can be used for all operations that require S3/Minio storage:
 
-- `S3_ENDPOINT` - `--s3-endpoint` - S3/Minio endpoint
-- `S3_ACCESS_KEY` - `--s3-access-key` - S3/Minio access key
-- `S3_SECRET_KEY` - `--s3-secret-key` - S3/Minio secret key
-- `S3_BUCKET` - `--s3-bucket` - S3/Minio bucket
-- `S3_REGION` - `--s3-region` - S3/Minio region
-- `S3_PREFIX` - `--s3-prefix` - S3/Minio bucket prefix/folder
+* `S3_ENDPOINT` - `--s3-endpoint` - S3/Minio endpoint
+* `S3_ACCESS_KEY` - `--s3-access-key` - S3/Minio access key
+* `S3_SECRET_KEY` - `--s3-secret-key` - S3/Minio secret key
+* `S3_BUCKET` - `--s3-bucket` - S3/Minio bucket
+* `S3_REGION` - `--s3-region` - S3/Minio region
+* `S3_PREFIX` - `--s3-prefix` - S3/Minio bucket prefix/folder
 
 Optional variables:
 
-- `PG_DUMP` - `--pg-dump` - Path to the `pg_dump` executable, defaults to `pg_dump` from the system path
-- `PG_RESTORE` - `--pg-restore` - Path to the `pg_restore` executable, defaults to `pg_restore` from the system path
+* `PG_DUMP` - `--pg-dump` - Path to the `pg_dump` executable, defaults to `pg_dump` from the system path
+* `PG_RESTORE` - `--pg-restore` - Path to the `pg_restore` executable, defaults to `pg_restore` from the system path
 
-### Mention
+### 3.4. <a name='Authentication'></a>Authentication
+
+As mentioned previously, the executable can read the `.pgpass` file, but it can also read the `PG_HOSTNAME`, `PG_SUPERUSER`, `PG_PASS`, and `PG_PORT` environment variables, or they can be passed as arguments.
+But in th case that a `.pgpass` file is read, the environment variable `PG_HOSTNAME` or the equivalent argument are still needed to be passed, as the `.pgpass` file does not contain just one hostname, but multiple, so the executable needs to know which one to use.
+
+#### 3.4.1. <a name='Example'></a>Example
+
+```bash
+# .pgpass file
+my_host:5432:*my_db*:my_user:my_password
+my_host2:5432:*my_db*:my_user:my_password
+```
+
+```bash
+pg_actions -H my_host help
+```
+
+### 3.5. <a name='Mention'></a>Mention
 
 The cli has a verbose mode, it can be used multiple times to increase the verbosity of the output, at most 2 times, but the default level is `info` so some information will always be printed.
 The logging information is always printed to stderr, so it can be redirected to a file or to `/dev/null`, while the output is always printed to stdout.
 Docker is the exception, as both the logging and the output are printed to stdout, this is a docker limitation.
 
-## CLI structure and examples
+## 4. <a name='CLIstructureandexamples'></a>CLI structure and examples
 
 > The examples assume you are using a `.pgpass` file in the user's home directory, so the commands do not include details about the password or port, but they can be added as arguments.
 
-### Help command
+### 4.1. <a name='Helpcommand'></a>Help command
 
 It prints the help message for the main command or for a specific subcommand. Along with arguments and options, it also prints the environment variables that can be used to set the options.
 
@@ -191,11 +259,11 @@ Options:
   -V, --version                        Print version
 ```
 
-### Clone command
+### 4.2. <a name='Clonecommand'></a>Clone command
 
 It clones a database within the same server, or between servers. It can also create the owner user if it does not exist.
 
-#### Help section
+#### 4.2.1. <a name='Helpsection'></a>Help section
   
 ```bash
 pg_actions help clone
@@ -236,34 +304,36 @@ Options:
 
 ##### Additional Variables
 
-- `PG_HOSTNAME2` - `--pg-hostname2` - Optional new host
-- `PG_PORT2` - `--pg-port2` - Optional new port
-- `PG_SUPERUSER2` - `--pg-superuser2` - Optional user for new host
-- `PG_PASSWORD2` - `--pg-password2` - Optional password for new host
-- `-c, --create-owner` - Create the new owner user
-- `-s, --new-password` - New password for the database user just created
-- `-k, --keep-dump` - Keep the dump file, defaults to false
-- `--overwrite` - Overwrite new database if it exists
+* `PG_HOSTNAME2` - `--pg-hostname2` - Optional new host
+* `PG_PORT2` - `--pg-port2` - Optional new port
+* `PG_SUPERUSER2` - `--pg-superuser2` - Optional user for new host
+* `PG_PASSWORD2` - `--pg-password2` - Optional password for new host
+* `-c, --create-owner` - Create the new owner user
+* `-s, --new-password` - New password for the database user just created
+* `-k, --keep-dump` - Keep the dump file, defaults to false
+* `--overwrite` - Overwrite new database if it exists
 
-#### Example
+#### 4.2.2. <a name='Example-1'></a>Example
 
-- In the same server
-
-```bash
-pg_actions clone -d old_db -n new_db -o new_owner
-```
-
-- Between servers
+* In the same server
 
 ```bash
-pg_actions clone -d old_db -n new_db -o new_owner -H new_host
+pg_actions -H my_host clone -d old_db -n new_db -o new_owner
 ```
 
-### Backup command
+* Between servers
+
+```bash
+pg_actions -H my_host clone -d old_db -n new_db -o new_owner --pg-hostname new_host
+```
+
+*Note: The credentials for the second host are presumed to be in the `.pgpass` file, or they can be passed as arguments.*
+
+### 4.3. <a name='Backupcommand'></a>Backup command
 
 It backs up a database to a file or to S3/Minio storage.
 
-#### Help section
+#### 4.3.1. <a name='Helpsection-1'></a>Help section
 
 ```bash
 pg_actions help backup
@@ -320,29 +390,29 @@ Options:
 
 > This commands needs the S3/Minio variables to be set, but they can be passed as arguments.
 
-- `BACKUP_LOCATION` - `-o, --output-location` - Output location, choose between S3 or a file path, defaults to S3
-- `JOBS` - `-j, --jobs` - Parallel jobs to use, defaults to 5
-- `RETRY` - `--retry` - Retry just archive upload, path to the archive to retry from
+* `BACKUP_LOCATION` - `-o, --output-location` - Output location, choose between S3 or a file path, defaults to S3
+* `JOBS` - `-j, --jobs` - Parallel jobs to use, defaults to 5
+* `RETRY` - `--retry` - Retry just archive upload, path to the archive to retry from
 
-#### Example
+#### 4.3.2. <a name='Example-1'></a>Example
 
-- Backup all databases to S3
-
-```bash
-pg_actions backup all
-```
-
-- Backup a single database to a file, remember to mount the volume if you are using Docker
+* Backup all databases to S3
 
 ```bash
-pg_actions backup my_db -o /backup
+pg_actions -H my_host backup all
 ```
 
-### User operations
+* Backup a single database to a file, remember to mount the volume if you are using Docker
+
+```bash
+pg_actions -H my_host backup my_db -o /backup/my_db.tar.xz
+```
+
+### 4.4. <a name='Useroperations'></a>User operations
 
 This command allows the user to list, create, delete, and update a user, and to grant and revoke privileges from a user.
 
-#### Help section
+#### 4.4.1. <a name='Helpsection-1'></a>Help section
 
 ```bash
 pg_actions help user
@@ -379,7 +449,7 @@ Options:
   -h, --help                           Print help
 ```
 
-#### List users
+#### 4.4.2. <a name='Listusers'></a>List users
 
 Prints a list of user names as a table
 
@@ -416,17 +486,17 @@ Options:
 
 ##### Additional Variables
 
-- `--sort [asc|desc]` - Sort ascending or descending by username
-- `-q, --quiet` - Do not print as a table
-- `-e, --extra` - Print extra information, such as right as superuser, createdb, and login, and oid
+* `--sort [asc|desc]` - Sort ascending or descending by username
+* `-q, --quiet` - Do not print as a table
+* `-e, --extra` - Print extra information, such as right as superuser, createdb, and login, and oid
 
 ##### Execution
 
 ```bash
-pg_actions user list
+pg_actions -H my_host user list
 ```
 
-#### Create a user
+#### 4.4.3. <a name='Createauser'></a>Create a user
 
 Create a user with the specified options
 
@@ -467,18 +537,18 @@ Options:
 
 ##### Additional Variables
 
-- `-s, --password` - Password for the user
-- `--superuser` - User as superuser
-- `--createdb` - Createdb for user
-- `-n, --no-login` - Role with no login, defaults to false
+* `-s, --password` - Password for the user
+* `--superuser` - User as superuser
+* `--createdb` - Createdb for user
+* `-n, --no-login` - Role with no login, defaults to false
 
 ##### Execution
 
 ```bash
-pg_actions user create -s my_password my_user
+pg_actions -H my_host user create -s my_password my_user
 ```
 
-#### Delete a user
+#### 4.4.4. <a name='Deleteauser'></a>Delete a user
 
 Delete a user with the specified username
 
@@ -516,10 +586,10 @@ Options:
 ##### Execution
 
 ```bash
-pg_actions user delete my_user
+pg_actions -H my_host user delete my_user
 ```
 
-#### Update a user
+#### 4.4.5. <a name='Updateauser'></a>Update a user
 
 Update a user with the specified options
 
@@ -560,18 +630,18 @@ Options:
 
 ##### Additional Variables
 
-- `-s, --password` - Password for the user
-- `--superuser` - User as superuser
-- `--createdb` - Createdb for user
-- `-n, --no-login` - Role with no login, defaults to false
+* `-s, --password` - Password for the user
+* `--superuser` - User as superuser
+* `--createdb` - Createdb for user
+* `-n, --no-login` - Role with no login, defaults to false
 
 ##### Execution
 
 ```bash
-pg_actions user update -s my_password my_user
+pg_actions -H my_host user update -s my_password my_user
 ```
 
-#### Grant privileges to a user
+#### 4.4.6. <a name='Grantprivilegestoauser'></a>Grant privileges to a user
 
 Grant privileges to a user on a database, currently supported, read-only or full access.
 
@@ -611,20 +681,20 @@ Options:
 
 ##### Additional Variables
 
-- `--schema` - Schema, defaults to public
-- `-g, --privileges` - Privileges, full or read-only
+* `--schema` - Schema, defaults to public
+* `-g, --privileges` - Privileges, full or read-only
 
 ##### Execution
 
 ```bash
-pg_actions user grant -d my_db -g full my_user
+pg_actions -H my_host user grant -d my_db -g full my_user
 ```
 
 ```bash
-pg_actions user grant -d my_db -g read-only my_user
+pg_actions -H my_host user grant -d my_db -g read-only my_user
 ```
 
-#### Revoke privileges from a user
+#### 4.4.7. <a name='Revokeprivilegesfromauser'></a>Revoke privileges from a user
 
 Revoke privileges from a user on a database, currently supported, read-only or full access, the reverse of the grant command.
 
@@ -664,24 +734,24 @@ Options:
 
 ##### Additional Variables
 
-- `--schema` - Schema, defaults to public
-- `-g, --privileges` - Privileges, full or read-only
+* `--schema` - Schema, defaults to public
+* `-g, --privileges` - Privileges, full or read-only
 
 ##### Execution
 
 ```bash
-pg_actions user revoke -d my_db -g full my_user
+pg_actions -H my_host user revoke -d my_db -g full my_user
 ```
 
 ```bash
-pg_actions user revoke -d my_db -g read-only my_user
+pg_actions -H my_host user revoke -d my_db -g read-only my_user
 ```
 
-### Database operations
+### 4.5. <a name='Databaseoperations'></a>Database operations
 
 This command allows the user to list, create, delete, and update a database.
 
-#### Help section
+#### 4.5.1. <a name='Helpsection-1'></a>Help section
 
 ```bash
 pg_actions help database
@@ -716,7 +786,7 @@ Options:
   -h, --help                           Print help
 ```
 
-#### List databases
+#### 4.5.2. <a name='Listdatabases'></a>List databases
 
 Prints a list of databases as a table
 
@@ -753,17 +823,17 @@ Options:
 
 ##### Additional Variables
 
-- `--sort [asc|desc]` - Sort ascending or descending by database name
-- `-q, --quiet` - Do not print as a table
-- `-e, --extra` - Print extra information, such as owner, size and oid
+* `--sort [asc|desc]` - Sort ascending or descending by database name
+* `-q, --quiet` - Do not print as a table
+* `-e, --extra` - Print extra information, such as owner, size and oid
 
 ##### Execution
 
 ```bash
-pg_actions database list
+pg_actions -H my_host database list
 ```
 
-#### Create a database
+#### 4.5.3. <a name='Createadatabase'></a>Create a database
 
 Create a database with the specified options
 
@@ -801,15 +871,15 @@ Options:
 
 ##### Additional Variables
 
-- `-o, --owner` - Owner user for the database, must exist, default to the superuser
+* `-o, --owner` - Owner user for the database, must exist, default to the superuser
 
 ##### Execution
 
 ```bash
-pg_actions database create my_db
+pg_actions -H my_host database create my_db
 ```
 
-#### Delete a database
+#### 4.5.4. <a name='Deleteadatabase'></a>Delete a database
 
 Delete a database with the specified name
 
@@ -847,10 +917,10 @@ Options:
 ##### Execution
 
 ```bash
-pg_actions database delete my_db
+pg_actions -H my_host database delete my_db
 ```
 
-#### Update a database
+#### 4.5.5. <a name='Updateadatabase'></a>Update a database
 
 Update a database with the specified options
 
@@ -888,19 +958,19 @@ Options:
 
 ##### Additional Variables
 
-- `-o, --new-owner` - New owner user for the database, must exist
+* `-o, --new-owner` - New owner user for the database, must exist
 
 ##### Execution
 
 ```bash
-pg_actions database update -o my_new_owner my_db
+pg_actions -H my_host database update -o my_new_owner my_db
 ```
 
-### CLI completion
+### 4.6. <a name='CLIcompletion'></a>CLI completion
 
 The CLI completion is available for bash, elvish, fish, powershell and zsh.
 
-#### Help section
+#### 4.6.1. <a name='Helpsection-1'></a>Help section
 
 ```bash
 pg_actions help completions
@@ -933,7 +1003,7 @@ Options:
 
 ##### Execution
 
-- `bash`
+* `bash`
 
   ```bash
   pg_actions completions bash
@@ -942,7 +1012,7 @@ Options:
   source <(pg_actions completions bash)
   ```
 
-- `elvish`
+* `elvish`
 
   ```bash
   pg_actions completions elvish
@@ -951,7 +1021,7 @@ Options:
   eval (pg_actions completions elvish)
   ```
 
-- `fish`
+* `fish`
 
   ```bash
   pg_actions completions fish
@@ -960,7 +1030,7 @@ Options:
   pg_actions completions fish > ~/.config/fish/completions/pg_actions.fish
   ```
 
-- `powershell`
+* `powershell`
 
   ```powershell
   pg_actions completions powershell
@@ -969,7 +1039,7 @@ Options:
   pg_actions completions powershell | Out-String | Invoke-Expression
   ```
 
-- `zsh`
+* `zsh`
 
   ```bash
   pg_actions completions zsh
@@ -978,11 +1048,11 @@ Options:
   source <(pg_actions completions zsh)
   ```
 
-### Tools checking
+### 4.7. <a name='Toolschecking'></a>Tools checking
 
 This command checks the tools needed for the CLI to work, such as `pg_dump` and `pg_restore`.
 
-#### Help section
+#### 4.7.1. <a name='Helpsection-1'></a>Help section
 
 ```bash
 pg_actions help check-tools
