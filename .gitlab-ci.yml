@@ -135,7 +135,7 @@ compile_dynamic:
     - cargo fetch --locked
     - cargo build --locked --release --target-dir ./target
     - cp target/release/$APP_NAME $CI_PROJECT_DIR
-    - echo "JOB_ID_DYNAMIC=$CI_JOB_ID" > variables.env && echo "RELEASE_VERSION=v$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml)" >> variables.env
+    - echo "JOB_ID_DYNAMIC=$CI_JOB_ID" > variables.env && echo "RELEASE_VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml)" >> variables.env
   after_script:
     - cat variables.env # Debug: Check the content of job.env
   artifacts:
@@ -193,20 +193,20 @@ make_deb_files:
     - echo "JOB_ID_DYNAMIC=$JOB_ID_DYNAMIC JOB_ID_STATIC=$JOB_ID_STATIC"
     - apt update && apt upgrade -y && apt install -y build-essential devscripts
   script:
-    - 'sed -i "s/\(Version: \)[0-9]\+\.[0-9]\+\.[0-9]\+\(-static\.[0-9]\+\)/\1${RELEASE_VERSION#v}\2/" debian/static/DEBIAN/control'
-    - 'sed -i "s/\(Version: \)[0-9]\+\.[0-9]\+\.[0-9]\+\(-[0-9]\+\)/\1${RELEASE_VERSION#v}\2/" debian/dynamic/DEBIAN/control'
+    - 'sed -i "s/\(Version: \)[0-9]\+\.[0-9]\+\.[0-9]\+\(-static\.[0-9]\+\)/\1${RELEASE_VERSION}\2/" debian/static/DEBIAN/control'
+    - 'sed -i "s/\(Version: \)[0-9]\+\.[0-9]\+\.[0-9]\+\(-[0-9]\+\)/\1${RELEASE_VERSION}\2/" debian/dynamic/DEBIAN/control'
     - cp $CI_PROJECT_DIR/$APP_NAME $CI_PROJECT_DIR/debian/dynamic/usr/local/bin/$APP_NAME && rm $CI_PROJECT_DIR/debian/dynamic/usr/local/bin/.gitkeep
     - cp $CI_PROJECT_DIR/${APP_NAME}-static $CI_PROJECT_DIR/debian/static/usr/local/bin/${APP_NAME} && rm $CI_PROJECT_DIR/debian/static/usr/local/bin/.gitkeep
     - chmod -R 755 debian/
-    - dpkg-deb --build debian/dynamic $CI_PROJECT_DIR/${APP_NAME}_${RELEASE_VERSION#v}_amd64.deb
-    - dpkg-deb --build debian/static $CI_PROJECT_DIR/${APP_NAME}-static_${RELEASE_VERSION#v}_amd64.deb
+    - dpkg-deb --build debian/dynamic $CI_PROJECT_DIR/${APP_NAME}_${RELEASE_VERSION}_amd64.deb
+    - dpkg-deb --build debian/static $CI_PROJECT_DIR/${APP_NAME}-static_${RELEASE_VERSION}_amd64.deb
     - echo "JOB_ID_DEB=$CI_JOB_ID" > variables.env
   after_script:
     - cat variables.env # Debug: Check the content of job.env
   artifacts:
     paths:
-      - ${APP_NAME}_${RELEASE_VERSION#v}_amd64.deb
-      - ${APP_NAME}-static_${RELEASE_VERSION#v}_amd64.deb
+      - ${APP_NAME}_${RELEASE_VERSION}_amd64.deb
+      - ${APP_NAME}-static_${RELEASE_VERSION}_amd64.deb
     expire_in: 1 year
     reports:
       dotenv: variables.env # Specify the path to the job.env file
@@ -239,9 +239,9 @@ create_release:
     - echo $JOB_ID_STATIC
     - echo $JOB_ID_DEB
   release:
-    name: "Release $RELEASE_VERSION"
-    tag_name: "$RELEASE_VERSION"
-    description: "Release created using the release-cli. Release '$RELEASE_VERSION'" # Use double quotes for variable interpolation
+    name: "Release v${RELEASE_VERSION}"
+    tag_name: "v${RELEASE_VERSION}"
+    description: "Release created using the release-cli. Release 'v${RELEASE_VERSION}'" # Use double quotes for variable interpolation
     ref: "$CI_COMMIT_SHA"
     assets:
       links:
@@ -249,9 +249,9 @@ create_release:
           url: "$CI_SERVER_URL/$CI_PROJECT_PATH/-/jobs/$JOB_ID_DYNAMIC/artifacts/raw/$APP_NAME"
         - name: "${APP_NAME}-static"
           url: "$CI_SERVER_URL/$CI_PROJECT_PATH/-/jobs/$JOB_ID_STATIC/artifacts/raw/${APP_NAME}-static"
-        - name: "${APP_NAME}_${RELEASE_VERSION#v}_amd64.deb"
-          url: "$CI_SERVER_URL/$CI_PROJECT_PATH/-/jobs/$JOB_ID_DEB/artifacts/raw/${APP_NAME}_${RELEASE_VERSION#v}_amd64.deb"
-        - name: "${APP_NAME}-static_${RELEASE_VERSION#v}_amd64.deb"
-          url: "$CI_SERVER_URL/$CI_PROJECT_PATH/-/jobs/$JOB_ID_DEB/artifacts/raw/${APP_NAME}-static_${RELEASE_VERSION#v}_amd64.deb"
+        - name: "${APP_NAME}_${RELEASE_VERSION}_amd64.deb"
+          url: "$CI_SERVER_URL/$CI_PROJECT_PATH/-/jobs/$JOB_ID_DEB/artifacts/raw/${APP_NAME}_${RELEASE_VERSION}_amd64.deb"
+        - name: "${APP_NAME}-static_${RELEASE_VERSION}_amd64.deb"
+          url: "$CI_SERVER_URL/$CI_PROJECT_PATH/-/jobs/$JOB_ID_DEB/artifacts/raw/${APP_NAME}-static_${RELEASE_VERSION}_amd64.deb"
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
