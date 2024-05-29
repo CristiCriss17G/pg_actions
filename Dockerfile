@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-ARG RUST_VERSION=1.77
+ARG RUST_VERSION=1.78
 ARG ALPINE_VERSION=3.19
 ARG APP_NAME=pg_actions
 
@@ -23,13 +23,12 @@ COPY src ./src
 # Build the application.
 RUN cargo build --locked --release --target-dir ./target && cp ./target/release/${APP_NAME} /bin/${APP_NAME}
 
-
 FROM alpine:${ALPINE_VERSION} AS final
 ARG APP_NAME
 ENV APP_NAME=${APP_NAME}
 
 LABEL maintainer="Cristian Iordachescu <cristian.iordachescu@ivfuture.uk>"
-LABEL version="1.0.0"
+LABEL version="1.1.0"
 LABEL title="Postgres actions cli"
 LABEL description="This is a Dockerfile for running postgres-db-actions. For more information visit run with --help."
 

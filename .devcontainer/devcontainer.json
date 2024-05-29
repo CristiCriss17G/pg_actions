@@ -60,7 +60,8 @@
         "1YiB.rust-bundle",
         "SonarSource.sonarlint-vscode",
         "redhat.vscode-yaml",
-        "DotJoshJohnson.xml"
+        "DotJoshJohnson.xml",
+        "joffreykern.markdown-toc"
       ]
     }
   },

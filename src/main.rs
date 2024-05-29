@@ -2,15 +2,16 @@ mod utils;
 
 use clap::{Command, CommandFactory, Parser, Subcommand};
 use clap_complete::{generate, Generator, Shell};
+use colored::*;
 use env_logger::{Builder, Env};
-use log::{debug, error, info, trace, LevelFilter};
+use log::{debug, error, info, trace, Level, LevelFilter};
 use rpassword::prompt_password;
 use std::collections::HashMap;
 use std::io;
 use std::io::Write;
 use utils::db::general::try_read_pgpass;
 use utils::structs::{PGCliError, PostgresCredentials, S3Credentials};
-use utils::{backup, clone, database, user};
+use utils::{backup, clone, database, misc::check_pg_tools_version, user};
 
 #[derive(Parser, Debug, PartialEq)]
 #[command(name = "pg_actions", author, version, about, long_about = None)]
@@ -56,6 +57,16 @@ struct Cli {
         default_value = "5432"
     )]
     pg_port: Option<u16>,
+
+    /// Optional custom pg_dump path
+    /// If not set, the default from PATH will be used
+    #[arg(long, env, global = true)]
+    pg_dump: Option<String>,
+
+    /// Optional custom pg_restore path
+    /// If not set, the default from PATH will be used
+    #[arg(long, env, global = true)]
+    pg_restore: Option<String>,
 
     /// S3/Minio endpoint
     #[arg(long, env, global = true)]
@@ -107,10 +118,23 @@ enum Commands {
         #[arg(value_enum)]
         shell: Shell,
     },
+    /// Do a basic check of the tools
+    /// This is useful for CI/CD pipelines
+    CheckTools,
 }
 
 fn print_completions<G: Generator>(gen: G, cmd: &mut Command) {
     generate(gen, cmd, cmd.get_name().to_string(), &mut io::stdout());
+}
+
+fn colorize_level(level: Level) -> String {
+    match level {
+        Level::Error => "ERROR".red().to_string(),
+        Level::Warn => "WARN".yellow().to_string(),
+        Level::Info => "INFO".green().to_string(),
+        Level::Debug => "DEBUG".blue().to_string(),
+        Level::Trace => "TRACE".magenta().to_string(),
+    }
 }
 
 #[tokio::main]
@@ -131,7 +155,7 @@ async fn main() -> Result<(), PGCliError> {
                     buf,
                     "{} [{}:{}:{}] - {}",
                     chrono::Local::now().format("%+"),
-                    record.level(),
+                    colorize_level(record.level()),
                     record.target(),
                     record.line().unwrap_or(0),
                     record.args()
@@ -146,7 +170,7 @@ async fn main() -> Result<(), PGCliError> {
                     buf,
                     "{} [{}] - {}",
                     chrono::Local::now().format("%+"),
-                    record.level(),
+                    colorize_level(record.level()),
                     record.args()
                 )
             })
@@ -204,13 +228,30 @@ async fn main() -> Result<(), PGCliError> {
         cli.s3_prefix,
     );
 
+    let pg_tools_paths = HashMap::from([
+        (
+            "pg_dump".to_string(),
+            cli.pg_dump.unwrap_or("pg_dump".to_string()),
+        ),
+        (
+            "pg_restore".to_string(),
+            cli.pg_restore.unwrap_or("pg_restore".to_string()),
+        ),
+    ]);
+    let pg_tools_min_version: u32 = 16;
+
     trace!("Using pgpass: {:?}", pgpass);
 
     // You can check for the existence of subcommands, and if found use their
     // matches just as you would the top level cmd
     match &cli.command {
         Some(Commands::Clone(clone_data)) => {
-            match clone::clone_db(clone_data, &mut pgpass, &pg_main_hostname).await {
+            let pg_tools = check_pg_tools_version(&pg_tools_paths, pg_tools_min_version, false)
+                .or_else(|e| {
+                    error!("Failed to check tools: {}", e);
+                    Err(e)
+                })?;
+            match clone::clone_db(clone_data, &mut pgpass, &pg_main_hostname, &pg_tools).await {
                 Ok(_) => info!("Database cloned successfully"),
                 Err(e) => {
                     error!("Failed to clone database: {}", e);
@@ -219,7 +260,19 @@ async fn main() -> Result<(), PGCliError> {
             }
         }
         Some(Commands::Backup(backup_data)) => {
-            match backup::backup_db(backup_data, &pgpass, &pg_main_hostname, &s3_credentials).await
+            let pg_tools = check_pg_tools_version(&pg_tools_paths, pg_tools_min_version, false)
+                .or_else(|e| {
+                    error!("Failed to check tools: {}", e);
+                    Err(e)
+                })?;
+            match backup::backup_db(
+                backup_data,
+                &pgpass,
+                &pg_main_hostname,
+                &s3_credentials,
+                &pg_tools,
+            )
+            .await
             {
                 Ok(_) => info!("Database backed up successfully"),
                 Err(e) => {
@@ -229,6 +282,8 @@ async fn main() -> Result<(), PGCliError> {
             }
         }
         Some(Commands::User(user_data)) => {
+            // Check if pg_dump and pg_restore are available but ignore the error as they are not needed, just a warning
+            check_pg_tools_version(&pg_tools_paths, pg_tools_min_version, true).unwrap_or_default();
             match user::user(user_data, &pgpass, &pg_main_hostname).await {
                 Ok(_) => info!("User operation completed successfully"),
                 Err(e) => {
@@ -238,6 +293,8 @@ async fn main() -> Result<(), PGCliError> {
             }
         }
         Some(Commands::Database(database_data)) => {
+            // Check if pg_dump and pg_restore are available but ignore the error as they are not needed, just a warning
+            check_pg_tools_version(&pg_tools_paths, pg_tools_min_version, true).unwrap_or_default();
             match database::database(database_data, &pgpass, &pg_main_hostname).await {
                 Ok(_) => info!("Database operation completed successfully"),
                 Err(e) => {
@@ -249,6 +306,15 @@ async fn main() -> Result<(), PGCliError> {
         Some(Commands::Completions { shell }) => {
             debug!("Generating completions for {:?}", shell);
             print_completions(*shell, &mut Cli::command());
+        }
+        Some(Commands::CheckTools) => {
+            match check_pg_tools_version(&pg_tools_paths, pg_tools_min_version, false) {
+                Ok(_) => info!("All tools are available"),
+                Err(e) => {
+                    error!("Failed to check tools: {}", e);
+                    return Err(e);
+                }
+            }
         }
         None => {}
     }

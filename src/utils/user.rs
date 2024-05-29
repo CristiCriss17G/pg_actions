@@ -78,7 +78,7 @@ pub enum UserSubCommands {
         #[arg(short, long)]
         database: String,
         /// schema
-        #[arg(long)]
+        #[arg(long, default_value = "public")]
         schema: String,
         /// privileges
         /// full or read-only
@@ -93,7 +93,7 @@ pub enum UserSubCommands {
         #[arg(short, long)]
         database: String,
         /// schema
-        #[arg(long)]
+        #[arg(long, default_value = "public")]
         schema: String,
         /// privileges
         #[arg(short = 'g', long, value_enum)]

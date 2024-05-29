@@ -30,6 +30,21 @@ impl PostgresCredentials {
     }
 }
 
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Default)]
+pub struct PGTools {
+    pub pg_dump: String,
+    pub pg_restore: String,
+}
+
+impl PGTools {
+    pub fn new(pg_dump: String, pg_restore: String) -> PGTools {
+        PGTools {
+            pg_dump,
+            pg_restore,
+        }
+    }
+}
+
 pub struct S3Credentials {
     pub s3_endpoint: Option<String>,
     pub s3_access_key: Option<String>,
@@ -83,6 +98,8 @@ pub enum PGCliError {
     RusotoCompleteMultipartUploadError(#[from] RusotoError<CompleteMultipartUploadError>),
     #[error("ConnectionError: {0}")]
     ConnectionError(String),
+    #[error("PGToolsError: {0}")]
+    PGToolsError(String),
     #[error("Error: {0}")]
     Other(String),
 }
@@ -104,6 +121,7 @@ pub enum DatabaseDetails {
     Extra {
         name: String,
         owner: String,
+        size_pretty: String,
         oid: u32,
     },
     Name(String),

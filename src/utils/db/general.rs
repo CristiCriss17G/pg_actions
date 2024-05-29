@@ -1,5 +1,5 @@
 use crate::utils::misc::{ensure_file_path_exists, open_file_path_in_write_mode};
-use crate::utils::structs::{PGCliError, PostgresCredentials};
+use crate::utils::structs::{PGCliError, PGTools, PostgresCredentials};
 use log::{debug, error, info, trace};
 use native_tls::TlsConnector;
 use postgres_native_tls::MakeTlsConnector;
@@ -174,6 +174,7 @@ pub async fn db_dump(
     credentials: PostgresCredentials,
     database_source: &str,
     dump_file: &str,
+    pg_tools: &PGTools,
 ) -> Result<String, PGCliError> {
     info!("Dumping database {}", database_source);
 
@@ -191,6 +192,8 @@ pub async fn db_dump(
         }
     };
 
+    let pg_dump = pg_tools.pg_dump.clone();
+
     let output = task::spawn_blocking(move || {
         let output_file = match std::fs::OpenOptions::new()
             .write(true)
@@ -207,7 +210,7 @@ pub async fn db_dump(
             }
         };
 
-        let mut child = match Command::new("pg_dump")
+        let mut child = match Command::new(pg_dump)
             .arg("-v") // Enable verbose mode
             .arg(format!("--host={}", credentials.pg_hostname))
             .arg(format!("--username={}", credentials.pg_superuser))
@@ -258,11 +261,14 @@ pub async fn db_restore(
     credentials: PostgresCredentials,
     database_target: &str,
     dump_file: &str,
+    pg_tools: &PGTools,
 ) -> Result<String, PGCliError> {
     info!("Restoring database {}", database_target);
 
     let database_target = database_target.to_string();
     let dump_file_path = dump_file.to_string();
+
+    let pg_restore = pg_tools.pg_restore.clone();
 
     let output = task::spawn_blocking(move || {
         // Open the file inside the closure to ensure it's owned by the closure
@@ -272,7 +278,7 @@ pub async fn db_restore(
             Err(_) => return Err(PGCliError::Other("Failed to open dump file".to_string())),
         };
 
-        let mut child = match Command::new("pg_restore")
+        let mut child = match Command::new(pg_restore)
             .arg("-v") // Enable verbose mode
             .arg(format!("--host={}", credentials.pg_hostname))
             .arg(format!("--username={}", credentials.pg_superuser))

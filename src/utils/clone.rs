@@ -7,7 +7,7 @@ use super::db::database::{
 use super::db::general::{db_dump, db_restore, init_pgpass, postgres_connect};
 use super::db::user::{check_user_exists, create_user};
 use crate::utils::misc::{delete_file, generate_random_string};
-use crate::utils::structs::PostgresCredentials;
+use crate::utils::structs::{PGTools, PostgresCredentials};
 use clap::Args;
 use log::{debug, error, info};
 
@@ -56,6 +56,7 @@ pub async fn clone_db(
     data: &CloneArgs,
     credentials: &mut HashMap<String, PostgresCredentials>,
     pg_main_hostname: &String,
+    pg_tools: &PGTools,
 ) -> Result<(), PGCliError> {
     info!(
         "Cloning database {} to {}",
@@ -121,7 +122,14 @@ pub async fn clone_db(
         generate_random_string(6)
     );
 
-    match db_dump(source_credentials.clone(), &data.database, &dump_file).await {
+    match db_dump(
+        source_credentials.clone(),
+        &data.database,
+        &dump_file,
+        pg_tools,
+    )
+    .await
+    {
         Ok(_) => info!("Database dumped successfully"),
         Err(e) => {
             error!("Failed to dump database: {}", e);
@@ -199,6 +207,7 @@ pub async fn clone_db(
         destination_credentials.clone(),
         &data.new_database,
         &dump_file,
+        pg_tools,
     )
     .await
     {
