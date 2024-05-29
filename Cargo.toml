@@ -1,6 +1,6 @@
 [package]
 name = "postgres-db-actions"
-version = "1.1.0"
+version = "1.1.1"
 edition = "2021"
 authors = ['Cristian Iordachescu <cristian.iordachescu@ivfuture.uk>']
 rust-version = "1.78"
@@ -24,7 +24,7 @@ colored = "2.1.0"
 dirs-next = "2.0.0"
 env_logger = "0.11.3"
 log = "0.4.21"
-native-tls = "0.2.11"
+native-tls = "0.2.12"
 postgres-native-tls = "0.5.0"
 prettytable-rs = "0.10.0"
 rand = "0.8.5"
