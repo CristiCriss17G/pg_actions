@@ -4,10 +4,14 @@ use super::db::database::{
     change_whole_owner_of_db, create_db, delete_db, kill_connections_to_db, list_databases,
 };
 use super::db::general::postgres_connect;
-use super::structs::{DatabaseDetails, PGCliError, PostgresCredentials, SortingOrder};
+use super::structs::{
+    DatabaseDetails, OutputFormat, PGCliError, PostgresCredentials, SortingOrder,
+};
 use clap::{Args, Subcommand};
+use csv::Writer;
 use log::{debug, error, info, trace};
 use prettytable::{row, Table};
+use serde_json;
 
 #[derive(Args, Debug, PartialEq)]
 pub struct DatabaseArgs {
@@ -24,8 +28,8 @@ pub enum DatabaseSubCommands {
         #[arg(long, value_enum)]
         sort: Option<SortingOrder>,
         /// quite mode
-        #[arg(short, long)]
-        quiet: bool,
+        #[arg(short, long, value_enum, default_value = "table")]
+        output: OutputFormat,
         /// extra details
         #[arg(short, long)]
         extra: bool,
@@ -61,77 +65,13 @@ pub async fn database(
     let main_credentials = credentials.get(pg_main_hostname).unwrap();
     let client = postgres_connect(&main_credentials, None).await?;
     match &data.subcommand {
-        Some(DatabaseSubCommands::List { sort, quiet, extra }) => {
+        Some(DatabaseSubCommands::List {
+            sort,
+            output,
+            extra,
+        }) => {
             debug!("List databases");
-            let databases = list_databases(&client, sort, *extra).await?;
-            trace!("Databases: {:?}", databases);
-            if databases.is_empty() {
-                info!("No databases found");
-            } else {
-                match quiet {
-                    true => {
-                        for db in databases {
-                            match db {
-                                DatabaseDetails::Extra {
-                                    name,
-                                    oid,
-                                    size_pretty,
-                                    owner,
-                                } => {
-                                    println!("{}\t{}\t{}\t{}", name, owner, size_pretty, oid);
-                                }
-                                DatabaseDetails::Name(name) => {
-                                    println!("{}", name);
-                                }
-                            }
-                        }
-                    }
-                    false => {
-                        let mut table = Table::new();
-                        // apend rows with the index and the role name
-                        match *extra {
-                            true => {
-                                table.add_row(row![b =>
-                                    "IDX",
-                                    "DB name",
-                                    "Owner",
-                                    "Size",
-                                    "OID"
-                                ]);
-                                for (i, db) in databases.iter().enumerate() {
-                                    match db {
-                                        DatabaseDetails::Extra {
-                                            name,
-                                            oid,
-                                            size_pretty,
-                                            owner,
-                                        } => {
-                                            table.add_row(row![i, name, owner, size_pretty, oid]);
-                                        }
-                                        DatabaseDetails::Name(name) => {
-                                            table.add_row(row![i, name]);
-                                        }
-                                    }
-                                }
-                            }
-                            false => {
-                                table.add_row(row![b => "IDX", "Name"]);
-                                for (i, db) in databases.iter().enumerate() {
-                                    match db {
-                                        DatabaseDetails::Extra { name, .. } => {
-                                            table.add_row(row![i, name]);
-                                        }
-                                        DatabaseDetails::Name(name) => {
-                                            table.add_row(row![i, name]);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        table.printstd();
-                    }
-                }
-            }
+            database_list(&client, sort, output, *extra).await?;
         }
         Some(DatabaseSubCommands::Create { database, owner }) => {
             debug!("Create database {}", database);
@@ -167,6 +107,138 @@ pub async fn database(
         }
         None => {
             error!("No subcommand provided");
+        }
+    }
+    Ok(())
+}
+
+async fn database_list(
+    client: &tokio_postgres::Client,
+    sort: &Option<SortingOrder>,
+    output_format: &OutputFormat,
+    extra: bool,
+) -> Result<(), PGCliError> {
+    let databases = list_databases(&client, sort, extra).await?;
+    trace!("Databases: {:?}", databases);
+    if databases.is_empty() {
+        info!("No databases found");
+    } else {
+        match output_format {
+            OutputFormat::Simple => {
+                for db in databases {
+                    match db {
+                        DatabaseDetails::Extra {
+                            name,
+                            oid,
+                            size_pretty,
+                            owner,
+                        } => {
+                            println!("{}\t{}\t{}\t{}", name, owner, size_pretty, oid);
+                        }
+                        DatabaseDetails::Name(name) => {
+                            println!("{}", name);
+                        }
+                    }
+                }
+            }
+            OutputFormat::Table => {
+                let mut table = Table::new();
+                match extra {
+                    true => {
+                        table.add_row(row![b =>
+                            "IDX",
+                            "DB name",
+                            "Owner",
+                            "Size",
+                            "OID"
+                        ]);
+                        for (i, db) in databases.iter().enumerate() {
+                            match db {
+                                DatabaseDetails::Extra {
+                                    name,
+                                    oid,
+                                    size_pretty,
+                                    owner,
+                                } => {
+                                    table.add_row(row![i, name, owner, size_pretty, oid]);
+                                }
+                                DatabaseDetails::Name(name) => {
+                                    table.add_row(row![i, name]);
+                                }
+                            }
+                        }
+                    }
+                    false => {
+                        table.add_row(row![b => "IDX", "Name"]);
+                        for (i, db) in databases.iter().enumerate() {
+                            match db {
+                                DatabaseDetails::Extra { name, .. } => {
+                                    table.add_row(row![i, name]);
+                                }
+                                DatabaseDetails::Name(name) => {
+                                    table.add_row(row![i, name]);
+                                }
+                            }
+                        }
+                    }
+                }
+                table.printstd();
+            }
+            OutputFormat::Json => {
+                let json = serde_json::to_string_pretty(&databases)?;
+                println!("{}", json);
+            }
+            OutputFormat::JsonCompact => {
+                let json = serde_json::to_string(&databases)?;
+                println!("{}", json);
+            }
+            OutputFormat::JsonLines => {
+                for db in databases {
+                    let json = serde_json::to_string(&db)?;
+                    println!("{}", json);
+                }
+            }
+            OutputFormat::Csv => {
+                let mut wtr = Writer::from_writer(vec![]);
+                if extra {
+                    wtr.write_record(&["IDX", "DB name", "Owner", "Size", "OID"])?;
+                    for (i, db) in databases.iter().enumerate() {
+                        match db {
+                            DatabaseDetails::Extra {
+                                name,
+                                oid,
+                                size_pretty,
+                                owner,
+                            } => {
+                                wtr.write_record(&[
+                                    i.to_string(),
+                                    name.to_string(),
+                                    owner.to_string(),
+                                    size_pretty.to_string(),
+                                    oid.to_string(),
+                                ])?;
+                            }
+                            DatabaseDetails::Name(name) => {
+                                wtr.write_record(&[i.to_string(), name.to_string()])?;
+                            }
+                        }
+                    }
+                } else {
+                    wtr.write_record(&["IDX", "Name"])?;
+                    for (i, db) in databases.iter().enumerate() {
+                        match db {
+                            DatabaseDetails::Extra { name, .. } => {
+                                wtr.write_record(&[i.to_string(), name.to_string()])?;
+                            }
+                            DatabaseDetails::Name(name) => {
+                                wtr.write_record(&[i.to_string(), name.to_string()])?;
+                            }
+                        }
+                    }
+                }
+                let data = String::from_utf8(wtr.into_inner()?)?;
+                println!("{}", data);
+            }
         }
     }
     Ok(())

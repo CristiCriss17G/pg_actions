@@ -35,13 +35,19 @@ fn bytes_to_human_readable(size: u64) -> String {
     format!("{:.2} {}", size, units[index])
 }
 
-pub fn generate_random_string(length: usize) -> String {
+pub fn generate_random_string(length: usize, to_lowercase: bool) -> String {
     let mut rng = thread_rng();
     let random_string: String = (&mut rng)
         .sample_iter(&Alphanumeric)
         .take(length)
         .map(char::from)
-        .map(|c| c.to_ascii_lowercase())
+        .map(|c| {
+            if to_lowercase {
+                c.to_ascii_lowercase()
+            } else {
+                c
+            }
+        })
         .collect();
     random_string
 }

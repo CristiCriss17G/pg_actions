@@ -4,10 +4,14 @@ use super::db::general::postgres_connect;
 use super::db::user::{
     alter_role, create_role, delete_role, grant_privileges, list_roles, revoke_privileges,
 };
-use super::structs::{PGCliError, PostgresCredentials, SortingOrder, UserDetails, UserPrivileges};
+use super::structs::{
+    OutputFormat, PGCliError, PostgresCredentials, SortingOrder, UserDetails, UserPrivileges,
+};
 use clap::{Args, Subcommand};
+use csv::Writer;
 use log::{debug, error, info, trace};
 use prettytable::{row, Table};
+use serde_json;
 
 #[derive(Args, Debug, PartialEq)]
 pub struct UserArgs {
@@ -24,8 +28,8 @@ pub enum UserSubCommands {
         #[arg(long, value_enum)]
         sort: Option<SortingOrder>,
         ///quite mode
-        #[arg(short, long)]
-        quiet: bool,
+        #[arg(short, long, value_enum, default_value = "table")]
+        output: OutputFormat,
         /// extra details
         #[arg(short, long)]
         extra: bool,
@@ -36,7 +40,7 @@ pub enum UserSubCommands {
         username: String,
         /// password
         #[arg(short = 's', long)]
-        password: String,
+        password: Option<String>,
         /// user as superuser
         #[arg(long)]
         superuser: bool,
@@ -81,7 +85,7 @@ pub enum UserSubCommands {
         #[arg(long, default_value = "public")]
         schema: String,
         /// privileges
-        /// full or read-only
+        /// full or read-only or read-update-only
         #[arg(short = 'g', long, value_enum)]
         privileges: UserPrivileges,
     },
@@ -109,81 +113,13 @@ pub async fn user(
     let main_credentials = credentials.get(pg_main_hostname).unwrap();
     let client = postgres_connect(main_credentials, None).await?;
     match &data.subcommand {
-        Some(UserSubCommands::List { sort, quiet, extra }) => {
-            debug!("List users, sort: {:?}, quiet: {:?}", sort, quiet);
-            let roles = list_roles(&client, sort, *extra).await?;
-            trace!("Roles: {:?}", roles);
-            match quiet {
-                true => {
-                    for user in roles {
-                        match user {
-                            UserDetails::Extra {
-                                username,
-                                createdb,
-                                superuser,
-                                login,
-                                oid,
-                            } => {
-                                println!(
-                                    "{}\t{}\t{}\t{}\t{}",
-                                    username, createdb, superuser, login, oid
-                                );
-                            }
-                            UserDetails::Username(username) => {
-                                println!("{}", username);
-                            }
-                        }
-                    }
-                }
-                false => {
-                    let mut table = Table::new();
-                    // apend rows with the index and the role name
-                    match *extra {
-                        true => {
-                            table.add_row(row![b =>
-                                "IDX",
-                                "Username",
-                                "Createdb",
-                                "Superuser",
-                                "Login",
-                                "OID"
-                            ]);
-                            for (i, user) in roles.iter().enumerate() {
-                                match user {
-                                    UserDetails::Extra {
-                                        username,
-                                        createdb,
-                                        superuser,
-                                        login,
-                                        oid,
-                                    } => {
-                                        table.add_row(row![
-                                            i, username, createdb, superuser, login, oid
-                                        ]);
-                                    }
-                                    UserDetails::Username(username) => {
-                                        table.add_row(row![i, username]);
-                                    }
-                                }
-                            }
-                        }
-                        false => {
-                            table.add_row(row![b => "IDX", "Username"]);
-                            for (i, user) in roles.iter().enumerate() {
-                                match user {
-                                    UserDetails::Extra { username, .. } => {
-                                        table.add_row(row![i, username]);
-                                    }
-                                    UserDetails::Username(username) => {
-                                        table.add_row(row![i, username]);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    table.printstd();
-                }
-            }
+        Some(UserSubCommands::List {
+            sort,
+            output,
+            extra,
+        }) => {
+            debug!("List users, sort: {:?}, output: {:?}", sort, output);
+            user_list(&client, sort, output, *extra).await?;
         }
         Some(UserSubCommands::Create {
             username,
@@ -197,7 +133,7 @@ pub async fn user(
                 username, superuser, createdb, no_login
             );
             debug!(
-                "Create user: username: {}, password: {}, superuser: {}, createdb: {}, no_login: {}",
+                "Create user: username: {}, password: {:?}, superuser: {}, createdb: {}, no_login: {}",
                 username, password, superuser, createdb, no_login
             );
             create_role(
@@ -281,5 +217,141 @@ pub async fn user(
         }
     }
 
+    Ok(())
+}
+
+async fn user_list(
+    client: &tokio_postgres::Client,
+    sort: &Option<SortingOrder>,
+    output_format: &OutputFormat,
+    extra: bool,
+) -> Result<(), PGCliError> {
+    let roles = list_roles(&client, sort, extra).await?;
+    trace!("Roles: {:?}", roles);
+    match output_format {
+        OutputFormat::Simple => {
+            for user in roles {
+                match user {
+                    UserDetails::Extra {
+                        username,
+                        createdb,
+                        superuser,
+                        login,
+                        oid,
+                    } => {
+                        println!(
+                            "{}\t{}\t{}\t{}\t{}",
+                            username, createdb, superuser, login, oid
+                        );
+                    }
+                    UserDetails::Username(username) => {
+                        println!("{}", username);
+                    }
+                }
+            }
+        }
+        OutputFormat::Table => {
+            let mut table = Table::new();
+            match extra {
+                true => {
+                    table.add_row(row![b =>
+                        "IDX",
+                        "Username",
+                        "Createdb",
+                        "Superuser",
+                        "Login",
+                        "OID"
+                    ]);
+                    for (i, user) in roles.iter().enumerate() {
+                        match user {
+                            UserDetails::Extra {
+                                username,
+                                createdb,
+                                superuser,
+                                login,
+                                oid,
+                            } => {
+                                table.add_row(row![i, username, createdb, superuser, login, oid]);
+                            }
+                            UserDetails::Username(username) => {
+                                table.add_row(row![i, username]);
+                            }
+                        }
+                    }
+                }
+                false => {
+                    table.add_row(row![b => "IDX", "Username"]);
+                    for (i, user) in roles.iter().enumerate() {
+                        match user {
+                            UserDetails::Extra { username, .. } => {
+                                table.add_row(row![i, username]);
+                            }
+                            UserDetails::Username(username) => {
+                                table.add_row(row![i, username]);
+                            }
+                        }
+                    }
+                }
+            }
+            table.printstd();
+        }
+        OutputFormat::Json => {
+            let json = serde_json::to_string_pretty(&roles)?;
+            println!("{}", json);
+        }
+        OutputFormat::JsonCompact => {
+            let json = serde_json::to_string(&roles)?;
+            println!("{}", json);
+        }
+        OutputFormat::JsonLines => {
+            for user in roles {
+                let json = serde_json::to_string(&user)?;
+                println!("{}", json);
+            }
+        }
+        OutputFormat::Csv => {
+            let mut wtr = Writer::from_writer(vec![]);
+            if extra {
+                wtr.write_record(&["IDX", "Username", "Createdb", "Superuser", "Login", "OID"])?;
+                for (i, user) in roles.iter().enumerate() {
+                    match user {
+                        UserDetails::Extra {
+                            username,
+                            createdb,
+                            superuser,
+                            login,
+                            oid,
+                        } => {
+                            wtr.write_record(&[
+                                i.to_string(),
+                                username.to_string(),
+                                createdb.to_string(),
+                                superuser.to_string(),
+                                login.to_string(),
+                                oid.to_string(),
+                            ])?;
+                        }
+                        UserDetails::Username(username) => {
+                            wtr.write_record(&[i.to_string(), username.to_string()])?;
+                        }
+                    }
+                }
+            } else {
+                wtr.write_record(&["IDX", "Username"])?;
+                for (i, user) in roles.iter().enumerate() {
+                    match user {
+                        UserDetails::Extra { username, .. } => {
+                            wtr.write_record(&[i.to_string(), username.to_string()])?;
+                        }
+                        UserDetails::Username(username) => {
+                            wtr.write_record(&[i.to_string(), username.to_string()])?;
+                        }
+                    }
+                }
+            }
+            let data = String::from_utf8(wtr.into_inner()?)?;
+            println!("{}", data);
+        }
+    }
     Ok(())
 }
