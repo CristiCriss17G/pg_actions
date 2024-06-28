@@ -207,12 +207,12 @@ make_deb_files:
     - mc cp ivf/$MINIO_BUCKET/versions.txt ./versions.txt
     - echo -e "${RELEASE_VERSION}/${APP_NAME}_${RELEASE_VERSION}_amd64.deb\n${RELEASE_VERSION}/${APP_NAME}-static_${RELEASE_VERSION}_amd64.deb\n${RELEASE_VERSION}/${APP_NAME}\n${RELEASE_VERSION}/${APP_NAME}-static" >> versions.txt
     - mc cp versions.txt ivf/$MINIO_BUCKET
-    - mc cp ${APP_NAME}_${RELEASE_VERSION}_amd64.deb ivf/$MINIO_BUCKET/${RELEASE_VERSION}
-    - mc cp ${APP_NAME}-static_${RELEASE_VERSION}_amd64.deb ivf/$MINIO_BUCKET/${RELEASE_VERSION}
-    - mc cp ${APP_NAME} ivf/$MINIO_BUCKET/${RELEASE_VERSION}
-    - mc cp ${APP_NAME}-static ivf/$MINIO_BUCKET/${RELEASE_VERSION}
+    - mc cp ${APP_NAME}_${RELEASE_VERSION}_amd64.deb ivf/$MINIO_BUCKET/${RELEASE_VERSION}/${APP_NAME}_${RELEASE_VERSION}_amd64.deb
+    - mc cp ${APP_NAME}-static_${RELEASE_VERSION}_amd64.deb ivf/$MINIO_BUCKET/${RELEASE_VERSION}/${APP_NAME}-static_${RELEASE_VERSION}_amd64.deb
+    - mc cp ${APP_NAME} ivf/$MINIO_BUCKET/${RELEASE_VERSION}/$APP_NAME
+    - mc cp ${APP_NAME}-static ivf/$MINIO_BUCKET/${RELEASE_VERSION}/${APP_NAME}-static
     - echo "$RELEASE_VERSION" > latest.txt
-    - mc cp latest.txt ivf/$MINIO_BUCKET
+    - mc cp latest.txt ivf/$MINIO_BUCKET/latest.txt
     - echo "JOB_ID_DEB=$CI_JOB_ID" > variables.env
   after_script:
     - cat variables.env # Debug: Check the content of job.env
