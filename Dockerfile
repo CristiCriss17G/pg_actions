@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 ARG RUST_VERSION=1.78
-ARG ALPINE_VERSION=3.19
+ARG ALPINE_VERSION=3.20
 ARG APP_NAME=pg_actions
 
 ################################################################################
@@ -27,10 +27,10 @@ FROM alpine:${ALPINE_VERSION} AS final
 ARG APP_NAME
 ENV APP_NAME=${APP_NAME}
 
-LABEL maintainer="Cristian Iordachescu <cristian.iordachescu@ivfuture.uk>"
-LABEL version="1.1.0"
-LABEL title="Postgres actions cli"
-LABEL description="This is a Dockerfile for running postgres-db-actions. For more information visit run with --help."
+LABEL org.opencontainers.image.maintainer="Cristian Iordachescu <cristian.iordachescu@ivfuture.uk>"
+LABEL org.opencontainers.image.version="1.2.0"
+LABEL org.opencontainers.image.title="Postgres actions cli"
+LABEL org.opencontainers.image.description="This is a Dockerfile for running postgres-db-actions. For more information visit run with --help."
 
 RUN apk update && apk upgrade --no-cache && apk add --no-cache bash postgresql16-client ca-certificates && rm -rf /var/cache/apk/*
 SHELL [ "/bin/bash", "-c" ]

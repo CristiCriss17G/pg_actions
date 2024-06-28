@@ -13,4 +13,6 @@ done <$TAGS
 /kaniko/executor --context "$PWD" \
     --dockerfile "$PWD/Dockerfile" \
     $DESTINATIONS \
+    --build-arg RUST_VERSION \
+    --build-arg ALPINE_VERSION \
     --cleanup
