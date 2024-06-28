@@ -205,7 +205,7 @@ make_deb_files:
     - dpkg-deb --build debian/static $CI_PROJECT_DIR/${APP_NAME}-static_${RELEASE_VERSION}_amd64.deb
     - mc ls -r ivf/$MINIO_BUCKET
     - mc cp ivf/$MINIO_BUCKET/versions.txt ./versions.txt
-    - echo -e "${RELEASE_VERSION}/${APP_NAME}_${RELEASE_VERSION}_amd64.deb\n${RELEASE_VERSION}/${APP_NAME}-static_${RELEASE_VERSION}_amd64.deb\n${RELEASE_VERSION}/${APP_NAME}\n${RELEASE_VERSION}/${APP_NAME}-static" >> versions.txt
+    - echo -e "${RELEASE_VERSION}/${APP_NAME}_${RELEASE_VERSION}_amd64.deb\n${RELEASE_VERSION}/${APP_NAME}-static_${RELEASE_VERSION}_amd64.deb\n${RELEASE_VERSION}/${APP_NAME}\n${RELEASE_VERSION}/${APP_NAME}-static\n" >> versions.txt
     - mc cp versions.txt ivf/$MINIO_BUCKET
     - mc cp ${APP_NAME}_${RELEASE_VERSION}_amd64.deb ivf/$MINIO_BUCKET/${RELEASE_VERSION}/${APP_NAME}_${RELEASE_VERSION}_amd64.deb
     - mc cp ${APP_NAME}-static_${RELEASE_VERSION}_amd64.deb ivf/$MINIO_BUCKET/${RELEASE_VERSION}/${APP_NAME}-static_${RELEASE_VERSION}_amd64.deb
