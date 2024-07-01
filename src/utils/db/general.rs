@@ -1,5 +1,5 @@
 use crate::utils::misc::{ensure_file_path_exists, open_file_path_in_write_mode};
-use crate::utils::structs::{PGCliError, PGTools, PostgresCredentials};
+use crate::utils::structs::{PGCliError, PGTools, PostgresCredentials, SqlFileFormat};
 use log::{debug, error, info, trace};
 use native_tls::TlsConnector;
 use postgres_native_tls::MakeTlsConnector;
@@ -175,6 +175,7 @@ pub async fn db_dump(
     database_source: &str,
     dump_file: &str,
     pg_tools: &PGTools,
+    dump_format: SqlFileFormat,
 ) -> Result<String, PGCliError> {
     info!("Dumping database {}", database_source);
 
@@ -210,13 +211,15 @@ pub async fn db_dump(
             }
         };
 
+        trace!("Dumping format: {}", dump_format);
+
         let mut child = match Command::new(pg_dump)
             .arg("-v") // Enable verbose mode
             .arg(format!("--host={}", credentials.pg_hostname))
             .arg(format!("--username={}", credentials.pg_superuser))
             .arg(format!("--port={}", credentials.pg_port))
             .arg(format!("--dbname={}", database_source))
-            .arg("--format=custom")
+            .arg(format!("--format={}", dump_format))
             .arg("--no-owner")
             .arg("--no-privileges")
             .stdout(Stdio::from(output_file)) // Redirect standard output to file
@@ -262,6 +265,7 @@ pub async fn db_restore(
     database_target: &str,
     dump_file: &str,
     pg_tools: &PGTools,
+    restore_format: SqlFileFormat,
 ) -> Result<String, PGCliError> {
     info!("Restoring database {}", database_target);
 
@@ -278,13 +282,15 @@ pub async fn db_restore(
             Err(_) => return Err(PGCliError::Other("Failed to open dump file".to_string())),
         };
 
+        trace!("Restoring format: {}", restore_format);
+
         let mut child = match Command::new(pg_restore)
             .arg("-v") // Enable verbose mode
             .arg(format!("--host={}", credentials.pg_hostname))
             .arg(format!("--username={}", credentials.pg_superuser))
             .arg(format!("--port={}", credentials.pg_port))
             .arg(format!("--dbname={}", database_target))
-            .arg("--format=custom")
+            .arg(format!("--format={}", restore_format))
             .arg("--no-owner")
             .arg("--no-privileges")
             .stdin(Stdio::from(input_file)) // Redirect standard input from file

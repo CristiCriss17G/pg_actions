@@ -7,7 +7,7 @@ use super::db::database::{
 use super::db::general::{db_dump, db_restore, init_pgpass, postgres_connect};
 use super::db::user::{check_user_exists, create_user};
 use crate::utils::misc::{delete_file, generate_random_string};
-use crate::utils::structs::{PGTools, PostgresCredentials};
+use crate::utils::structs::{PGTools, PostgresCredentials, SqlFileFormat};
 use clap::Args;
 use log::{debug, error, info};
 
@@ -127,6 +127,7 @@ pub async fn clone_db(
         &data.database,
         &dump_file,
         pg_tools,
+        SqlFileFormat::Bsql,
     )
     .await
     {
@@ -201,6 +202,7 @@ pub async fn clone_db(
         &data.new_database,
         &dump_file,
         pg_tools,
+        SqlFileFormat::Bsql,
     )
     .await
     {

@@ -288,3 +288,43 @@ impl ValueEnum for OutputFormat {
         })
     }
 }
+
+#[derive(Debug, Clone, PartialEq, Copy)]
+pub enum SqlFileFormat {
+    Sql,
+    Bsql,
+}
+
+impl FromStr for SqlFileFormat {
+    type Err = PGCliError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "sql" => Ok(SqlFileFormat::Sql),
+            "bsql" => Ok(SqlFileFormat::Bsql),
+            _ => Err(PGCliError::Other(format!("Invalid sql file format: {}", s))),
+        }
+    }
+}
+
+impl fmt::Display for SqlFileFormat {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            SqlFileFormat::Sql => write!(f, "plain"),
+            SqlFileFormat::Bsql => write!(f, "custom"),
+        }
+    }
+}
+
+impl ValueEnum for SqlFileFormat {
+    fn value_variants<'a>() -> &'a [Self] {
+        &[SqlFileFormat::Sql, SqlFileFormat::Bsql]
+    }
+
+    fn to_possible_value<'a>(&self) -> Option<clap::builder::PossibleValue> {
+        Some(match self {
+            SqlFileFormat::Sql => clap::builder::PossibleValue::new("sql"),
+            SqlFileFormat::Bsql => clap::builder::PossibleValue::new("bsql"),
+        })
+    }
+}
