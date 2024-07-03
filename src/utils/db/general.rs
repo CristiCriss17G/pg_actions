@@ -29,7 +29,7 @@ fn compare_pgpass_credentials(
 
 /// Initialize the .pgpass file with the credentials
 pub async fn init_pgpass(credentials: &Vec<PostgresCredentials>) -> Result<(), PGCliError> {
-    let home = dirs_next::home_dir().expect("Home directory not found");
+    let home = dirs::home_dir().expect("Home directory not found");
     let pgpass_file = home.join(".pgpass");
 
     let mut credentials = credentials.clone();
@@ -89,7 +89,7 @@ pub async fn init_pgpass(credentials: &Vec<PostgresCredentials>) -> Result<(), P
 /// returns the content of the file as a PostgresCredentials struct
 /// if the file is not found or is invalid, returns None
 pub async fn try_read_pgpass() -> HashMap<String, PostgresCredentials> {
-    let home = dirs_next::home_dir().expect("Home directory not found");
+    let home = dirs::home_dir().expect("Home directory not found");
     let pgpass_file = home.join(".pgpass");
 
     if !pgpass_file.exists() {

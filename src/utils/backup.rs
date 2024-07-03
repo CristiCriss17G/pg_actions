@@ -13,7 +13,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Semaphore;
-use tokio::task;
+use tokio::{fs, task};
 
 #[derive(Args, Debug, PartialEq)]
 pub struct BackupArgs {
@@ -34,10 +34,10 @@ pub struct BackupArgs {
     /// defaults to bsql
     #[arg(short, long, env, value_enum, default_value = "bsql")]
     format: SqlFileFormat,
-    /// Create archive or just files
-    /// defaults to true
-    #[arg(long, env, default_value = "true")]
-    archive: bool,
+    /// Create archive or just files,
+    /// has no effect on `all` backups
+    #[arg(long, env)]
+    no_archive: bool,
     // owner password for db
     // #[arg(short = 's', long)]
     // password: Option<String>,
@@ -146,36 +146,72 @@ pub async fn backup_db(
 
     info!("All databases dumped successfully");
 
+    let output_file_name = {
+        let database_name = match data.database.as_str() {
+            "all" => "postgresql-backup",
+            _ => &data.database,
+        };
+        let file_suffix = if data.no_archive {
+            match *backup_format {
+                SqlFileFormat::Bsql => "bsql",
+                SqlFileFormat::Sql => "sql",
+            }
+        } else {
+            "tar.xz"
+        };
+        format!(
+            "{}-{}.{}",
+            database_name,
+            chrono::Utc::now().format("%Y-%m-%d-%H-%M-%S"),
+            file_suffix
+        )
+    };
+
     let output_file = match &data.output_location {
-        None => format!(
-            "/tmp/psql_backup/postgresql-backup-{}.tar.xz",
-            chrono::Utc::now().format("%Y-%m-%d-%H-%M-%S")
-        ),
+        None => {
+            format!("/tmp/psql_backup/{}", output_file_name)
+        }
         Some(output_location) => output_location.to_str().unwrap().to_string(),
     };
 
-    info!("Creating compressed archive");
-    create_compressed_archive(&temp_folder, &output_file).await?;
-    info!("Compressed archive created successfully");
+    if !data.no_archive || data.database == "all" {
+        info!("Creating compressed archive");
+        create_compressed_archive(&temp_folder, &output_file).await?;
+        info!("Compressed archive created successfully");
+    }
 
-    debug!("Deleting temp folder");
-    delete_directory(&temp_folder).await?;
+    if data.database != "all" && data.no_archive {
+        let output_location_str = format!(
+            "{}/{}.{}",
+            temp_folder,
+            data.database,
+            match *backup_format {
+                SqlFileFormat::Bsql => "bsql",
+                SqlFileFormat::Sql => "sql",
+            }
+        );
+        info!(
+            "Moving file from {} to {}",
+            output_location_str, output_file
+        );
+        match fs::copy(output_location_str, &output_file).await {
+            Ok(_) => info!("File moved successfully"),
+            Err(e) => error!("Failed to move file: {}", e),
+        }
+    }
 
     if None == data.output_location {
         info!("Uploading to S3");
         s3_credentials
-            .multipart_upload(
-                &output_file,
-                &format!(
-                    "postgresql-backup-{}.tar.xz",
-                    chrono::Utc::now().format("%Y-%m-%d-%H-%M-%S")
-                ),
-            )
+            .multipart_upload(&output_file, &output_file_name)
             .await?;
         info!("Uploaded to S3 successfully");
         debug!("Deleting local file");
         delete_file(&output_file).await?;
     }
+
+    debug!("Deleting temp folder");
+    delete_directory(&temp_folder).await?;
 
     debug!("Backup completed successfully");
 
