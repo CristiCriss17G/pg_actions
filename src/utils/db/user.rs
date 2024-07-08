@@ -270,27 +270,22 @@ pub async fn grant_privileges(
     }
     let mut res: u64 = 0;
 
-    match privileges {
+    let statement = match privileges {
         UserPrivileges::Full => {
-            let statement = format!(
+            format!(
                 "GRANT ALL PRIVILEGES ON DATABASE \"{}\" TO \"{}\"",
                 database, role
-            );
-
-            match client.execute(&statement, &[]).await {
-                Ok(r) => res += r,
-                Err(e) => return Err(PGCliError::from(e)),
-            };
+            )
         }
         UserPrivileges::ReadOnly | UserPrivileges::ReadUpdateOnly => {
-            let statement = format!("GRANT CONNECT ON DATABASE \"{}\" TO \"{}\"", database, role);
-
-            match client.execute(&statement, &[]).await {
-                Ok(r) => res += r,
-                Err(e) => return Err(PGCliError::from(e)),
-            };
+            format!("GRANT CONNECT ON DATABASE \"{}\" TO \"{}\"", database, role)
         }
-    }
+    };
+
+    match client.execute(&statement, &[]).await {
+        Ok(r) => res += r,
+        Err(e) => return Err(PGCliError::from(e)),
+    };
 
     let db_client = postgres_connect(&credentials, Some(database.to_string())).await?;
 
@@ -386,30 +381,25 @@ pub async fn revoke_privileges(
     }
     let mut res: u64 = 0;
 
-    match privileges {
+    let statement = match privileges {
         UserPrivileges::Full => {
-            let statement = format!(
+            format!(
                 "REVOKE ALL PRIVILEGES ON DATABASE \"{}\" FROM \"{}\"",
                 database, role
-            );
-
-            match client.execute(&statement, &[]).await {
-                Ok(r) => res += r,
-                Err(e) => return Err(PGCliError::from(e)),
-            };
+            )
         }
         UserPrivileges::ReadOnly | UserPrivileges::ReadUpdateOnly => {
-            let statement = format!(
+            format!(
                 "REVOKE CONNECT ON DATABASE \"{}\" FROM \"{}\"",
                 database, role
-            );
-
-            match client.execute(&statement, &[]).await {
-                Ok(r) => res += r,
-                Err(e) => return Err(PGCliError::from(e)),
-            };
+            )
         }
-    }
+    };
+
+    match client.execute(&statement, &[]).await {
+        Ok(r) => res += r,
+        Err(e) => return Err(PGCliError::from(e)),
+    };
 
     let db_client = postgres_connect(&credentials, Some(database.to_string())).await?;
 

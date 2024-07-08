@@ -194,7 +194,6 @@ make_deb_files:
     - echo "Creating deb files ..."
     - echo "JOB_ID_DYNAMIC=$JOB_ID_DYNAMIC JOB_ID_STATIC=$JOB_ID_STATIC"
     - apt update && apt upgrade -y && apt install -y build-essential devscripts curl
-    - curl https://dl.min.io/client/mc/release/linux-amd64/mc -o /usr/local/bin/mc && chmod +x /usr/local/bin/mc
   script:
     - 'sed -i "s/\(Version: \)[0-9]\+\.[0-9]\+\.[0-9]\+\(-static\.[0-9]\+\)/\1${RELEASE_VERSION}\2/" debian/static/DEBIAN/control'
     - 'sed -i "s/\(Version: \)[0-9]\+\.[0-9]\+\.[0-9]\+\(-[0-9]\+\)/\1${RELEASE_VERSION}\2/" debian/dynamic/DEBIAN/control'
@@ -203,16 +202,6 @@ make_deb_files:
     - chmod -R 755 debian/
     - dpkg-deb --build debian/dynamic $CI_PROJECT_DIR/${APP_NAME}_${RELEASE_VERSION}_amd64.deb
     - dpkg-deb --build debian/static $CI_PROJECT_DIR/${APP_NAME}-static_${RELEASE_VERSION}_amd64.deb
-    - mc ls -r ivf/$MINIO_BUCKET
-    - mc cp ivf/$MINIO_BUCKET/versions.txt ./versions.txt
-    - echo -e "${RELEASE_VERSION}/${APP_NAME}_${RELEASE_VERSION}_amd64.deb\n${RELEASE_VERSION}/${APP_NAME}-static_${RELEASE_VERSION}_amd64.deb\n${RELEASE_VERSION}/${APP_NAME}\n${RELEASE_VERSION}/${APP_NAME}-static\n" >> versions.txt
-    - mc cp versions.txt ivf/$MINIO_BUCKET
-    - mc cp ${APP_NAME}_${RELEASE_VERSION}_amd64.deb ivf/$MINIO_BUCKET/${RELEASE_VERSION}/${APP_NAME}_${RELEASE_VERSION}_amd64.deb
-    - mc cp ${APP_NAME}-static_${RELEASE_VERSION}_amd64.deb ivf/$MINIO_BUCKET/${RELEASE_VERSION}/${APP_NAME}-static_${RELEASE_VERSION}_amd64.deb
-    - mc cp ${APP_NAME} ivf/$MINIO_BUCKET/${RELEASE_VERSION}/$APP_NAME
-    - mc cp ${APP_NAME}-static ivf/$MINIO_BUCKET/${RELEASE_VERSION}/${APP_NAME}-static
-    - echo "$RELEASE_VERSION" > latest.txt
-    - mc cp latest.txt ivf/$MINIO_BUCKET/latest.txt
     - echo "JOB_ID_DEB=$CI_JOB_ID" > variables.env
   after_script:
     - cat variables.env # Debug: Check the content of job.env
@@ -225,6 +214,37 @@ make_deb_files:
       dotenv: variables.env # Specify the path to the job.env file
   rules:
     - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "dev"
+
+minio_uploads:
+  stage: release
+  needs:
+    - job: compile_dynamic
+      artifacts: true
+    - job: compile_static
+      artifacts: true
+    - job: make_deb_files
+      artifacts: true
+  image:
+    name: minio/mc:latest
+    entrypoint: [""]
+  tags:
+    - ivfhq
+  cache: {}
+  before_script:
+    - echo "Uploading to Minio ..."
+  script:
+    - mc ls -r ivf/$MINIO_BUCKET
+    - mc cp ivf/$MINIO_BUCKET/versions.txt ./versions.txt
+    - echo -e "${RELEASE_VERSION}/${APP_NAME}_${RELEASE_VERSION}_amd64.deb\n${RELEASE_VERSION}/${APP_NAME}-static_${RELEASE_VERSION}_amd64.deb\n${RELEASE_VERSION}/${APP_NAME}\n${RELEASE_VERSION}/${APP_NAME}-static\n" >> versions.txt
+    - mc cp versions.txt ivf/$MINIO_BUCKET
+    - mc cp ${APP_NAME}_${RELEASE_VERSION}_amd64.deb ivf/$MINIO_BUCKET/${RELEASE_VERSION}/${APP_NAME}_${RELEASE_VERSION}_amd64.deb
+    - mc cp ${APP_NAME}-static_${RELEASE_VERSION}_amd64.deb ivf/$MINIO_BUCKET/${RELEASE_VERSION}/${APP_NAME}-static_${RELEASE_VERSION}_amd64.deb
+    - mc cp ${APP_NAME} ivf/$MINIO_BUCKET/${RELEASE_VERSION}/$APP_NAME
+    - mc cp ${APP_NAME}-static ivf/$MINIO_BUCKET/${RELEASE_VERSION}/${APP_NAME}-static
+    - echo "$RELEASE_VERSION" > latest.txt
+    - mc cp latest.txt ivf/$MINIO_BUCKET/latest.txt
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
 
 create_release:
   stage: release

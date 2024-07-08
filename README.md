@@ -4,50 +4,54 @@
 
 [![Latest Release](https://gitlab.com/iv_future/infrastructure/docker-tools/postgres-db-actions/-/badges/release.svg)](https://gitlab.com/iv_future/infrastructure/docker-tools/postgres-db-actions/-/releases)
 
-## Table of contents
+##  1. <a name='Tableofcontents'></a>Table of contents
 <!-- vscode-markdown-toc -->
-* 1. [Description](#Description)
-* 2. [Installation](#Installation)
-  * 2.1. [Requirements](#Requirements)
-  * 2.2. [Distribution](#Distribution)
-  * 2.3. [Utilization](#Utilization)
-    * 2.3.1. [Docker](#Docker)
-    * 2.3.2. [Executables](#Executables)
-    * 2.3.3. [Deb package](#Debpackage)
-* 3. [Usage](#Usage)
-  * 3.1. [Docker run](#Dockerrun)
-    * 3.1.1. [Mount .pgpass file](#Mount.pgpassfile)
-  * 3.2. [Executables run](#Executablesrun)
-  * 3.3. [Main variables](#Mainvariables)
-  * 3.4. [Authentication](#Authentication)
-    * 3.4.1. [Example](#Example)
-  * 3.5. [Mention](#Mention)
-* 4. [CLI structure and examples](#CLIstructureandexamples)
-  * 4.1. [Help command](#Helpcommand)
-  * 4.2. [Clone command](#Clonecommand)
-    * 4.2.1. [Help section](#Helpsection)
-    * 4.2.2. [Example](#Example-1)
-  * 4.3. [Backup command](#Backupcommand)
-    * 4.3.1. [Help section](#Helpsection-1)
-    * 4.3.2. [Example](#Example-1)
-  * 4.4. [User operations](#Useroperations)
-    * 4.4.1. [Help section](#Helpsection-1)
-    * 4.4.2. [List users](#Listusers)
-    * 4.4.3. [Create a user](#Createauser)
-    * 4.4.4. [Delete a user](#Deleteauser)
-    * 4.4.5. [Update a user](#Updateauser)
-    * 4.4.6. [Grant privileges to a user](#Grantprivilegestoauser)
-    * 4.4.7. [Revoke privileges from a user](#Revokeprivilegesfromauser)
-  * 4.5. [Database operations](#Databaseoperations)
-    * 4.5.1. [Help section](#Helpsection-1)
-    * 4.5.2. [List databases](#Listdatabases)
-    * 4.5.3. [Create a database](#Createadatabase)
-    * 4.5.4. [Delete a database](#Deleteadatabase)
-    * 4.5.5. [Update a database](#Updateadatabase)
-  * 4.6. [CLI completion](#CLIcompletion)
-    * 4.6.1. [Help section](#Helpsection-1)
-  * 4.7. [Tools checking](#Toolschecking)
-    * 4.7.1. [Help section](#Helpsection-1)
+* 1. [Table of contents](#Tableofcontents)
+* 2. [Description](#Description)
+* 3. [Installation](#Installation)
+	* 3.1. [Requirements](#Requirements)
+	* 3.2. [Distribution](#Distribution)
+	* 3.3. [Utilization](#Utilization)
+		* 3.3.1. [Docker](#Docker)
+		* 3.3.2. [Executables](#Executables)
+		* 3.3.3. [Deb package](#Debpackage)
+* 4. [Usage](#Usage)
+	* 4.1. [Docker run](#Dockerrun)
+		* 4.1.1. [Mount .pgpass file](#Mount.pgpassfile)
+	* 4.2. [Executables run](#Executablesrun)
+	* 4.3. [Main variables](#Mainvariables)
+	* 4.4. [Authentication](#Authentication)
+		* 4.4.1. [Example](#Example)
+	* 4.5. [Mention](#Mention)
+* 5. [CLI structure and examples](#CLIstructureandexamples)
+	* 5.1. [Help command](#Helpcommand)
+	* 5.2. [Clone command](#Clonecommand)
+		* 5.2.1. [Help section](#Helpsection)
+		* 5.2.2. [Example](#Example-1)
+	* 5.3. [Backup command](#Backupcommand)
+		* 5.3.1. [Help section](#Helpsection-1)
+		* 5.3.2. [Example](#Example-1)
+		* 5.3.3. [Backup Command Test Cases Documentation](#BackupCommandTestCasesDocumentation)
+	* 5.4. [User operations](#Useroperations)
+		* 5.4.1. [Help section](#Helpsection-1)
+		* 5.4.2. [List users](#Listusers)
+		* 5.4.3. [Create a user](#Createauser)
+		* 5.4.4. [Delete a user](#Deleteauser)
+		* 5.4.5. [Update a user](#Updateauser)
+		* 5.4.6. [Grant privileges to a user](#Grantprivilegestoauser)
+		* 5.4.7. [Revoke privileges from a user](#Revokeprivilegesfromauser)
+	* 5.5. [Database operations](#Databaseoperations)
+		* 5.5.1. [Help section](#Helpsection-1)
+		* 5.5.2. [List databases](#Listdatabases)
+		* 5.5.3. [Create a database](#Createadatabase)
+		* 5.5.4. [Delete a database](#Deleteadatabase)
+		* 5.5.5. [Update a database](#Updateadatabase)
+	* 5.6. [CLI completion](#CLIcompletion)
+		* 5.6.1. [Help section](#Helpsection-1)
+	* 5.7. [Tools checking](#Toolschecking)
+		* 5.7.1. [Help section](#Helpsection-1)
+* 6. [CI/CD usage](#CICDusage)
+	* 6.1. [Gitlab CI/CD](#GitlabCICD)
 
 <!-- vscode-markdown-toc-config
 	numbering=true
@@ -55,13 +59,13 @@
 	/vscode-markdown-toc-config -->
 <!-- /vscode-markdown-toc -->
 
-## 1. <a name='Description'></a>Description
+##  2. <a name='Description'></a>Description
 
 `pg_actions` is a small executable that allows various operation on a PostgreSQL database, form the administrative side. It can clone a database, backup a database, create, delete, update a user, create, delete, update a database, and list users and databases.
 
-## 2. <a name='Installation'></a>Installation
+##  3. <a name='Installation'></a>Installation
 
-### 2.1. <a name='Requirements'></a>Requirements
+###  3.1. <a name='Requirements'></a>Requirements
 
 * `openssl (>= 3.0.0)` - Required for the `pg_actions` executable, it is used for the encryption and decryption of the database connection and S3/Minio authentication.
 * `xz-utils` - Required for the `pg_actions` executable, it is used for the compression and decompression of the backup files.
@@ -81,7 +85,7 @@
   apk add postgresql16-client
   ```
 
-### 2.2. <a name='Distribution'></a>Distribution
+###  3.2. <a name='Distribution'></a>Distribution
 
 There are 3 main ways to get the executable:
 
@@ -95,15 +99,15 @@ There are 3 main ways to get the executable:
 
 All downloads can be found in the [releases](https://gitlab.com/iv_future/infrastructure/docker-tools/postgres-db-actions/-/releases) section.
 
-### 2.3. <a name='Utilization'></a>Utilization
+###  3.3. <a name='Utilization'></a>Utilization
 
-#### 2.3.1. <a name='Docker'></a>Docker
+####  3.3.1. <a name='Docker'></a>Docker
 
 ```bash
 docker run -e PG_HOSTNAME -e PG_SUPERUSER -e PG_PASS -e PG_PORT -e S3_ENDPOINT -e S3_ACCESS_KEY -e S3_SECRET_KEY -e S3_BUCKET -e S3_PREFIX -e S3_REGION -it --rm regcr.ivfuture.uk/devops-services/tools/postgres-db-actions:latest help
 ```
 
-#### 2.3.2. <a name='Executables'></a>Executables
+####  3.3.2. <a name='Executables'></a>Executables
 
 ```bash
 ./pg_actions help
@@ -113,7 +117,7 @@ docker run -e PG_HOSTNAME -e PG_SUPERUSER -e PG_PASS -e PG_PORT -e S3_ENDPOINT -
 ./pg_actions-static help
 ```
 
-#### 2.3.3. <a name='Debpackage'></a>Deb package
+####  3.3.3. <a name='Debpackage'></a>Deb package
 
 *Note: replace `${RELEASE_VERSION}` with the desired version.*
 
@@ -135,15 +139,15 @@ pg_actions help
 
 > Note 2: The `apt install` method is proffered compared to `dpkg -i` because it will automatically install the dependencies.
 
-## 3. <a name='Usage'></a>Usage
+##  4. <a name='Usage'></a>Usage
 
-### 3.1. <a name='Dockerrun'></a>Docker run
+###  4.1. <a name='Dockerrun'></a>Docker run
 
 ```bash
 docker run -e PG_HOSTNAME -e PG_SUPERUSER -e PG_PASS -e PG_PORT -e S3_ENDPOINT -e S3_ACCESS_KEY -e S3_SECRET_KEY -e S3_BUCKET -e S3_PREFIX -e S3_REGION -it --rm regcr.ivfuture.uk/devops-services/tools/postgres-db-actions:latest help
 ```
 
-#### 3.1.1. <a name='Mount.pgpassfile'></a>Mount .pgpass file
+####  4.1.1. <a name='Mount.pgpassfile'></a>Mount .pgpass file
 
 ```bash
 docker run -v $HOME/.pgpass:/pghome/.pgpass -e PG_HOSTNAME -e PG_SUPERUSER -e PG_PASS -e PG_PORT -e S3_ENDPOINT -e S3_ACCESS_KEY -e S3_SECRET_KEY -e S3_BUCKET -e S3_PREFIX -e S3_REGION -it --rm regcr.ivfuture.uk/devops-services/tools/postgres-db-actions:latest help
@@ -151,7 +155,7 @@ docker run -v $HOME/.pgpass:/pghome/.pgpass -e PG_HOSTNAME -e PG_SUPERUSER -e PG
 
 > The flags with `-e` are optional and can be passed as arguments to the command.
 
-### 3.2. <a name='Executablesrun'></a>Executables run
+###  4.2. <a name='Executablesrun'></a>Executables run
 
 ```bash
 pg_actions help
@@ -165,7 +169,7 @@ pg_actions help
 
 > For the rest of the documentation, the `pg_actions` command will be used, but it can be replaced with `./pg_actions-static` if the static executable is used; or the docker command.
 
-### 3.3. <a name='Mainvariables'></a>Main variables
+###  4.3. <a name='Mainvariables'></a>Main variables
 
 They can be either set as environment variables or passed as arguments.
 
@@ -191,13 +195,14 @@ Optional variables:
 
 * `PG_DUMP` - `--pg-dump` - Path to the `pg_dump` executable, defaults to `pg_dump` from the system path
 * `PG_RESTORE` - `--pg-restore` - Path to the `pg_restore` executable, defaults to `pg_restore` from the system path
+* `USE_JSON_LOGGING` - `--use-json-logging` - Use JSON logging, defaults to false
 
-### 3.4. <a name='Authentication'></a>Authentication
+###  4.4. <a name='Authentication'></a>Authentication
 
 As mentioned previously, the executable can read the `.pgpass` file, but it can also read the `PG_HOSTNAME`, `PG_SUPERUSER`, `PG_PASS`, and `PG_PORT` environment variables, or they can be passed as arguments.
 But in th case that a `.pgpass` file is read, the environment variable `PG_HOSTNAME` or the equivalent argument are still needed to be passed, as the `.pgpass` file does not contain just one hostname, but multiple, so the executable needs to know which one to use.
 
-#### 3.4.1. <a name='Example'></a>Example
+####  4.4.1. <a name='Example'></a>Example
 
 ```bash
 # .pgpass file
@@ -209,17 +214,17 @@ my_host2:5432:*my_db*:my_user:my_password
 pg_actions -H my_host help
 ```
 
-### 3.5. <a name='Mention'></a>Mention
+###  4.5. <a name='Mention'></a>Mention
 
 The cli has a verbose mode, it can be used multiple times to increase the verbosity of the output, at most 2 times, but the default level is `info` so some information will always be printed.
 The logging information is always printed to stderr, so it can be redirected to a file or to `/dev/null`, while the output is always printed to stdout.
 Docker is the exception, as both the logging and the output are printed to stdout, this is a docker limitation.
 
-## 4. <a name='CLIstructureandexamples'></a>CLI structure and examples
+##  5. <a name='CLIstructureandexamples'></a>CLI structure and examples
 
 > The examples assume you are using a `.pgpass` file in the user's home directory, so the commands do not include details about the password or port, but they can be added as arguments.
 
-### 4.1. <a name='Helpcommand'></a>Help command
+###  5.1. <a name='Helpcommand'></a>Help command
 
 It prints the help message for the main command or for a specific subcommand. Along with arguments and options, it also prints the environment variables that can be used to set the options.
 
@@ -255,15 +260,16 @@ Options:
       --s3-region <S3_REGION>          S3/Minio region [env: S3_REGION=local]
       --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
+      --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
   -h, --help                           Print help
   -V, --version                        Print version
 ```
 
-### 4.2. <a name='Clonecommand'></a>Clone command
+###  5.2. <a name='Clonecommand'></a>Clone command
 
 It clones a database within the same server, or between servers. It can also create the owner user if it does not exist.
 
-#### 4.2.1. <a name='Helpsection'></a>Help section
+####  5.2.1. <a name='Helpsection'></a>Help section
   
 ```bash
 pg_actions help clone
@@ -299,6 +305,7 @@ Options:
       --s3-region <S3_REGION>          S3/Minio region [env: S3_REGION=local]
       --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
+      --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
   -h, --help                           Print help
 ```
 
@@ -313,7 +320,7 @@ Options:
 * `-k, --keep-dump` - Keep the dump file, defaults to false
 * `--overwrite` - Overwrite new database if it exists
 
-#### 4.2.2. <a name='Example-1'></a>Example
+####  5.2.2. <a name='Example-1'></a>Example
 
 * In the same server
 
@@ -329,11 +336,11 @@ pg_actions -H my_host clone -d old_db -n new_db -o new_owner --pg-hostname new_h
 
 *Note: The credentials for the second host are presumed to be in the `.pgpass` file, or they can be passed as arguments.*
 
-### 4.3. <a name='Backupcommand'></a>Backup command
+###  5.3. <a name='Backupcommand'></a>Backup command
 
 It backs up a database to a file or to S3/Minio storage.
 
-#### 4.3.1. <a name='Helpsection-1'></a>Help section
+####  5.3.1. <a name='Helpsection-1'></a>Help section
 
 ```bash
 pg_actions help backup
@@ -356,14 +363,14 @@ Options:
           Parallel jobs to use defaults to 5 [env: JOBS=] [default: 5]
   -U, --pg-superuser <PG_SUPERUSER>
           Sets Postgres username [env: PG_SUPERUSER=postgres] [default: postgres]
+  -f, --format <FORMAT>
+          Format of the output file defaults to bsql [env: FORMAT=] [default: bsql] [possible values: sql, bsql]
   -P, --pg-password <PG_PASSWORD>
           Sets Postgres password [env: PG_PASS] [default: postgres]
-      --retry <RETRY>
-          retry just archive upload, Path to the archive to retry from
+      --no-archive
+          Create archive or just files, has no effect on `all` backups [env: NO_ARCHIVE=]
   -p, --pg-port <PG_PORT>
           Sets Postgres port [env: PG_PORT=5432] [default: 5432]
-  -s, --password <PASSWORD>
-          owner password for db
       --pg-dump <PG_DUMP>
           Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>
@@ -382,6 +389,8 @@ Options:
           S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...
           Turn debugging information on repetitive use increases verbosity, at most 2 times
+      --use-json-logging
+          Show logging information as json [env: USE_JSON_LOGGING=]
   -h, --help
           Print help
 ```
@@ -393,8 +402,10 @@ Options:
 * `BACKUP_LOCATION` - `-o, --output-location` - Output location, choose between S3 or a file path, defaults to S3
 * `JOBS` - `-j, --jobs` - Parallel jobs to use, defaults to 5
 * `RETRY` - `--retry` - Retry just archive upload, path to the archive to retry from
+* `FORMAT` - `-f, --format` - Format of the output file, defaults to bsql
+* `NO_ARCHIVE` - `--no-archive` - Create archive or just files, has no effect on `all` backups
 
-#### 4.3.2. <a name='Example-1'></a>Example
+####  5.3.2. <a name='Example-1'></a>Example
 
 * Backup all databases to S3
 
@@ -408,11 +419,71 @@ pg_actions -H my_host backup all
 pg_actions -H my_host backup my_db -o /backup/my_db.tar.xz
 ```
 
-### 4.4. <a name='Useroperations'></a>User operations
+####  5.3.3. <a name='BackupCommandTestCasesDocumentation'></a>Backup Command Test Cases Documentation
+
+The following test cases demonstrate various uses of the backup command with the pg_actions utility. These cases cover backing up all databases or a specific database (dvdrentals) with different formats (sql and bsql) and output options.
+
+1. Backup All Databases to Default Location with SQL Format
+
+```bash
+pg_actions -H my_host backup all --format sql
+```
+
+This command backs up all databases in SQL format. The output location defaults to S3, as specified by the BACKUP_LOCATION environment variable or its default setting.
+
+2. Backup All Databases to a File with SQL Format
+
+```bash
+pg_actions -H my_host backup all --format sql -o ./pgbk.tar.xz
+```
+
+This command backs up all databases in SQL format to a file named pgbk.tar.xz in the current directory. The -o option overrides the default S3 output location.
+
+3. Backup All Databases to Default Location with BSQL Format
+
+```bash
+pg_actions -H my_host backup all --format bsql
+```
+
+This command backs up all databases in BSQL format. The output location defaults to S3, similar to the first command.
+
+4. Backup Specific Database (dvdrentals) to a File with SQL Format Without Creating an Archive
+
+```bash
+pg_actions -H my_host backup dvdrentals --format sql -o ./pgbk.sql --no-archive
+```
+
+This command backs up the dvdrentals database in SQL format to a file named pgbk.sql in the current directory. The --no-archive option indicates that the output should not be archived, which is relevant for individual database backups.
+
+5. Backup Specific Database (dvdrentals) to a File with BSQL Format Without Creating an Archive
+
+```bash
+pg_actions -H my_host backup dvdrentals --format bsql -o ./pgbk.bsql --no-archive
+```
+
+This command backs up the dvdrentals database in BSQL format to a file named pgbk.bsql in the current directory, without creating an archive.
+
+6. Backup Specific Database (dvdrentals) to a File with SQL Format
+
+```bash
+pg_actions -H my_host backup dvdrentals --format sql -o ./pgbk.tar.xz
+```
+
+This command backs up the dvdrentals database in SQL format to a file named pgbk.tar.xz in the current directory. This case does not specify the --no-archive option, so the output may be archived depending on the utility's behavior.
+
+7. Backup Specific Database (dvdrentals) to a File with BSQL Format
+
+```bash
+pg_actions -H my_host backup dvdrentals --format bsql -o ./pgbk.tar.xz
+```
+
+This command backs up the dvdrentals database in BSQL format to a file named pgbk.tar.xz in the current directory. Similar to the previous case, the absence of the --no-archive option means the output may be archived.
+
+###  5.4. <a name='Useroperations'></a>User operations
 
 This command allows the user to list, create, delete, and update a user, and to grant and revoke privileges from a user.
 
-#### 4.4.1. <a name='Helpsection-1'></a>Help section
+####  5.4.1. <a name='Helpsection-1'></a>Help section
 
 ```bash
 pg_actions help user
@@ -446,10 +517,11 @@ Options:
       --s3-region <S3_REGION>          S3/Minio region [env: S3_REGION=local]
       --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
+      --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
   -h, --help                           Print help
 ```
 
-#### 4.4.2. <a name='Listusers'></a>List users
+####  5.4.2. <a name='Listusers'></a>List users
 
 Prints a list of user names as a table
 
@@ -467,7 +539,7 @@ Usage: pg_actions user list [OPTIONS]
 Options:
   -H, --pg-hostname <PG_HOSTNAME>      Sets Postgres connection URL [env: PG_HOSTNAME=db] [default: localhost]
       --sort <SORT>                    sort by username [possible values: asc, desc]
-  -q, --quiet                          quite mode
+  -o, --output <OUTPUT>                quite mode [default: table] [possible values: json, json-compact, json-lines, csv, table, simple]
   -U, --pg-superuser <PG_SUPERUSER>    Sets Postgres username [env: PG_SUPERUSER=postgres] [default: postgres]
   -e, --extra                          extra details
   -P, --pg-password <PG_PASSWORD>      Sets Postgres password [env: PG_PASS] [default: postgres]
@@ -481,14 +553,24 @@ Options:
       --s3-region <S3_REGION>          S3/Minio region [env: S3_REGION=local]
       --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
+      --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
   -h, --help                           Print help
 ```
 
 ##### Additional Variables
 
 * `--sort [asc|desc]` - Sort ascending or descending by username
-* `-q, --quiet` - Do not print as a table
+* `-o, --output [json|json-compact|json-lines|csv|table|simple]` - Output format, defaults to table
 * `-e, --extra` - Print extra information, such as right as superuser, createdb, and login, and oid
+
+##### Output formats
+
+* `json` - JSON pretty format
+* `json-compact` - Compact JSON format
+* `json-lines` - JSON lines format
+* `csv` - CSV format
+* `table` - Table format
+* `simple` - Simple/compact format
 
 ##### Execution
 
@@ -496,7 +578,15 @@ Options:
 pg_actions -H my_host user list
 ```
 
-#### 4.4.3. <a name='Createauser'></a>Create a user
+```bash
+pg_actions -H my_host user list --sort desc -o json
+```
+
+```bash
+pg_actions -H my_host user list --sort desc -o csv
+```
+
+####  5.4.3. <a name='Createauser'></a>Create a user
 
 Create a user with the specified options
 
@@ -509,7 +599,7 @@ pg_actions help user create
 ```bash
 Create a user
 
-Usage: pg_actions user create [OPTIONS] --password <PASSWORD> <USERNAME>
+Usage: pg_actions user create [OPTIONS] <USERNAME>
 
 Arguments:
   <USERNAME>  username
@@ -532,12 +622,13 @@ Options:
       --s3-region <S3_REGION>          S3/Minio region [env: S3_REGION=local]
       --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
+      --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
   -h, --help                           Print help
 ```
 
 ##### Additional Variables
 
-* `-s, --password` - Password for the user
+* `-s, --password` - Password for the user, if not set, a random 32 character password will be generated and printed
 * `--superuser` - User as superuser
 * `--createdb` - Createdb for user
 * `-n, --no-login` - Role with no login, defaults to false
@@ -548,7 +639,11 @@ Options:
 pg_actions -H my_host user create -s my_password my_user
 ```
 
-#### 4.4.4. <a name='Deleteauser'></a>Delete a user
+```bash
+pg_actions -H my_host user create --superuser my_user
+```
+
+####  5.4.4. <a name='Deleteauser'></a>Delete a user
 
 Delete a user with the specified username
 
@@ -580,6 +675,7 @@ Options:
       --s3-region <S3_REGION>          S3/Minio region [env: S3_REGION=local]
       --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
+      --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
   -h, --help                           Print help
 ```
 
@@ -589,7 +685,7 @@ Options:
 pg_actions -H my_host user delete my_user
 ```
 
-#### 4.4.5. <a name='Updateauser'></a>Update a user
+####  5.4.5. <a name='Updateauser'></a>Update a user
 
 Update a user with the specified options
 
@@ -625,6 +721,7 @@ Options:
       --s3-region <S3_REGION>          S3/Minio region [env: S3_REGION=local]
       --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
+      --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
   -h, --help                           Print help
 ```
 
@@ -641,7 +738,7 @@ Options:
 pg_actions -H my_host user update -s my_password my_user
 ```
 
-#### 4.4.6. <a name='Grantprivilegestoauser'></a>Grant privileges to a user
+####  5.4.6. <a name='Grantprivilegestoauser'></a>Grant privileges to a user
 
 Grant privileges to a user on a database, currently supported, read-only or full access.
 
@@ -664,7 +761,7 @@ Options:
   -H, --pg-hostname <PG_HOSTNAME>      Sets Postgres connection URL [env: PG_HOSTNAME=db] [default: localhost]
       --schema <SCHEMA>                schema [default: public]
   -U, --pg-superuser <PG_SUPERUSER>    Sets Postgres username [env: PG_SUPERUSER=postgres] [default: postgres]
-  -g, --privileges <PRIVILEGES>        privileges full or read-only [possible values: full, read-only]
+  -g, --privileges <PRIVILEGES>        privileges full or read-only or read-update-only [possible values: full, read-only, read-update-only]
   -P, --pg-password <PG_PASSWORD>      Sets Postgres password [env: PG_PASS] [default: postgres]
   -p, --pg-port <PG_PORT>              Sets Postgres port [env: PG_PORT=5432] [default: 5432]
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
@@ -676,13 +773,14 @@ Options:
       --s3-region <S3_REGION>          S3/Minio region [env: S3_REGION=local]
       --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
+      --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
   -h, --help                           Print help
 ```
 
 ##### Additional Variables
 
 * `--schema` - Schema, defaults to public
-* `-g, --privileges` - Privileges, full or read-only
+* `-g, --privileges` - Privileges, full or read-only, or read-update-only
 
 ##### Execution
 
@@ -694,7 +792,7 @@ pg_actions -H my_host user grant -d my_db -g full my_user
 pg_actions -H my_host user grant -d my_db -g read-only my_user
 ```
 
-#### 4.4.7. <a name='Revokeprivilegesfromauser'></a>Revoke privileges from a user
+####  5.4.7. <a name='Revokeprivilegesfromauser'></a>Revoke privileges from a user
 
 Revoke privileges from a user on a database, currently supported, read-only or full access, the reverse of the grant command.
 
@@ -717,7 +815,7 @@ Options:
   -H, --pg-hostname <PG_HOSTNAME>      Sets Postgres connection URL [env: PG_HOSTNAME=db] [default: localhost]
       --schema <SCHEMA>                schema [default: public]
   -U, --pg-superuser <PG_SUPERUSER>    Sets Postgres username [env: PG_SUPERUSER=postgres] [default: postgres]
-  -g, --privileges <PRIVILEGES>        privileges [possible values: full, read-only]
+  -g, --privileges <PRIVILEGES>        privileges [possible values: full, read-only, read-update-only]
   -P, --pg-password <PG_PASSWORD>      Sets Postgres password [env: PG_PASS] [default: postgres]
   -p, --pg-port <PG_PORT>              Sets Postgres port [env: PG_PORT=5432] [default: 5432]
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
@@ -729,13 +827,14 @@ Options:
       --s3-region <S3_REGION>          S3/Minio region [env: S3_REGION=local]
       --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
+      --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
   -h, --help                           Print help
 ```
 
 ##### Additional Variables
 
 * `--schema` - Schema, defaults to public
-* `-g, --privileges` - Privileges, full or read-only
+* `-g, --privileges` - Privileges, full or read-only, or read-update-only
 
 ##### Execution
 
@@ -747,11 +846,11 @@ pg_actions -H my_host user revoke -d my_db -g full my_user
 pg_actions -H my_host user revoke -d my_db -g read-only my_user
 ```
 
-### 4.5. <a name='Databaseoperations'></a>Database operations
+###  5.5. <a name='Databaseoperations'></a>Database operations
 
 This command allows the user to list, create, delete, and update a database.
 
-#### 4.5.1. <a name='Helpsection-1'></a>Help section
+####  5.5.1. <a name='Helpsection-1'></a>Help section
 
 ```bash
 pg_actions help database
@@ -783,10 +882,11 @@ Options:
       --s3-region <S3_REGION>          S3/Minio region [env: S3_REGION=local]
       --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
+      --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
   -h, --help                           Print help
 ```
 
-#### 4.5.2. <a name='Listdatabases'></a>List databases
+####  5.5.2. <a name='Listdatabases'></a>List databases
 
 Prints a list of databases as a table
 
@@ -804,7 +904,7 @@ Usage: pg_actions database list [OPTIONS]
 Options:
   -H, --pg-hostname <PG_HOSTNAME>      Sets Postgres connection URL [env: PG_HOSTNAME=db] [default: localhost]
       --sort <SORT>                    sort by database name [possible values: asc, desc]
-  -q, --quiet                          quite mode
+  -o, --output <OUTPUT>                quite mode [default: table] [possible values: json, json-compact, json-lines, csv, table, simple]
   -U, --pg-superuser <PG_SUPERUSER>    Sets Postgres username [env: PG_SUPERUSER=postgres] [default: postgres]
   -e, --extra                          extra details
   -P, --pg-password <PG_PASSWORD>      Sets Postgres password [env: PG_PASS] [default: postgres]
@@ -818,14 +918,24 @@ Options:
       --s3-region <S3_REGION>          S3/Minio region [env: S3_REGION=local]
       --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
+      --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
   -h, --help                           Print help
 ```
 
 ##### Additional Variables
 
 * `--sort [asc|desc]` - Sort ascending or descending by database name
-* `-q, --quiet` - Do not print as a table
+* `-o, --output [json|json-compact|json-lines|csv|table|simple]` - Output format, defaults to table
 * `-e, --extra` - Print extra information, such as owner, size and oid
+
+##### Output formats
+
+* `json` - JSON pretty format
+* `json-compact` - Compact JSON format
+* `json-lines` - JSON lines format
+* `csv` - CSV format
+* `table` - Table format
+* `simple` - Simple/compact format
 
 ##### Execution
 
@@ -833,7 +943,15 @@ Options:
 pg_actions -H my_host database list
 ```
 
-#### 4.5.3. <a name='Createadatabase'></a>Create a database
+```bash
+pg_actions -H my_host database list --sort desc -o json
+```
+
+```bash
+pg_actions -H my_host database list --sort desc -o csv
+```
+
+####  5.5.3. <a name='Createadatabase'></a>Create a database
 
 Create a database with the specified options
 
@@ -866,6 +984,7 @@ Options:
       --s3-region <S3_REGION>          S3/Minio region [env: S3_REGION=local]
       --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
+      --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
   -h, --help                           Print help
 ```
 
@@ -879,7 +998,7 @@ Options:
 pg_actions -H my_host database create my_db
 ```
 
-#### 4.5.4. <a name='Deleteadatabase'></a>Delete a database
+####  5.5.4. <a name='Deleteadatabase'></a>Delete a database
 
 Delete a database with the specified name
 
@@ -911,6 +1030,7 @@ Options:
       --s3-region <S3_REGION>          S3/Minio region [env: S3_REGION=local]
       --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
+      --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
   -h, --help                           Print help
 ```
 
@@ -920,7 +1040,7 @@ Options:
 pg_actions -H my_host database delete my_db
 ```
 
-#### 4.5.5. <a name='Updateadatabase'></a>Update a database
+####  5.5.5. <a name='Updateadatabase'></a>Update a database
 
 Update a database with the specified options
 
@@ -953,6 +1073,7 @@ Options:
       --s3-region <S3_REGION>          S3/Minio region [env: S3_REGION=local]
       --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
+      --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
   -h, --help                           Print help
 ```
 
@@ -966,11 +1087,11 @@ Options:
 pg_actions -H my_host database update -o my_new_owner my_db
 ```
 
-### 4.6. <a name='CLIcompletion'></a>CLI completion
+###  5.6. <a name='CLIcompletion'></a>CLI completion
 
 The CLI completion is available for bash, elvish, fish, powershell and zsh.
 
-#### 4.6.1. <a name='Helpsection-1'></a>Help section
+####  5.6.1. <a name='Helpsection-1'></a>Help section
 
 ```bash
 pg_actions help completions
@@ -998,6 +1119,7 @@ Options:
       --s3-region <S3_REGION>          S3/Minio region [env: S3_REGION=local]
       --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
+      --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
   -h, --help                           Print help
 ```
 
@@ -1048,11 +1170,11 @@ Options:
   source <(pg_actions completions zsh)
   ```
 
-### 4.7. <a name='Toolschecking'></a>Tools checking
+###  5.7. <a name='Toolschecking'></a>Tools checking
 
 This command checks the tools needed for the CLI to work, such as `pg_dump` and `pg_restore`.
 
-#### 4.7.1. <a name='Helpsection-1'></a>Help section
+####  5.7.1. <a name='Helpsection-1'></a>Help section
 
 ```bash
 pg_actions help check-tools
@@ -1085,3 +1207,24 @@ Options:
 ```bash
 pg_actions check-tools
 ```
+
+##  6. <a name='CICDusage'></a>CI/CD usage
+
+The CLI can be used in CI/CD pipelines to automate database operations, such as creating a database, cloning, user, and granting privileges.
+
+###  6.1. <a name='GitlabCICD'></a>Gitlab CI/CD
+
+```yaml
+stages:
+  - clone
+
+clone:
+  stage: clone
+  image: 
+    name: regcr.ivfuture.uk/devops-services/tools/postgres-db-actions:latest
+    entrypoint: [""]
+  script:
+    - pg_actions -H my_host clone my_db my_new_db -o my_user
+```
+
+This assumes that the variables `PG_HOSTNAME`, `PG_PORT`(optional), `PG_SUPERUSER`, and `PG_PASS` are set in the environment.
