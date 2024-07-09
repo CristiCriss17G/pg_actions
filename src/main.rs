@@ -2,16 +2,13 @@ mod utils;
 
 use clap::{Command, CommandFactory, Parser, Subcommand};
 use clap_complete::{generate, Generator, Shell};
-use colored::*;
-use env_logger::{Builder, Env};
-use log::{debug, error, info, trace, Level, LevelFilter};
+use log::{debug, error, info, trace, LevelFilter};
 use rpassword::prompt_password;
 use std::collections::HashMap;
 use std::io;
-use std::io::Write;
 use utils::db::general::try_read_pgpass;
 use utils::structs::{PGCliError, PostgresCredentials, S3Credentials};
-use utils::{backup, clone, database, misc::check_pg_tools_version, user};
+use utils::{backup, clone, database, logging::log_init, misc::check_pg_tools_version, user};
 
 #[derive(Parser, Debug, PartialEq)]
 #[command(name = "pg_actions", author, version, about, long_about = None)]
@@ -97,6 +94,10 @@ struct Cli {
     #[arg(short='v', long="verbose", global = true, action = clap::ArgAction::Count)]
     debug: u8,
 
+    /// Show logging information as json
+    #[arg(long, env, global = true)]
+    use_json_logging: bool,
+
     /// Subcommands
     #[command(subcommand)]
     command: Option<Commands>,
@@ -127,16 +128,6 @@ fn print_completions<G: Generator>(gen: G, cmd: &mut Command) {
     generate(gen, cmd, cmd.get_name().to_string(), &mut io::stdout());
 }
 
-fn colorize_level(level: Level) -> String {
-    match level {
-        Level::Error => "ERROR".red().to_string(),
-        Level::Warn => "WARN".yellow().to_string(),
-        Level::Info => "INFO".green().to_string(),
-        Level::Debug => "DEBUG".blue().to_string(),
-        Level::Trace => "TRACE".magenta().to_string(),
-    }
-}
-
 #[tokio::main]
 async fn main() -> Result<(), PGCliError> {
     let cli = Cli::parse();
@@ -148,35 +139,7 @@ async fn main() -> Result<(), PGCliError> {
         _ => LevelFilter::Trace,
     };
 
-    if cfg!(debug_assertions) {
-        Builder::from_env(Env::default())
-            .format(|buf, record| {
-                writeln!(
-                    buf,
-                    "{} [{}:{}:{}] - {}",
-                    chrono::Local::now().format("%+"),
-                    colorize_level(record.level()),
-                    record.target(),
-                    record.line().unwrap_or(0),
-                    record.args()
-                )
-            })
-            .filter_level(log_level)
-            .init();
-    } else {
-        Builder::from_env(Env::default())
-            .format(|buf, record| {
-                writeln!(
-                    buf,
-                    "{} [{}] - {}",
-                    chrono::Local::now().format("%+"),
-                    colorize_level(record.level()),
-                    record.args()
-                )
-            })
-            .filter_level(log_level)
-            .init();
-    };
+    log_init(log_level, cli.use_json_logging);
 
     info!("Starting up...");
     if log_level > LevelFilter::Info {

@@ -7,7 +7,7 @@ use super::db::database::{
 use super::db::general::{db_dump, db_restore, init_pgpass, postgres_connect};
 use super::db::user::{check_user_exists, create_user};
 use crate::utils::misc::{delete_file, generate_random_string};
-use crate::utils::structs::{PGTools, PostgresCredentials};
+use crate::utils::structs::{PGTools, PostgresCredentials, SqlFileFormat};
 use clap::Args;
 use log::{debug, error, info};
 
@@ -119,7 +119,7 @@ pub async fn clone_db(
     let dump_file = format!(
         "/tmp/psql_backup/{}-{}.bsql",
         data.new_database,
-        generate_random_string(6)
+        generate_random_string(6, true)
     );
 
     match db_dump(
@@ -127,6 +127,7 @@ pub async fn clone_db(
         &data.database,
         &dump_file,
         pg_tools,
+        SqlFileFormat::Bsql,
     )
     .await
     {
@@ -143,20 +144,13 @@ pub async fn clone_db(
     let new_owner_exists = check_user_exists(&destination_client, &data.new_owner).await?;
 
     if !new_owner_exists && data.create_owner {
-        if let Some(password) = &data.new_password {
-            info!("Creating new owner {}", &data.new_owner);
-            match create_user(&destination_client, &data.new_owner, &password).await {
-                Ok(_) => info!("New owner created successfully"),
-                Err(e) => {
-                    error!("Failed to create new owner: {}", e);
-                    return Err(PGCliError::from(e));
-                }
+        info!("Creating new owner {}", &data.new_owner);
+        match create_user(&destination_client, &data.new_owner, &data.new_password).await {
+            Ok(_) => info!("New owner created successfully"),
+            Err(e) => {
+                error!("Failed to create new owner: {}", e);
+                return Err(PGCliError::from(e));
             }
-        } else {
-            error!("New owner does not exist and no password provided");
-            return Err(PGCliError::Other(
-                "New owner does not exist and no password provided".to_string(),
-            ));
         }
     } else if !new_owner_exists && !data.create_owner {
         error!("New owner does not exist and create_owner is not set");
@@ -208,6 +202,7 @@ pub async fn clone_db(
         &data.new_database,
         &dump_file,
         pg_tools,
+        SqlFileFormat::Bsql,
     )
     .await
     {

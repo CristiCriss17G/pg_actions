@@ -1,6 +1,9 @@
 use clap::ValueEnum;
+use csv::{self, Writer};
 use rusoto_core::RusotoError;
 use rusoto_s3::{CompleteMultipartUploadError, CreateMultipartUploadError, UploadPartError};
+use serde::{Deserialize, Serialize};
+use serde_json;
 use std::fmt;
 use std::str::FromStr;
 use thiserror::Error;
@@ -96,6 +99,14 @@ pub enum PGCliError {
     RusotoUploadPartError(#[from] RusotoError<UploadPartError>),
     #[error("Rusoto CompleteMultipartUploadError Error: {0}")]
     RusotoCompleteMultipartUploadError(#[from] RusotoError<CompleteMultipartUploadError>),
+    #[error("Serde Json Error: {0}")]
+    SerdeJson(#[from] serde_json::Error),
+    #[error("Serde CSV Error: {0}")]
+    SerdeCsv(#[from] csv::Error),
+    #[error("Serde CSV Writer Error: {0}")]
+    SerdeCsvWriter(#[from] csv::IntoInnerError<Writer<Vec<u8>>>),
+    #[error("String UTF8 Error: {0}")]
+    StringUtf8(#[from] std::string::FromUtf8Error),
     #[error("ConnectionError: {0}")]
     ConnectionError(String),
     #[error("PGToolsError: {0}")]
@@ -104,7 +115,7 @@ pub enum PGCliError {
     Other(String),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub enum UserDetails {
     Extra {
         username: String,
@@ -116,7 +127,7 @@ pub enum UserDetails {
     Username(String),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub enum DatabaseDetails {
     Extra {
         name: String,
@@ -131,6 +142,7 @@ pub enum DatabaseDetails {
 pub enum UserPrivileges {
     Full,
     ReadOnly,
+    ReadUpdateOnly,
 }
 
 impl FromStr for UserPrivileges {
@@ -140,6 +152,7 @@ impl FromStr for UserPrivileges {
         match s {
             "full" => Ok(UserPrivileges::Full),
             "read-only" => Ok(UserPrivileges::ReadOnly),
+            "read-update-only" => Ok(UserPrivileges::ReadUpdateOnly),
             _ => Err(PGCliError::Other(format!("Invalid privilege: {}", s))),
         }
     }
@@ -150,19 +163,25 @@ impl fmt::Display for UserPrivileges {
         match self {
             UserPrivileges::Full => write!(f, "full"),
             UserPrivileges::ReadOnly => write!(f, "read-only"),
+            UserPrivileges::ReadUpdateOnly => write!(f, "read-update-only"),
         }
     }
 }
 
 impl ValueEnum for UserPrivileges {
     fn value_variants<'a>() -> &'a [Self] {
-        &[UserPrivileges::Full, UserPrivileges::ReadOnly]
+        &[
+            UserPrivileges::Full,
+            UserPrivileges::ReadOnly,
+            UserPrivileges::ReadUpdateOnly,
+        ]
     }
 
     fn to_possible_value<'a>(&self) -> Option<clap::builder::PossibleValue> {
         Some(match self {
             UserPrivileges::Full => clap::builder::PossibleValue::new("full"),
             UserPrivileges::ReadOnly => clap::builder::PossibleValue::new("read-only"),
+            UserPrivileges::ReadUpdateOnly => clap::builder::PossibleValue::new("read-update-only"),
         })
     }
 }
@@ -203,6 +222,109 @@ impl ValueEnum for SortingOrder {
         Some(match self {
             SortingOrder::Ascending => clap::builder::PossibleValue::new("asc"),
             SortingOrder::Descending => clap::builder::PossibleValue::new("desc"),
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum OutputFormat {
+    Json,
+    JsonCompact,
+    JsonLines,
+    Csv,
+    Table,
+    Simple,
+}
+
+impl FromStr for OutputFormat {
+    type Err = PGCliError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "json" => Ok(OutputFormat::Json),
+            "json-compact" => Ok(OutputFormat::JsonCompact),
+            "json-lines" => Ok(OutputFormat::JsonLines),
+            "csv" => Ok(OutputFormat::Csv),
+            "table" => Ok(OutputFormat::Table),
+            "simple" => Ok(OutputFormat::Simple),
+            _ => Err(PGCliError::Other(format!("Invalid output format: {}", s))),
+        }
+    }
+}
+
+impl fmt::Display for OutputFormat {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            OutputFormat::Json => write!(f, "json"),
+            OutputFormat::JsonCompact => write!(f, "json-compact"),
+            OutputFormat::JsonLines => write!(f, "json-lines"),
+            OutputFormat::Csv => write!(f, "csv"),
+            OutputFormat::Table => write!(f, "table"),
+            OutputFormat::Simple => write!(f, "simple"),
+        }
+    }
+}
+
+impl ValueEnum for OutputFormat {
+    fn value_variants<'a>() -> &'a [Self] {
+        &[
+            OutputFormat::Json,
+            OutputFormat::JsonCompact,
+            OutputFormat::JsonLines,
+            OutputFormat::Csv,
+            OutputFormat::Table,
+            OutputFormat::Simple,
+        ]
+    }
+
+    fn to_possible_value<'a>(&self) -> Option<clap::builder::PossibleValue> {
+        Some(match self {
+            OutputFormat::Json => clap::builder::PossibleValue::new("json"),
+            OutputFormat::JsonCompact => clap::builder::PossibleValue::new("json-compact"),
+            OutputFormat::JsonLines => clap::builder::PossibleValue::new("json-lines"),
+            OutputFormat::Csv => clap::builder::PossibleValue::new("csv"),
+            OutputFormat::Table => clap::builder::PossibleValue::new("table"),
+            OutputFormat::Simple => clap::builder::PossibleValue::new("simple"),
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Copy)]
+pub enum SqlFileFormat {
+    Sql,
+    Bsql,
+}
+
+impl FromStr for SqlFileFormat {
+    type Err = PGCliError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "sql" => Ok(SqlFileFormat::Sql),
+            "bsql" => Ok(SqlFileFormat::Bsql),
+            _ => Err(PGCliError::Other(format!("Invalid sql file format: {}", s))),
+        }
+    }
+}
+
+impl fmt::Display for SqlFileFormat {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            SqlFileFormat::Sql => write!(f, "plain"),
+            SqlFileFormat::Bsql => write!(f, "custom"),
+        }
+    }
+}
+
+impl ValueEnum for SqlFileFormat {
+    fn value_variants<'a>() -> &'a [Self] {
+        &[SqlFileFormat::Sql, SqlFileFormat::Bsql]
+    }
+
+    fn to_possible_value<'a>(&self) -> Option<clap::builder::PossibleValue> {
+        Some(match self {
+            SqlFileFormat::Sql => clap::builder::PossibleValue::new("sql"),
+            SqlFileFormat::Bsql => clap::builder::PossibleValue::new("bsql"),
         })
     }
 }
