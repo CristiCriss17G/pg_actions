@@ -28,11 +28,11 @@ fn compare_pgpass_credentials(
 }
 
 /// Initialize the .pgpass file with the credentials
-pub async fn init_pgpass(credentials: &Vec<PostgresCredentials>) -> Result<(), PGCliError> {
+pub async fn init_pgpass(credentials: &[PostgresCredentials]) -> Result<(), PGCliError> {
     let home = dirs::home_dir().expect("Home directory not found");
     let pgpass_file = home.join(".pgpass");
 
-    let mut credentials = credentials.clone();
+    let mut credentials = credentials.to_owned();
 
     if pgpass_file.exists() {
         debug!("pgpass file already exists");
@@ -64,7 +64,7 @@ pub async fn init_pgpass(credentials: &Vec<PostgresCredentials>) -> Result<(), P
 
     let mut file = open_file_path_in_write_mode(&pgpass_file, Some(0o600))
         .await
-        .expect(format!("Failed to open file {}", pgpass_file.display()).as_str());
+        .unwrap_or_else(|_| panic!("Failed to open file {}", pgpass_file.display()));
 
     for (i, value) in credentials.iter().enumerate() {
         let pgpass_line = format!(
@@ -195,7 +195,7 @@ pub async fn db_dump(
 
     let pg_dump = pg_tools.pg_dump.clone();
 
-    let output = task::spawn_blocking(move || {
+    task::spawn_blocking(move || {
         let output_file = match std::fs::OpenOptions::new()
             .write(true)
             .create(true)
@@ -255,9 +255,7 @@ pub async fn db_dump(
             Err(e) => Err(PGCliError::Other(format!("Failed to dump database: {}", e))),
         }
     })
-    .await?;
-
-    output
+    .await?
 }
 
 pub async fn db_restore(
@@ -274,7 +272,7 @@ pub async fn db_restore(
 
     let pg_restore = pg_tools.pg_restore.clone();
 
-    let output = task::spawn_blocking(move || {
+    task::spawn_blocking(move || {
         // Open the file inside the closure to ensure it's owned by the closure
 
         let input_file = match std::fs::File::open(&dump_file_path) {
@@ -328,7 +326,5 @@ pub async fn db_restore(
             ))),
         }
     })
-    .await?;
-
-    output
+    .await?
 }

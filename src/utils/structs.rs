@@ -1,5 +1,6 @@
 use clap::ValueEnum;
 use csv::{self, Writer};
+use log::SetLoggerError;
 use rusoto_core::RusotoError;
 use rusoto_s3::{CompleteMultipartUploadError, CreateMultipartUploadError, UploadPartError};
 use serde::{Deserialize, Serialize};
@@ -107,6 +108,8 @@ pub enum PGCliError {
     SerdeCsvWriter(#[from] csv::IntoInnerError<Writer<Vec<u8>>>),
     #[error("String UTF8 Error: {0}")]
     StringUtf8(#[from] std::string::FromUtf8Error),
+    #[error("Set Logger Error: {0}")]
+    SetLoggerError(#[from] SetLoggerError),
     #[error("ConnectionError: {0}")]
     ConnectionError(String),
     #[error("PGToolsError: {0}")]
@@ -114,6 +117,9 @@ pub enum PGCliError {
     #[error("Error: {0}")]
     Other(String),
 }
+
+/// A `Result` alias where the `Err` case is `ClodociError`.
+pub type Result<T> = std::result::Result<T, PGCliError>;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub enum UserDetails {
@@ -148,7 +154,7 @@ pub enum UserPrivileges {
 impl FromStr for UserPrivileges {
     type Err = PGCliError;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+    fn from_str(s: &str) -> Result<Self> {
         match s {
             "full" => Ok(UserPrivileges::Full),
             "read-only" => Ok(UserPrivileges::ReadOnly),
@@ -195,7 +201,7 @@ pub enum SortingOrder {
 impl FromStr for SortingOrder {
     type Err = PGCliError;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+    fn from_str(s: &str) -> Result<Self> {
         match s {
             "asc" => Ok(SortingOrder::Ascending),
             "desc" => Ok(SortingOrder::Descending),
@@ -239,7 +245,7 @@ pub enum OutputFormat {
 impl FromStr for OutputFormat {
     type Err = PGCliError;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+    fn from_str(s: &str) -> Result<Self> {
         match s {
             "json" => Ok(OutputFormat::Json),
             "json-compact" => Ok(OutputFormat::JsonCompact),
@@ -298,7 +304,7 @@ pub enum SqlFileFormat {
 impl FromStr for SqlFileFormat {
     type Err = PGCliError;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+    fn from_str(s: &str) -> Result<Self> {
         match s {
             "sql" => Ok(SqlFileFormat::Sql),
             "bsql" => Ok(SqlFileFormat::Bsql),

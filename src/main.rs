@@ -6,6 +6,7 @@ use log::{debug, error, info, trace, LevelFilter};
 use rpassword::prompt_password;
 use std::collections::HashMap;
 use std::io;
+use std::path::PathBuf;
 use utils::db::general::try_read_pgpass;
 use utils::structs::{PGCliError, PostgresCredentials, S3Credentials};
 use utils::{backup, clone, database, logging::log_init, misc::check_pg_tools_version, user};
@@ -98,6 +99,10 @@ struct Cli {
     #[arg(long, env, global = true)]
     use_json_logging: bool,
 
+    /// Log file location
+    #[arg(long, env, global = true)]
+    log_file: Option<PathBuf>,
+
     /// Subcommands
     #[command(subcommand)]
     command: Option<Commands>,
@@ -139,7 +144,7 @@ async fn main() -> Result<(), PGCliError> {
         _ => LevelFilter::Trace,
     };
 
-    log_init(log_level, cli.use_json_logging);
+    log_init(log_level, cli.use_json_logging, cli.log_file.as_deref())?;
 
     info!("Starting up...");
     if log_level > LevelFilter::Info {
@@ -154,7 +159,7 @@ async fn main() -> Result<(), PGCliError> {
             pgpass
         } else {
             let mut pgpassword = cli.pg_password.as_deref().unwrap_or("").to_string();
-            if pgpassword == "" {
+            if pgpassword.is_empty() {
                 match prompt_password("Postgres password: ") {
                     Ok(password) => pgpassword = password,
                     Err(e) => {
@@ -210,9 +215,9 @@ async fn main() -> Result<(), PGCliError> {
     match &cli.command {
         Some(Commands::Clone(clone_data)) => {
             let pg_tools = check_pg_tools_version(&pg_tools_paths, pg_tools_min_version, false)
-                .or_else(|e| {
+                .map_err(|e| {
                     error!("Failed to check tools: {}", e);
-                    Err(e)
+                    e
                 })?;
             match clone::clone_db(clone_data, &mut pgpass, &pg_main_hostname, &pg_tools).await {
                 Ok(_) => info!("Database cloned successfully"),
@@ -224,9 +229,9 @@ async fn main() -> Result<(), PGCliError> {
         }
         Some(Commands::Backup(backup_data)) => {
             let pg_tools = check_pg_tools_version(&pg_tools_paths, pg_tools_min_version, false)
-                .or_else(|e| {
+                .map_err(|e| {
                     error!("Failed to check tools: {}", e);
-                    Err(e)
+                    e
                 })?;
             match backup::backup_db(
                 backup_data,

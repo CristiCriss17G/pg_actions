@@ -11,7 +11,6 @@
     "vscode-icons-team.vscode-icons",
     "vadimcn.vscode-lldb",
     "streetsidesoftware.code-spell-checker",
-    "serayuzgur.crates",
     "ms-azuretools.vscode-docker",
     "cschlosser.doxdocgen",
     "tamasfe.even-better-toml",
@@ -28,6 +27,7 @@
     "sonarsource.sonarlint-vscode",
     "redhat.vscode-yaml",
     "dotjoshjohnson.xml",
-    "joffreykern.markdown-toc"
+    "joffreykern.markdown-toc",
+    "fill-labs.dependi"
   ]
 }

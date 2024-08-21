@@ -149,7 +149,7 @@ pub async fn clone_db(
             Ok(_) => info!("New owner created successfully"),
             Err(e) => {
                 error!("Failed to create new owner: {}", e);
-                return Err(PGCliError::from(e));
+                return Err(e);
             }
         }
     } else if !new_owner_exists && !data.create_owner {
@@ -182,7 +182,7 @@ pub async fn clone_db(
             Ok(_) => info!("Database dropped successfully"),
             Err(e) => {
                 error!("Failed to drop database: {}", e);
-                return Err(PGCliError::from(e));
+                return Err(e);
             }
         }
     }
@@ -192,7 +192,7 @@ pub async fn clone_db(
         Ok(_) => info!("Database created successfully"),
         Err(e) => {
             error!("Failed to create database: {}", e);
-            return Err(PGCliError::from(e));
+            return Err(e);
         }
     }
 

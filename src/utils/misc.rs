@@ -140,7 +140,7 @@ pub async fn create_compressed_archive(
     }
 
     // spawn a blocking task to create the compressed archive
-    let output = task::spawn_blocking(move || {
+    task::spawn_blocking(move || {
         // Create a file for the output
         let file = File::create(&output_file)?;
         let stream = Stream::new_easy_encoder(9, Check::Crc64)?;
@@ -169,9 +169,7 @@ pub async fn create_compressed_archive(
 
         Ok(())
     })
-    .await?;
-
-    output
+    .await?
 }
 
 impl S3Credentials {
@@ -373,7 +371,7 @@ fn parse_version(version_output: &str) -> Option<u32> {
     // Split by whitespace and find the part that starts with the version number
     version_output
         .split_whitespace()
-        .find(|&part| part.chars().next().unwrap_or(' ').is_digit(10))
+        .find(|&part| part.chars().next().unwrap_or(' ').is_ascii_digit())
         .and_then(|version| version.split('.').next())
         .and_then(|major| major.parse::<u32>().ok())
 }
@@ -433,12 +431,12 @@ pub fn check_pg_tools_version(
 
     let pg_dump_version = check_command_availability(pg_dump)
         .map(|output| String::from_utf8_lossy(&output.stdout).to_string())
-        .and_then(|version_output| Ok(parse_version(&version_output)))
+        .map(|version_output| parse_version(&version_output))
         .unwrap_or(None);
 
     let pg_restore_version = check_command_availability(pg_restore)
         .map(|output| String::from_utf8_lossy(&output.stdout).to_string())
-        .and_then(|version_output| Ok(parse_version(&version_output)))
+        .map(|version_output| parse_version(&version_output))
         .unwrap_or(None);
 
     if let Some(error_message) =

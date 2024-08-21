@@ -226,7 +226,7 @@ async fn user_list(
     output_format: &OutputFormat,
     extra: bool,
 ) -> Result<(), PGCliError> {
-    let roles = list_roles(&client, sort, extra).await?;
+    let roles = list_roles(client, sort, extra).await?;
     trace!("Roles: {:?}", roles);
     match output_format {
         OutputFormat::Simple => {
@@ -312,7 +312,7 @@ async fn user_list(
         OutputFormat::Csv => {
             let mut wtr = Writer::from_writer(vec![]);
             if extra {
-                wtr.write_record(&["IDX", "Username", "Createdb", "Superuser", "Login", "OID"])?;
+                wtr.write_record(["IDX", "Username", "Createdb", "Superuser", "Login", "OID"])?;
                 for (i, user) in roles.iter().enumerate() {
                     match user {
                         UserDetails::Extra {
@@ -337,7 +337,7 @@ async fn user_list(
                     }
                 }
             } else {
-                wtr.write_record(&["IDX", "Username"])?;
+                wtr.write_record(["IDX", "Username"])?;
                 for (i, user) in roles.iter().enumerate() {
                     match user {
                         UserDetails::Extra { username, .. } => {

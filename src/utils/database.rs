@@ -63,7 +63,7 @@ pub async fn database(
     pg_main_hostname: &String,
 ) -> Result<(), PGCliError> {
     let main_credentials = credentials.get(pg_main_hostname).unwrap();
-    let client = postgres_connect(&main_credentials, None).await?;
+    let client = postgres_connect(main_credentials, None).await?;
     match &data.subcommand {
         Some(DatabaseSubCommands::List {
             sort,
@@ -118,7 +118,7 @@ async fn database_list(
     output_format: &OutputFormat,
     extra: bool,
 ) -> Result<(), PGCliError> {
-    let databases = list_databases(&client, sort, extra).await?;
+    let databases = list_databases(client, sort, extra).await?;
     trace!("Databases: {:?}", databases);
     if databases.is_empty() {
         info!("No databases found");
@@ -201,7 +201,7 @@ async fn database_list(
             OutputFormat::Csv => {
                 let mut wtr = Writer::from_writer(vec![]);
                 if extra {
-                    wtr.write_record(&["IDX", "DB name", "Owner", "Size", "OID"])?;
+                    wtr.write_record(["IDX", "DB name", "Owner", "Size", "OID"])?;
                     for (i, db) in databases.iter().enumerate() {
                         match db {
                             DatabaseDetails::Extra {
@@ -224,7 +224,7 @@ async fn database_list(
                         }
                     }
                 } else {
-                    wtr.write_record(&["IDX", "Name"])?;
+                    wtr.write_record(["IDX", "Name"])?;
                     for (i, db) in databases.iter().enumerate() {
                         match db {
                             DatabaseDetails::Extra { name, .. } => {

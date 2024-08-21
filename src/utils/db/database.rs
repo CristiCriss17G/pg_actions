@@ -104,7 +104,7 @@ pub async fn create_db(client: &Client, db: &str, owner: &str) -> Result<u64, PG
         return Err(PGCliError::Other("Invalid owner name".to_string()));
     }
 
-    if check_database_exists(&client, db).await? {
+    if check_database_exists(client, db).await? {
         error!("Database {} already exists", db);
         return Err(PGCliError::Other("Database already exists".to_string()));
     }
@@ -123,7 +123,7 @@ pub async fn delete_db(client: &Client, db: &str) -> Result<u64, PGCliError> {
         return Err(PGCliError::Other("Invalid database name".to_string()));
     }
 
-    if !check_database_exists(&client, db).await? {
+    if !check_database_exists(client, db).await? {
         error!("Database {} does not exist", db);
         return Err(PGCliError::Other("Database does not exist".to_string()));
     }
@@ -167,7 +167,7 @@ pub async fn change_whole_owner_of_db(
         return Err(PGCliError::Other("Invalid database name".to_string()));
     }
 
-    if !check_database_exists(&client, db).await? {
+    if !check_database_exists(client, db).await? {
         error!("Database {} does not exist", db);
         return Err(PGCliError::Other("Database does not exist".to_string()));
     }
