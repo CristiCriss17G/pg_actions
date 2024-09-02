@@ -33,6 +33,9 @@ pub enum UserSubCommands {
         /// extra details
         #[arg(short, long)]
         extra: bool,
+        /// query string, fuzzy search
+        #[arg(short, long)]
+        query: Option<String>,
     },
     /// Create a user
     Create {
@@ -117,9 +120,10 @@ pub async fn user(
             sort,
             output,
             extra,
+            query
         }) => {
             debug!("List users, sort: {:?}, output: {:?}", sort, output);
-            user_list(&client, sort, output, *extra).await?;
+            user_list(&client, sort, output, *extra, query).await?;
         }
         Some(UserSubCommands::Create {
             username,
@@ -225,8 +229,9 @@ async fn user_list(
     sort: &Option<SortingOrder>,
     output_format: &OutputFormat,
     extra: bool,
+    query: &Option<String>,
 ) -> Result<(), PGCliError> {
-    let roles = list_roles(client, sort, extra).await?;
+    let roles = list_roles(client, sort, extra, query).await?;
     trace!("Roles: {:?}", roles);
     match output_format {
         OutputFormat::Simple => {

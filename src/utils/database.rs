@@ -33,6 +33,9 @@ pub enum DatabaseSubCommands {
         /// extra details
         #[arg(short, long)]
         extra: bool,
+        /// query string, fuzzy search
+        #[arg(short, long)]
+        query: Option<String>,
     },
     /// Create a database
     Create {
@@ -69,9 +72,10 @@ pub async fn database(
             sort,
             output,
             extra,
+            query,
         }) => {
             debug!("List databases");
-            database_list(&client, sort, output, *extra).await?;
+            database_list(&client, sort, output, *extra, query).await?;
         }
         Some(DatabaseSubCommands::Create { database, owner }) => {
             debug!("Create database {}", database);
@@ -117,8 +121,9 @@ async fn database_list(
     sort: &Option<SortingOrder>,
     output_format: &OutputFormat,
     extra: bool,
+    query: &Option<String>,
 ) -> Result<(), PGCliError> {
-    let databases = list_databases(client, sort, extra).await?;
+    let databases = list_databases(client, sort, extra, query).await?;
     trace!("Databases: {:?}", databases);
     if databases.is_empty() {
         info!("No databases found");

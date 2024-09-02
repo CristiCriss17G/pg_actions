@@ -1,4 +1,4 @@
-use super::general::validate_pg_names;
+use super::general::{filter_entities, validate_pg_names};
 use crate::utils::{
     db::general::postgres_connect,
     misc::generate_random_string,
@@ -22,6 +22,7 @@ pub async fn list_roles(
     client: &Client,
     sort: &Option<SortingOrder>,
     extra: bool,
+    query: &Option<String>,
 ) -> Result<Vec<UserDetails>, PGCliError> {
     let ignored_roles= "'pg_checkpoint','pg_create_subscription','pg_database_owner','pg_execute_server_program',\
     'pg_monitor','pg_read_all_data','pg_read_all_settings','pg_read_all_stats','pg_read_server_files',\
@@ -92,7 +93,10 @@ pub async fn list_roles(
             }
         }
     }
-    Ok(roles)
+    match query {
+        Some(q) => Ok(filter_entities(roles, q)),
+        None => Ok(roles),
+    }
 }
 
 pub async fn create_user(

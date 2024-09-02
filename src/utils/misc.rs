@@ -445,7 +445,7 @@ pub fn check_pg_tools_version(
         if warn {
             warn!("{}", error_message);
         }
-        return Err(PGCliError::PGToolsError(error_message));
+        Err(PGCliError::PGToolsError(error_message))
     } else {
         Ok(PGTools::new(pg_dump.to_string(), pg_restore.to_string()))
     }

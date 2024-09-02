@@ -2,6 +2,10 @@ use crate::utils::misc::{ensure_file_path_exists, open_file_path_in_write_mode};
 use crate::utils::structs::{PGCliError, PGTools, PostgresCredentials, SqlFileFormat};
 use log::{debug, error, info, trace};
 use native_tls::TlsConnector;
+use nucleo_matcher::{
+    pattern::{CaseMatching, Normalization, Pattern},
+    Config, Matcher,
+};
 use postgres_native_tls::MakeTlsConnector;
 use std::collections::{HashMap, HashSet};
 use std::io::{BufRead, BufReader};
@@ -327,4 +331,15 @@ pub async fn db_restore(
         }
     })
     .await?
+}
+
+pub(super) fn filter_entities<T: AsRef<str>>(
+    entities: impl IntoIterator<Item = T>,
+    query: &str,
+) -> Vec<T> {
+    let mut matcher = Matcher::new(Config::DEFAULT);
+    let mut matches = Pattern::parse(query, CaseMatching::Ignore, Normalization::Smart)
+        .match_list(entities, &mut matcher);
+    matches.sort_by(|a, b| a.1.cmp(&b.1));
+    matches.into_iter().map(|(db, _)| db).collect()
 }

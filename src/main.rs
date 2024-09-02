@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use std::io;
 use std::path::PathBuf;
 use utils::db::general::try_read_pgpass;
-use utils::structs::{PGCliError, PostgresCredentials, S3Credentials};
+use utils::structs::{PostgresCredentials, Result, S3Credentials};
 use utils::{backup, clone, database, logging::log_init, misc::check_pg_tools_version, user};
 
 #[derive(Parser, Debug, PartialEq)]
@@ -41,8 +41,7 @@ struct Cli {
         long,
         env = "PG_PASS",
         global = true,
-        hide_env_values = true,
-        default_value = "postgres"
+        hide_env_values = true
     )]
     pg_password: Option<String>,
 
@@ -134,7 +133,7 @@ fn print_completions<G: Generator>(gen: G, cmd: &mut Command) {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), PGCliError> {
+async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     // Initialize the logger

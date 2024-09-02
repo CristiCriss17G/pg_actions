@@ -75,7 +75,7 @@ pub async fn backup_db(
     let client = postgres_connect(main_credentials, None).await?;
 
     let databases: Vec<String> = match data.database.as_str() {
-        "all" => list_databases(&client, &None, false)
+        "all" => list_databases(&client, &None, false, &None)
             .await?
             .iter()
             .map(|x| match &x {

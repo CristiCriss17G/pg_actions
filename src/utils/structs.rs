@@ -133,6 +133,15 @@ pub enum UserDetails {
     Username(String),
 }
 
+impl AsRef<str> for UserDetails {
+    fn as_ref(&self) -> &str {
+        match self {
+            UserDetails::Extra { username, .. } => username,
+            UserDetails::Username(username) => username,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub enum DatabaseDetails {
     Extra {
@@ -142,6 +151,15 @@ pub enum DatabaseDetails {
         oid: u32,
     },
     Name(String),
+}
+
+impl AsRef<str> for DatabaseDetails {
+    fn as_ref(&self) -> &str {
+        match self {
+            DatabaseDetails::Extra { name, .. } => name,
+            DatabaseDetails::Name(name) => name,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]

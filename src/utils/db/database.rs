@@ -1,4 +1,4 @@
-use super::general::{postgres_connect, validate_pg_names};
+use super::general::{filter_entities, postgres_connect, validate_pg_names};
 use crate::utils::structs::{DatabaseDetails, PGCliError, PostgresCredentials, SortingOrder};
 use log::{debug, error, trace};
 use tokio_postgres::{Client, Error};
@@ -19,6 +19,7 @@ pub async fn list_databases(
     client: &Client,
     sort: &Option<SortingOrder>,
     extra: bool,
+    query: &Option<String>,
 ) -> Result<Vec<DatabaseDetails>, PGCliError> {
     let ignored_databases = "'template0','template1'";
     let fields = match extra {
@@ -90,7 +91,10 @@ pub async fn list_databases(
             }
         }
     }
-    Ok(databases)
+    match query {
+        Some(q) => Ok(filter_entities(databases, q)),
+        None => Ok(databases),
+    }
 }
 
 pub async fn create_db(client: &Client, db: &str, owner: &str) -> Result<u64, PGCliError> {
