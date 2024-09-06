@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use super::db::general::postgres_connect;
 use super::db::user::{
     alter_role, create_role, delete_role, grant_privileges, list_roles, revoke_privileges,
@@ -12,6 +10,7 @@ use csv::Writer;
 use log::{debug, error, info, trace};
 use prettytable::{row, Table};
 use serde_json;
+use std::collections::HashMap;
 
 #[derive(Args, Debug, PartialEq)]
 pub struct UserArgs {
@@ -120,7 +119,7 @@ pub async fn user(
             sort,
             output,
             extra,
-            query
+            query,
         }) => {
             debug!("List users, sort: {:?}, output: {:?}", sort, output);
             user_list(&client, sort, output, *extra, query).await?;
@@ -225,7 +224,7 @@ pub async fn user(
 }
 
 async fn user_list(
-    client: &tokio_postgres::Client,
+    client: &deadpool_postgres::Client,
     sort: &Option<SortingOrder>,
     output_format: &OutputFormat,
     extra: bool,
@@ -354,7 +353,7 @@ async fn user_list(
                     }
                 }
             }
-            let data = String::from_utf8(wtr.into_inner()?)?;
+            let data = String::from_utf8(wtr.into_inner().map_err(Box::new)?)?;
             println!("{}", data);
         }
     }

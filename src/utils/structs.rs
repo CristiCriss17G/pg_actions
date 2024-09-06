@@ -1,5 +1,6 @@
 use clap::ValueEnum;
 use csv::{self, Writer};
+use deadpool_postgres::{CreatePoolError, PoolError};
 use log::SetLoggerError;
 use rusoto_core::RusotoError;
 use rusoto_s3::{CompleteMultipartUploadError, CreateMultipartUploadError, UploadPartError};
@@ -105,15 +106,21 @@ pub enum PGCliError {
     #[error("Serde CSV Error: {0}")]
     SerdeCsv(#[from] csv::Error),
     #[error("Serde CSV Writer Error: {0}")]
-    SerdeCsvWriter(#[from] csv::IntoInnerError<Writer<Vec<u8>>>),
+    SerdeCsvWriter(#[from] Box<csv::IntoInnerError<Writer<Vec<u8>>>>),
     #[error("String UTF8 Error: {0}")]
     StringUtf8(#[from] std::string::FromUtf8Error),
     #[error("Set Logger Error: {0}")]
     SetLoggerError(#[from] SetLoggerError),
+    #[error("Pool Error: {0}")]
+    PoolError(#[from] PoolError),
+    #[error("Create Pool Error: {0}")]
+    CreatePoolError(#[from] CreatePoolError),
     #[error("ConnectionError: {0}")]
     ConnectionError(String),
     #[error("PGToolsError: {0}")]
     PGToolsError(String),
+    #[error("Pool Error Tokio: {0}")]
+    PoolErrorTokio(String),
     #[error("Error: {0}")]
     Other(String),
 }

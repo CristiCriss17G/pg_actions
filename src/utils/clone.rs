@@ -1,17 +1,15 @@
-use std::collections::HashMap;
-
 use super::db::database::{
     change_owner_of_objects_in_db, change_owner_of_tables_in_db, check_database_exists, create_db,
     delete_db, kill_connections_to_db,
 };
 use super::db::general::{db_dump, db_restore, init_pgpass, postgres_connect};
 use super::db::user::{check_user_exists, create_user};
-use crate::utils::misc::{delete_file, generate_random_string};
-use crate::utils::structs::{PGTools, PostgresCredentials, SqlFileFormat};
+use super::misc::{delete_file, generate_random_string};
+use super::structs::PGCliError;
+use super::structs::{PGTools, PostgresCredentials, SqlFileFormat};
 use clap::Args;
 use log::{debug, error, info};
-
-use super::structs::PGCliError;
+use std::collections::HashMap;
 
 #[derive(Args, Debug, PartialEq)]
 pub struct CloneArgs {

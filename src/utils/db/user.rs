@@ -4,8 +4,8 @@ use crate::utils::{
     misc::generate_random_string,
     structs::{PGCliError, PostgresCredentials, SortingOrder, UserDetails, UserPrivileges},
 };
+use deadpool_postgres::Client;
 use log::{debug, error, info, trace};
-use tokio_postgres::Client;
 
 pub async fn check_user_exists(client: &Client, user: &str) -> Result<bool, PGCliError> {
     let user_exists = client

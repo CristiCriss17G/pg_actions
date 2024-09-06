@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use super::db::database::{
     change_whole_owner_of_db, create_db, delete_db, kill_connections_to_db, list_databases,
 };
@@ -12,6 +10,7 @@ use csv::Writer;
 use log::{debug, error, info, trace};
 use prettytable::{row, Table};
 use serde_json;
+use std::collections::HashMap;
 
 #[derive(Args, Debug, PartialEq)]
 pub struct DatabaseArgs {
@@ -117,7 +116,7 @@ pub async fn database(
 }
 
 async fn database_list(
-    client: &tokio_postgres::Client,
+    client: &deadpool_postgres::Client,
     sort: &Option<SortingOrder>,
     output_format: &OutputFormat,
     extra: bool,
@@ -241,7 +240,7 @@ async fn database_list(
                         }
                     }
                 }
-                let data = String::from_utf8(wtr.into_inner()?)?;
+                let data = String::from_utf8(wtr.into_inner().map_err(Box::new)?)?;
                 println!("{}", data);
             }
         }

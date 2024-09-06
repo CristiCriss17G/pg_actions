@@ -1,7 +1,9 @@
-use super::general::{filter_entities, postgres_connect, validate_pg_names};
+use super::general::{filter_entities, postgres_connect_pool, validate_pg_names};
 use crate::utils::structs::{DatabaseDetails, PGCliError, PostgresCredentials, SortingOrder};
+use deadpool_postgres::Client;
 use log::{debug, error, trace};
-use tokio_postgres::{Client, Error};
+use tokio::task::JoinHandle;
+use tokio_postgres::Error;
 
 pub async fn check_database_exists(client: &Client, db: &str) -> Result<bool, PGCliError> {
     trace!("Checking if database {} exists", db);
@@ -233,31 +235,61 @@ pub async fn change_owner_of_tables_in_db(
         return Err(PGCliError::Other("Invalid database name".to_string()));
     }
 
-    let client = postgres_connect(credentials, Some(db.to_string())).await?;
+    let pool = postgres_connect_pool(credentials, Some(db.to_string())).await?;
 
     // Query to select table names
     debug!("Querying tables to change owner");
-    let rows = client
-        .query(
-            "SELECT tablename FROM pg_tables WHERE schemaname = 'public'",
-            &[],
-        )
-        .await?;
+    let rows = {
+        let client = pool.get().await?;
+        client
+            .query(
+                "SELECT tablename FROM pg_tables WHERE schemaname = 'public'",
+                &[],
+            )
+            .await?
+    };
     trace!("Tables to change owner: {:?} ({})", rows, rows.len());
 
-    // Loop through each table and change its owner
-    for row in rows {
-        let tablename: &str = row.get(0);
-        debug!("Changing owner of table: {} to {}", tablename, new_owner);
+    // Process each table in parallel
+    let tasks: Vec<JoinHandle<Result<(), PGCliError>>> = rows
+        .into_iter()
+        .map(|row| {
+            let tablename: String = row.get(0);
+            let new_owner = new_owner.to_string();
+            let pool = pool.clone();
 
-        // Dynamically build the ALTER TABLE command
-        let statement = format!(
-            "ALTER TABLE \"public\".\"{}\" OWNER TO {}",
-            tablename, new_owner
-        );
+            tokio::spawn(async move {
+                let client = pool.get().await?;
+                debug!("Changing owner of table: {} to {}", tablename, new_owner);
 
-        // Execute the ALTER TABLE command
-        client.execute(&statement, &[]).await?;
+                // Dynamically build the ALTER TABLE command
+                let statement = format!(
+                    "ALTER TABLE \"public\".\"{}\" OWNER TO {}",
+                    tablename, new_owner
+                );
+
+                // Execute the ALTER TABLE command
+                client.execute(&statement, &[]).await?;
+                Ok::<(), PGCliError>(())
+            })
+        })
+        .collect();
+
+    // Wait for all tasks to complete
+    for task in tasks {
+        match task.await {
+            Ok(Ok(())) => {
+                // Task succeeded
+            }
+            Ok(Err(e)) => {
+                // A task returned an error
+                return Err(e);
+            }
+            Err(join_err) => {
+                // The task itself failed (e.g., panic or join failure)
+                return Err(join_err.into());
+            }
+        }
     }
 
     Ok(())
@@ -282,26 +314,56 @@ pub async fn change_owner_of_objects_in_db(
         return Err(PGCliError::Other("Invalid database name".to_string()));
     }
 
-    let client = postgres_connect(credentials, Some(db.to_string())).await?;
+    let pool = postgres_connect_pool(credentials, Some(db.to_string())).await?;
 
     // Query to select type names
     debug!("Querying types to change owner");
-    let rows = client.query(
+    let rows = {
+        let client = pool.get().await?;
+        client.query(
         "SELECT typname FROM pg_type WHERE typtype IN ('b', 'e') AND typcategory != 'A' AND typnamespace IN (SELECT oid FROM pg_namespace WHERE nspname NOT IN ('pg_catalog', 'information_schema'))",
         &[],
-    ).await?;
+    ).await?
+    };
     trace!("Types to change owner: {:?} ({})", rows, rows.len());
 
-    // Loop through each type and change its owner
-    for row in rows {
-        let typname: &str = row.get(0);
-        debug!("Changing owner of type: {} to {}", typname, new_owner);
+    // Process each table in parallel
+    let tasks: Vec<JoinHandle<Result<(), PGCliError>>> = rows
+        .into_iter()
+        .map(|row| {
+            let typname: String = row.get(0);
+            let new_owner = new_owner.to_string();
+            let pool = pool.clone();
 
-        // Dynamically build the ALTER TYPE command
-        let statement = format!("ALTER TYPE \"{}\" OWNER TO \"{}\"", typname, new_owner);
+            tokio::spawn(async move {
+                let client = pool.get().await?;
+                debug!("Changing owner of type: {} to {}", typname, new_owner);
 
-        // Execute the ALTER TYPE command
-        client.execute(&statement, &[]).await?;
+                // Dynamically build the ALTER TYPE command
+                let statement = format!("ALTER TYPE \"{}\" OWNER TO \"{}\"", typname, new_owner);
+
+                // Execute the ALTER TYPE command
+                client.execute(&statement, &[]).await?;
+                Ok::<(), PGCliError>(())
+            })
+        })
+        .collect();
+
+    // Await each task and handle errors
+    for task in tasks {
+        match task.await {
+            Ok(Ok(())) => {
+                // Task succeeded
+            }
+            Ok(Err(e)) => {
+                // A task returned an error
+                return Err(e);
+            }
+            Err(join_err) => {
+                // The task itself failed (e.g., panic or join failure)
+                return Err(join_err.into());
+            }
+        }
     }
 
     Ok(())
