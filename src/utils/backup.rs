@@ -5,7 +5,7 @@ use super::misc::{
     ensure_file_directory_path_exists,
 };
 use super::structs::{
-    DatabaseDetails, PGCliError, PGTools, PostgresCredentials, S3Credentials, SqlFileFormat,
+    DatabaseDetails, PGCliError, PGTools, PostgresCredentials, Result, S3Credentials, SqlFileFormat,
 };
 use clap::Args;
 use log::{debug, error, info};
@@ -49,9 +49,9 @@ pub async fn backup_db(
     pg_main_hostname: &String,
     s3_credentials: &S3Credentials,
     pg_tools: &PGTools,
-) -> Result<(), PGCliError> {
+) -> Result<()> {
     if let Some(output_location) = &data.output_location {
-        if !check_file_directory_path_exists(&output_location) {
+        if !check_file_directory_path_exists(output_location) {
             return Err(PGCliError::Other(
                 "Output location does not exist".to_string(),
             ));
@@ -75,7 +75,7 @@ pub async fn backup_db(
     let client = postgres_connect(main_credentials, None).await?;
 
     let databases: Vec<String> = match data.database.as_str() {
-        "all" => list_databases(&client, &None, false)
+        "all" => list_databases(&client, &None, false, &None)
             .await?
             .iter()
             .map(|x| match &x {
@@ -98,7 +98,7 @@ pub async fn backup_db(
     ensure_file_directory_path_exists(&temp_folder).await?;
 
     let pg_tools = Arc::new(pg_tools.clone()); // Wrap pg_tools in an Arc
-    let backup_format = Arc::new(data.format.clone());
+    let backup_format = Arc::new(data.format);
 
     let tasks: Vec<_> = databases
         .into_iter()
@@ -127,7 +127,7 @@ pub async fn backup_db(
                     credentials,
                     &database,
                     &output_file,
-                    &*pg_tools,
+                    &pg_tools,
                     *backup_format,
                 )
                 .await
@@ -200,7 +200,7 @@ pub async fn backup_db(
         }
     }
 
-    if None == data.output_location {
+    if data.output_location.is_none() {
         info!("Uploading to S3");
         s3_credentials
             .multipart_upload(&output_file, &output_file_name)

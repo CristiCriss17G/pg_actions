@@ -1,5 +1,7 @@
 use clap::ValueEnum;
 use csv::{self, Writer};
+use deadpool_postgres::{CreatePoolError, PoolError};
+use log::SetLoggerError;
 use rusoto_core::RusotoError;
 use rusoto_s3::{CompleteMultipartUploadError, CreateMultipartUploadError, UploadPartError};
 use serde::{Deserialize, Serialize};
@@ -79,8 +81,8 @@ impl S3Credentials {
 
 #[derive(Error, Debug)]
 pub enum PGCliError {
-    #[error("I/O error: {0}")]
-    Io(#[from] tokio::io::Error),
+    #[error("Tokio I/O error: {0}")]
+    TokioIo(#[from] tokio::io::Error),
     #[error("Postgres error: {0}")]
     Postgres(#[from] tokio_postgres::Error),
     #[error("Task join error: {0}")]
@@ -104,16 +106,27 @@ pub enum PGCliError {
     #[error("Serde CSV Error: {0}")]
     SerdeCsv(#[from] csv::Error),
     #[error("Serde CSV Writer Error: {0}")]
-    SerdeCsvWriter(#[from] csv::IntoInnerError<Writer<Vec<u8>>>),
+    SerdeCsvWriter(#[from] Box<csv::IntoInnerError<Writer<Vec<u8>>>>),
     #[error("String UTF8 Error: {0}")]
     StringUtf8(#[from] std::string::FromUtf8Error),
+    #[error("Set Logger Error: {0}")]
+    SetLoggerError(#[from] SetLoggerError),
+    #[error("Pool Error: {0}")]
+    PoolError(#[from] PoolError),
+    #[error("Create Pool Error: {0}")]
+    CreatePoolError(#[from] CreatePoolError),
     #[error("ConnectionError: {0}")]
     ConnectionError(String),
     #[error("PGToolsError: {0}")]
     PGToolsError(String),
+    #[error("Pool Error Tokio: {0}")]
+    PoolErrorTokio(String),
     #[error("Error: {0}")]
     Other(String),
 }
+
+/// A `Result` alias where the `Err` case is `ClodociError`.
+pub type Result<T> = std::result::Result<T, PGCliError>;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub enum UserDetails {
@@ -127,6 +140,15 @@ pub enum UserDetails {
     Username(String),
 }
 
+impl AsRef<str> for UserDetails {
+    fn as_ref(&self) -> &str {
+        match self {
+            UserDetails::Extra { username, .. } => username,
+            UserDetails::Username(username) => username,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub enum DatabaseDetails {
     Extra {
@@ -138,7 +160,27 @@ pub enum DatabaseDetails {
     Name(String),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+impl AsRef<str> for DatabaseDetails {
+    fn as_ref(&self) -> &str {
+        match self {
+            DatabaseDetails::Extra { name, .. } => name,
+            DatabaseDetails::Name(name) => name,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub enum ExtensionDetails {
+    Extra {
+        name: String,
+        owner: u32,
+        version: String,
+        oid: u32,
+    },
+    Name(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Copy)]
 pub enum UserPrivileges {
     Full,
     ReadOnly,
@@ -148,7 +190,7 @@ pub enum UserPrivileges {
 impl FromStr for UserPrivileges {
     type Err = PGCliError;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+    fn from_str(s: &str) -> Result<Self> {
         match s {
             "full" => Ok(UserPrivileges::Full),
             "read-only" => Ok(UserPrivileges::ReadOnly),
@@ -186,7 +228,7 @@ impl ValueEnum for UserPrivileges {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Copy)]
 pub enum SortingOrder {
     Ascending,
     Descending,
@@ -195,7 +237,7 @@ pub enum SortingOrder {
 impl FromStr for SortingOrder {
     type Err = PGCliError;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+    fn from_str(s: &str) -> Result<Self> {
         match s {
             "asc" => Ok(SortingOrder::Ascending),
             "desc" => Ok(SortingOrder::Descending),
@@ -226,7 +268,7 @@ impl ValueEnum for SortingOrder {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Copy)]
 pub enum OutputFormat {
     Json,
     JsonCompact,
@@ -239,7 +281,7 @@ pub enum OutputFormat {
 impl FromStr for OutputFormat {
     type Err = PGCliError;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+    fn from_str(s: &str) -> Result<Self> {
         match s {
             "json" => Ok(OutputFormat::Json),
             "json-compact" => Ok(OutputFormat::JsonCompact),
@@ -298,7 +340,7 @@ pub enum SqlFileFormat {
 impl FromStr for SqlFileFormat {
     type Err = PGCliError;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+    fn from_str(s: &str) -> Result<Self> {
         match s {
             "sql" => Ok(SqlFileFormat::Sql),
             "bsql" => Ok(SqlFileFormat::Bsql),

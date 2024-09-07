@@ -1,23 +1,22 @@
-use std::collections::HashMap;
-
 use super::db::general::postgres_connect;
 use super::db::user::{
     alter_role, create_role, delete_role, grant_privileges, list_roles, revoke_privileges,
 };
 use super::structs::{
-    OutputFormat, PGCliError, PostgresCredentials, SortingOrder, UserDetails, UserPrivileges,
+    OutputFormat, PostgresCredentials, Result, SortingOrder, UserDetails, UserPrivileges,
 };
 use clap::{Args, Subcommand};
 use csv::Writer;
-use log::{debug, error, info, trace};
+use log::{debug, info, trace};
 use prettytable::{row, Table};
 use serde_json;
+use std::collections::HashMap;
 
 #[derive(Args, Debug, PartialEq)]
 pub struct UserArgs {
     /// action subcommand
     #[command(subcommand)]
-    subcommand: Option<UserSubCommands>,
+    subcommand: UserSubCommands,
 }
 
 #[derive(Subcommand, Debug, PartialEq)]
@@ -33,6 +32,9 @@ pub enum UserSubCommands {
         /// extra details
         #[arg(short, long)]
         extra: bool,
+        /// query string, fuzzy search
+        #[arg(short, long)]
+        query: Option<String>,
     },
     /// Create a user
     Create {
@@ -109,25 +111,26 @@ pub async fn user(
     data: &UserArgs,
     credentials: &HashMap<String, PostgresCredentials>,
     pg_main_hostname: &String,
-) -> Result<(), PGCliError> {
+) -> Result<()> {
     let main_credentials = credentials.get(pg_main_hostname).unwrap();
     let client = postgres_connect(main_credentials, None).await?;
     match &data.subcommand {
-        Some(UserSubCommands::List {
+        UserSubCommands::List {
             sort,
             output,
             extra,
-        }) => {
+            query,
+        } => {
             debug!("List users, sort: {:?}, output: {:?}", sort, output);
-            user_list(&client, sort, output, *extra).await?;
+            user_list(&client, sort, output, *extra, query).await?;
         }
-        Some(UserSubCommands::Create {
+        UserSubCommands::Create {
             username,
             password,
             superuser,
             createdb,
             no_login,
-        }) => {
+        } => {
             info!(
                 "Create user: username: {}, superuser: {}, createdb: {}, no_login: {}",
                 username, superuser, createdb, no_login
@@ -142,18 +145,18 @@ pub async fn user(
             .await?;
             info!("User created successfully")
         }
-        Some(UserSubCommands::Delete { username }) => {
+        UserSubCommands::Delete { username } => {
             info!("Delete user: username: {}", username);
             delete_role(&client, username).await?;
             info!("User deleted successfully")
         }
-        Some(UserSubCommands::Update {
+        UserSubCommands::Update {
             username,
             password,
             superuser,
             createdb,
             no_login,
-        }) => {
+        } => {
             info!(
                 "Update user: username: {}, superuser: {:?}, createdb: {:?}, no_login: {:?}",
                 username, superuser, createdb, no_login
@@ -162,15 +165,12 @@ pub async fn user(
             alter_role(&client, username, password, superuser, createdb, no_login).await?;
             info!("User updated successfully")
         }
-        None => {
-            error!("No subcommand provided");
-        }
-        Some(UserSubCommands::Grant {
+        UserSubCommands::Grant {
             username,
             database,
             schema,
             privileges,
-        }) => {
+        } => {
             info!(
                 "Grant privileges: username: {}, database: {}, schema: {}, privileges: {:?}",
                 username, database, schema, privileges
@@ -190,12 +190,12 @@ pub async fn user(
             .await?;
             info!("Privileges granted successfully")
         }
-        Some(UserSubCommands::Revoke {
+        UserSubCommands::Revoke {
             username,
             database,
             schema,
             privileges,
-        }) => {
+        } => {
             info!(
                 "Revoke privileges: username: {}, database: {}, schema: {}, privileges: {:?}",
                 username, database, schema, privileges
@@ -221,12 +221,13 @@ pub async fn user(
 }
 
 async fn user_list(
-    client: &tokio_postgres::Client,
+    client: &deadpool_postgres::Client,
     sort: &Option<SortingOrder>,
     output_format: &OutputFormat,
     extra: bool,
-) -> Result<(), PGCliError> {
-    let roles = list_roles(&client, sort, extra).await?;
+    query: &Option<String>,
+) -> Result<()> {
+    let roles = list_roles(client, sort, extra, query).await?;
     trace!("Roles: {:?}", roles);
     match output_format {
         OutputFormat::Simple => {
@@ -253,43 +254,29 @@ async fn user_list(
         OutputFormat::Table => {
             let mut table = Table::new();
             match extra {
-                true => {
-                    table.add_row(row![b =>
-                        "IDX",
-                        "Username",
-                        "Createdb",
-                        "Superuser",
-                        "Login",
-                        "OID"
-                    ]);
-                    for (i, user) in roles.iter().enumerate() {
-                        match user {
-                            UserDetails::Extra {
-                                username,
-                                createdb,
-                                superuser,
-                                login,
-                                oid,
-                            } => {
-                                table.add_row(row![i, username, createdb, superuser, login, oid]);
-                            }
-                            UserDetails::Username(username) => {
-                                table.add_row(row![i, username]);
-                            }
-                        }
+                true => table.add_row(row![b =>
+                    "IDX",
+                    "Username",
+                    "Createdb",
+                    "Superuser",
+                    "Login",
+                    "OID"
+                ]),
+                false => table.add_row(row![b => "IDX", "Username"]),
+            };
+            for (i, user) in roles.iter().enumerate() {
+                match user {
+                    UserDetails::Extra {
+                        username,
+                        createdb,
+                        superuser,
+                        login,
+                        oid,
+                    } => {
+                        table.add_row(row![i, username, createdb, superuser, login, oid]);
                     }
-                }
-                false => {
-                    table.add_row(row![b => "IDX", "Username"]);
-                    for (i, user) in roles.iter().enumerate() {
-                        match user {
-                            UserDetails::Extra { username, .. } => {
-                                table.add_row(row![i, username]);
-                            }
-                            UserDetails::Username(username) => {
-                                table.add_row(row![i, username]);
-                            }
-                        }
+                    UserDetails::Username(username) => {
+                        table.add_row(row![i, username]);
                     }
                 }
             }
@@ -311,45 +298,36 @@ async fn user_list(
         }
         OutputFormat::Csv => {
             let mut wtr = Writer::from_writer(vec![]);
-            if extra {
-                wtr.write_record(&["IDX", "Username", "Createdb", "Superuser", "Login", "OID"])?;
-                for (i, user) in roles.iter().enumerate() {
-                    match user {
-                        UserDetails::Extra {
-                            username,
-                            createdb,
-                            superuser,
-                            login,
-                            oid,
-                        } => {
-                            wtr.write_record(&[
-                                i.to_string(),
-                                username.to_string(),
-                                createdb.to_string(),
-                                superuser.to_string(),
-                                login.to_string(),
-                                oid.to_string(),
-                            ])?;
-                        }
-                        UserDetails::Username(username) => {
-                            wtr.write_record(&[i.to_string(), username.to_string()])?;
-                        }
-                    }
+            match extra {
+                true => {
+                    wtr.write_record(["IDX", "Username", "Createdb", "Superuser", "Login", "OID"])?
                 }
-            } else {
-                wtr.write_record(&["IDX", "Username"])?;
-                for (i, user) in roles.iter().enumerate() {
-                    match user {
-                        UserDetails::Extra { username, .. } => {
-                            wtr.write_record(&[i.to_string(), username.to_string()])?;
-                        }
-                        UserDetails::Username(username) => {
-                            wtr.write_record(&[i.to_string(), username.to_string()])?;
-                        }
+                false => wtr.write_record(["IDX", "Username"])?,
+            }
+            for (i, user) in roles.iter().enumerate() {
+                match user {
+                    UserDetails::Extra {
+                        username,
+                        createdb,
+                        superuser,
+                        login,
+                        oid,
+                    } => {
+                        wtr.write_record([
+                            &i.to_string(),
+                            &username.to_string(),
+                            &createdb.to_string(),
+                            &superuser.to_string(),
+                            &login.to_string(),
+                            &oid.to_string(),
+                        ])?;
+                    }
+                    UserDetails::Username(username) => {
+                        wtr.write_record([&i.to_string(), &username.to_string()])?;
                     }
                 }
             }
-            let data = String::from_utf8(wtr.into_inner()?)?;
+            let data = String::from_utf8(wtr.into_inner().map_err(Box::new)?)?;
             println!("{}", data);
         }
     }

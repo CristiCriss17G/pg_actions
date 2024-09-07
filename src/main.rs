@@ -6,8 +6,9 @@ use log::{debug, error, info, trace, LevelFilter};
 use rpassword::prompt_password;
 use std::collections::HashMap;
 use std::io;
+use std::path::PathBuf;
 use utils::db::general::try_read_pgpass;
-use utils::structs::{PGCliError, PostgresCredentials, S3Credentials};
+use utils::structs::{PostgresCredentials, Result, S3Credentials};
 use utils::{backup, clone, database, logging::log_init, misc::check_pg_tools_version, user};
 
 #[derive(Parser, Debug, PartialEq)]
@@ -40,8 +41,7 @@ struct Cli {
         long,
         env = "PG_PASS",
         global = true,
-        hide_env_values = true,
-        default_value = "postgres"
+        hide_env_values = true
     )]
     pg_password: Option<String>,
 
@@ -98,9 +98,13 @@ struct Cli {
     #[arg(long, env, global = true)]
     use_json_logging: bool,
 
+    /// Log file location
+    #[arg(long, env, global = true)]
+    log_file: Option<PathBuf>,
+
     /// Subcommands
     #[command(subcommand)]
-    command: Option<Commands>,
+    command: Commands,
 }
 
 #[derive(Subcommand, Debug, PartialEq)]
@@ -129,7 +133,7 @@ fn print_completions<G: Generator>(gen: G, cmd: &mut Command) {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), PGCliError> {
+async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     // Initialize the logger
@@ -139,7 +143,7 @@ async fn main() -> Result<(), PGCliError> {
         _ => LevelFilter::Trace,
     };
 
-    log_init(log_level, cli.use_json_logging);
+    log_init(log_level, cli.use_json_logging, cli.log_file.as_deref())?;
 
     info!("Starting up...");
     if log_level > LevelFilter::Info {
@@ -154,12 +158,12 @@ async fn main() -> Result<(), PGCliError> {
             pgpass
         } else {
             let mut pgpassword = cli.pg_password.as_deref().unwrap_or("").to_string();
-            if pgpassword == "" {
+            if pgpassword.is_empty() {
                 match prompt_password("Postgres password: ") {
                     Ok(password) => pgpassword = password,
                     Err(e) => {
                         error!("Failed to read password: {}", e);
-                        std::process::exit(1);
+                        return Err(e.into());
                     }
                 }
             }
@@ -208,11 +212,11 @@ async fn main() -> Result<(), PGCliError> {
     // You can check for the existence of subcommands, and if found use their
     // matches just as you would the top level cmd
     match &cli.command {
-        Some(Commands::Clone(clone_data)) => {
+        Commands::Clone(clone_data) => {
             let pg_tools = check_pg_tools_version(&pg_tools_paths, pg_tools_min_version, false)
-                .or_else(|e| {
+                .map_err(|e| {
                     error!("Failed to check tools: {}", e);
-                    Err(e)
+                    e
                 })?;
             match clone::clone_db(clone_data, &mut pgpass, &pg_main_hostname, &pg_tools).await {
                 Ok(_) => info!("Database cloned successfully"),
@@ -222,11 +226,11 @@ async fn main() -> Result<(), PGCliError> {
                 }
             }
         }
-        Some(Commands::Backup(backup_data)) => {
+        Commands::Backup(backup_data) => {
             let pg_tools = check_pg_tools_version(&pg_tools_paths, pg_tools_min_version, false)
-                .or_else(|e| {
+                .map_err(|e| {
                     error!("Failed to check tools: {}", e);
-                    Err(e)
+                    e
                 })?;
             match backup::backup_db(
                 backup_data,
@@ -244,7 +248,7 @@ async fn main() -> Result<(), PGCliError> {
                 }
             }
         }
-        Some(Commands::User(user_data)) => {
+        Commands::User(user_data) => {
             // Check if pg_dump and pg_restore are available but ignore the error as they are not needed, just a warning
             check_pg_tools_version(&pg_tools_paths, pg_tools_min_version, true).unwrap_or_default();
             match user::user(user_data, &pgpass, &pg_main_hostname).await {
@@ -255,7 +259,7 @@ async fn main() -> Result<(), PGCliError> {
                 }
             }
         }
-        Some(Commands::Database(database_data)) => {
+        Commands::Database(database_data) => {
             // Check if pg_dump and pg_restore are available but ignore the error as they are not needed, just a warning
             check_pg_tools_version(&pg_tools_paths, pg_tools_min_version, true).unwrap_or_default();
             match database::database(database_data, &pgpass, &pg_main_hostname).await {
@@ -266,11 +270,11 @@ async fn main() -> Result<(), PGCliError> {
                 }
             }
         }
-        Some(Commands::Completions { shell }) => {
+        Commands::Completions { shell } => {
             debug!("Generating completions for {:?}", shell);
             print_completions(*shell, &mut Cli::command());
         }
-        Some(Commands::CheckTools) => {
+        Commands::CheckTools => {
             match check_pg_tools_version(&pg_tools_paths, pg_tools_min_version, false) {
                 Ok(_) => info!("All tools are available"),
                 Err(e) => {
@@ -279,7 +283,6 @@ async fn main() -> Result<(), PGCliError> {
                 }
             }
         }
-        None => {}
     }
 
     Ok(())

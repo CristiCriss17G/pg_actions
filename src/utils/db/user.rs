@@ -1,11 +1,11 @@
-use super::general::validate_pg_names;
+use super::general::{filter_entities, validate_pg_names};
 use crate::utils::{
     db::general::postgres_connect,
     misc::generate_random_string,
     structs::{PGCliError, PostgresCredentials, SortingOrder, UserDetails, UserPrivileges},
 };
+use deadpool_postgres::Client;
 use log::{debug, error, info, trace};
-use tokio_postgres::Client;
 
 pub async fn check_user_exists(client: &Client, user: &str) -> Result<bool, PGCliError> {
     let user_exists = client
@@ -22,6 +22,7 @@ pub async fn list_roles(
     client: &Client,
     sort: &Option<SortingOrder>,
     extra: bool,
+    query: &Option<String>,
 ) -> Result<Vec<UserDetails>, PGCliError> {
     let ignored_roles= "'pg_checkpoint','pg_create_subscription','pg_database_owner','pg_execute_server_program',\
     'pg_monitor','pg_read_all_data','pg_read_all_settings','pg_read_all_stats','pg_read_server_files',\
@@ -92,7 +93,10 @@ pub async fn list_roles(
             }
         }
     }
-    Ok(roles)
+    match query {
+        Some(q) => Ok(filter_entities(roles, q)),
+        None => Ok(roles),
+    }
 }
 
 pub async fn create_user(
@@ -112,7 +116,7 @@ pub async fn create_user(
         }
     }
 
-    create_role(&client, user, password, false, false, false).await
+    create_role(client, user, password, false, false, false).await
 }
 
 pub async fn create_role(
@@ -143,7 +147,7 @@ pub async fn create_role(
     };
 
     // check if the role already exists
-    if check_user_exists(&client, role).await? {
+    if check_user_exists(client, role).await? {
         error!("Role {} already exists", role);
         return Err(PGCliError::Other("Role already exists".to_string()));
     }
@@ -179,7 +183,7 @@ pub async fn delete_role(client: &Client, role: &str) -> Result<u64, PGCliError>
         return Err(PGCliError::Other("Invalid role name".to_string()));
     }
 
-    if !check_user_exists(&client, role).await? {
+    if !check_user_exists(client, role).await? {
         error!("Role {} does not exist", role);
         return Err(PGCliError::Other("Role does not exist".to_string()));
     }
@@ -205,7 +209,7 @@ pub async fn alter_role(
         return Err(PGCliError::Other("Invalid role name".to_string()));
     }
 
-    if !check_user_exists(&client, role).await? {
+    if !check_user_exists(client, role).await? {
         error!("Role {} does not exist", role);
         return Err(PGCliError::Other("Role does not exist".to_string()));
     }
@@ -213,7 +217,7 @@ pub async fn alter_role(
     // If the password is not provided, we don't alter it
     let mut statement = format!("ALTER ROLE {}", role);
     if let Some(password) = password {
-        if !validate_pg_names(&password) {
+        if !validate_pg_names(password) {
             error!("Invalid password");
             return Err(PGCliError::Other("Invalid password".to_string()));
         }
@@ -264,7 +268,7 @@ pub async fn grant_privileges(
         return Err(PGCliError::Other("Invalid role name".to_string()));
     }
 
-    if !check_user_exists(&client, role).await? {
+    if !check_user_exists(client, role).await? {
         error!("Role {} does not exist", role);
         return Err(PGCliError::Other("Role does not exist".to_string()));
     }
@@ -287,7 +291,7 @@ pub async fn grant_privileges(
         Err(e) => return Err(PGCliError::from(e)),
     };
 
-    let db_client = postgres_connect(&credentials, Some(database.to_string())).await?;
+    let db_client = postgres_connect(credentials, Some(database.to_string())).await?;
 
     // prepare the statements for granting privileges on tables
     let statements = prepare_grant_privileges_tables(privileges, schema, role);
@@ -375,7 +379,7 @@ pub async fn revoke_privileges(
         return Err(PGCliError::Other("Invalid role name".to_string()));
     }
 
-    if !check_user_exists(&client, role).await? {
+    if !check_user_exists(client, role).await? {
         error!("Role {} does not exist", role);
         return Err(PGCliError::Other("Role does not exist".to_string()));
     }
@@ -401,7 +405,7 @@ pub async fn revoke_privileges(
         Err(e) => return Err(PGCliError::from(e)),
     };
 
-    let db_client = postgres_connect(&credentials, Some(database.to_string())).await?;
+    let db_client = postgres_connect(credentials, Some(database.to_string())).await?;
 
     // prepare the statements for revoking privileges on tables
     let statements = prepare_revoke_privileges_tables(privileges, schema, role);

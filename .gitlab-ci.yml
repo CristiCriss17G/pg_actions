@@ -33,7 +33,7 @@ sonarqube-check:
   allow_failure: true
   rules:
     - if: '$CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "main"'
-    - if: '$CI_COMMIT_REF_NAME == "main"'
+    # - if: '$CI_COMMIT_REF_NAME == "main"'
 
 prepare:
   stage: prepare-build
@@ -53,18 +53,25 @@ prepare:
     - if [ "$CI_COMMIT_REF_NAME" == "main" ]; then echo "latest" > $TAGS; fi
     - echo $LONG_TAG >> $TAGS
     - echo $SHORT_TAG >> $TAGS
+    - |-
+      echo "LATEST_MR_DESC=\"$(curl --silent --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" "https://gitlab.com/api/v4/projects/${CI_PROJECT_ID}/merge_requests?state=merged&target_branch=main&order_by=updated_at&per_page=1" | jq -r '.[0].description' | tr '\n' ' ' | sed 's/"/\\"/g')\"" > variables.env
+  after_script:
+    - cat variables.env # Debug: Check the content of job.env
   artifacts:
     paths:
       - $TIMESTAMP
       - $TAGS
+    reports:
+      dotenv: variables.env
   only:
     - branches
     - merge_requests
 
 build:
   stage: build
-  dependencies:
-    - prepare
+  needs:
+    - job: prepare
+      artifacts: true
   image:
     name: $KANIKO_IMAGE
     entrypoint: [""]
@@ -88,8 +95,9 @@ build:
 
 build-manual:
   when: manual
-  dependencies:
-    - prepare
+  needs:
+    - job: prepare
+      artifacts: true
   image:
     name: $KANIKO_IMAGE
     entrypoint: [""]
@@ -116,8 +124,9 @@ build-manual:
 
 compile_dynamic:
   stage: build
-  dependencies:
-    - prepare
+  needs:
+    - job: prepare
+      artifacts: true
   image:
     name: rust:${RUST_VERSION}
   tags:
@@ -141,7 +150,7 @@ compile_dynamic:
   artifacts:
     paths:
       - $APP_NAME
-    expire_in: 1 year
+    expire_in: 1 week
     reports:
       dotenv: variables.env # Specify the path to the job.env file
   rules:
@@ -149,8 +158,9 @@ compile_dynamic:
 
 compile_static:
   stage: build
-  dependencies:
-    - prepare
+  needs:
+    - job: prepare
+      artifacts: true
   image:
     name: rust:${RUST_VERSION}-alpine
   tags:
@@ -171,7 +181,7 @@ compile_static:
   artifacts:
     paths:
       - ${APP_NAME}-static
-    expire_in: 1 year
+    expire_in: 1 week
     reports:
       dotenv: variables.env # Specify the path to the job.env file
   rules:
@@ -209,7 +219,7 @@ make_deb_files:
     paths:
       - ${APP_NAME}_${RELEASE_VERSION}_amd64.deb
       - ${APP_NAME}-static_${RELEASE_VERSION}_amd64.deb
-    expire_in: 1 year
+    expire_in: 1 week
     reports:
       dotenv: variables.env # Specify the path to the job.env file
   rules:
@@ -250,6 +260,8 @@ create_release:
   stage: release
   image: registry.gitlab.com/gitlab-org/release-cli:latest
   needs:
+    - job: prepare
+      artifacts: true
     - job: compile_dynamic
       artifacts: true
     - job: compile_static
@@ -268,10 +280,11 @@ create_release:
     - echo $JOB_ID_STATIC
     - echo $JOB_ID_DEB
     - echo $MINIO_URL
+    - echo $LAST_MR_DESC
   release:
     name: "Release v${RELEASE_VERSION}"
     tag_name: "v${RELEASE_VERSION}"
-    description: "Release created using the release-cli. Release 'v${RELEASE_VERSION}'" # Use double quotes for variable interpolation
+    description: "Release created using the release-cli. Release 'v${RELEASE_VERSION}'\n\n${LAST_MR_DESC}" # Use double quotes for variable interpolation
     ref: "$CI_COMMIT_SHA"
     assets:
       links:

@@ -1,17 +1,14 @@
-use std::collections::HashMap;
-
 use super::db::database::{
     change_owner_of_objects_in_db, change_owner_of_tables_in_db, check_database_exists, create_db,
     delete_db, kill_connections_to_db,
 };
 use super::db::general::{db_dump, db_restore, init_pgpass, postgres_connect};
 use super::db::user::{check_user_exists, create_user};
-use crate::utils::misc::{delete_file, generate_random_string};
-use crate::utils::structs::{PGTools, PostgresCredentials, SqlFileFormat};
+use super::misc::{delete_file, generate_random_string};
+use super::structs::{PGCliError, PGTools, PostgresCredentials, Result, SqlFileFormat};
 use clap::Args;
 use log::{debug, error, info};
-
-use super::structs::PGCliError;
+use std::collections::HashMap;
 
 #[derive(Args, Debug, PartialEq)]
 pub struct CloneArgs {
@@ -57,7 +54,7 @@ pub async fn clone_db(
     credentials: &mut HashMap<String, PostgresCredentials>,
     pg_main_hostname: &String,
     pg_tools: &PGTools,
-) -> Result<(), PGCliError> {
+) -> Result<()> {
     info!(
         "Cloning database {} to {}",
         data.database, data.new_database
@@ -149,7 +146,7 @@ pub async fn clone_db(
             Ok(_) => info!("New owner created successfully"),
             Err(e) => {
                 error!("Failed to create new owner: {}", e);
-                return Err(PGCliError::from(e));
+                return Err(e);
             }
         }
     } else if !new_owner_exists && !data.create_owner {
@@ -175,14 +172,14 @@ pub async fn clone_db(
             Ok(_) => info!("Connections killed successfully"),
             Err(e) => {
                 error!("Failed to kill connections: {}", e);
-                return Err(PGCliError::from(e));
+                return Err(e);
             }
         }
         match delete_db(&destination_client, &data.new_database).await {
             Ok(_) => info!("Database dropped successfully"),
             Err(e) => {
                 error!("Failed to drop database: {}", e);
-                return Err(PGCliError::from(e));
+                return Err(e);
             }
         }
     }
@@ -192,7 +189,7 @@ pub async fn clone_db(
         Ok(_) => info!("Database created successfully"),
         Err(e) => {
             error!("Failed to create database: {}", e);
-            return Err(PGCliError::from(e));
+            return Err(e);
         }
     }
 

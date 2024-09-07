@@ -1,9 +1,12 @@
-use super::general::{postgres_connect, validate_pg_names};
-use crate::utils::structs::{DatabaseDetails, PGCliError, PostgresCredentials, SortingOrder};
+use super::general::{filter_entities, postgres_connect_pool, validate_pg_names};
+use crate::utils::structs::{
+    DatabaseDetails, PGCliError, PostgresCredentials, Result, SortingOrder,
+};
+use deadpool_postgres::Client;
 use log::{debug, error, trace};
-use tokio_postgres::{Client, Error};
+use tokio::task::JoinHandle;
 
-pub async fn check_database_exists(client: &Client, db: &str) -> Result<bool, PGCliError> {
+pub async fn check_database_exists(client: &Client, db: &str) -> Result<bool> {
     trace!("Checking if database {} exists", db);
     let db_exists = client
         .query_one(
@@ -19,7 +22,8 @@ pub async fn list_databases(
     client: &Client,
     sort: &Option<SortingOrder>,
     extra: bool,
-) -> Result<Vec<DatabaseDetails>, PGCliError> {
+    query: &Option<String>,
+) -> Result<Vec<DatabaseDetails>> {
     let ignored_databases = "'template0','template1'";
     let fields = match extra {
         true => "d.datname, d.oid, pg_size_pretty(pg_database_size(d.datname)), r.rolname",
@@ -90,10 +94,13 @@ pub async fn list_databases(
             }
         }
     }
-    Ok(databases)
+    match query {
+        Some(q) => Ok(filter_entities(databases, q)),
+        None => Ok(databases),
+    }
 }
 
-pub async fn create_db(client: &Client, db: &str, owner: &str) -> Result<u64, PGCliError> {
+pub async fn create_db(client: &Client, db: &str, owner: &str) -> Result<u64> {
     trace!("Creating database {}", db);
     if !validate_pg_names(db) {
         error!("Invalid database name: {}", db);
@@ -104,7 +111,7 @@ pub async fn create_db(client: &Client, db: &str, owner: &str) -> Result<u64, PG
         return Err(PGCliError::Other("Invalid owner name".to_string()));
     }
 
-    if check_database_exists(&client, db).await? {
+    if check_database_exists(client, db).await? {
         error!("Database {} already exists", db);
         return Err(PGCliError::Other("Database already exists".to_string()));
     }
@@ -116,14 +123,14 @@ pub async fn create_db(client: &Client, db: &str, owner: &str) -> Result<u64, PG
     }
 }
 
-pub async fn delete_db(client: &Client, db: &str) -> Result<u64, PGCliError> {
+pub async fn delete_db(client: &Client, db: &str) -> Result<u64> {
     trace!("Deleting database {}", db);
     if !validate_pg_names(db) {
         error!("Invalid database name: {}", db);
         return Err(PGCliError::Other("Invalid database name".to_string()));
     }
 
-    if !check_database_exists(&client, db).await? {
+    if !check_database_exists(client, db).await? {
         error!("Database {} does not exist", db);
         return Err(PGCliError::Other("Database does not exist".to_string()));
     }
@@ -135,14 +142,14 @@ pub async fn delete_db(client: &Client, db: &str) -> Result<u64, PGCliError> {
     }
 }
 
-pub async fn kill_connections_to_db(client: &Client, db: &str) -> Result<u64, Error> {
+pub async fn kill_connections_to_db(client: &Client, db: &str) -> Result<u64> {
     trace!("Killing connections to database {}", db);
     client
         .execute(
             "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE pid <> pg_backend_pid() AND datname = $1",
             &[&db],
         )
-        .await
+        .await.map_err(PGCliError::from)
 }
 
 pub async fn change_whole_owner_of_db(
@@ -150,7 +157,7 @@ pub async fn change_whole_owner_of_db(
     credentials: &PostgresCredentials,
     db: &str,
     new_owner: &str,
-) -> Result<(), PGCliError> {
+) -> Result<()> {
     trace!(
         "Changing owner on the whole database {} with objects to {}",
         db,
@@ -167,7 +174,7 @@ pub async fn change_whole_owner_of_db(
         return Err(PGCliError::Other("Invalid database name".to_string()));
     }
 
-    if !check_database_exists(&client, db).await? {
+    if !check_database_exists(client, db).await? {
         error!("Database {} does not exist", db);
         return Err(PGCliError::Other("Database does not exist".to_string()));
     }
@@ -188,11 +195,7 @@ pub async fn change_whole_owner_of_db(
     change_owner_of_objects_in_db(credentials, db, new_owner).await
 }
 
-pub async fn change_owner_of_db(
-    client: &Client,
-    db: &str,
-    new_owner: &str,
-) -> Result<u64, PGCliError> {
+pub async fn change_owner_of_db(client: &Client, db: &str, new_owner: &str) -> Result<u64> {
     trace!("Changing owner of database {} to {}", db, new_owner);
     if !validate_pg_names(new_owner) {
         error!("Invalid new owner name: {}", new_owner);
@@ -213,7 +216,7 @@ pub async fn change_owner_of_tables_in_db(
     credentials: &PostgresCredentials,
     db: &str,
     new_owner: &str,
-) -> Result<(), PGCliError> {
+) -> Result<()> {
     trace!(
         "Changing owner of tables in database {} to {}",
         db,
@@ -229,31 +232,61 @@ pub async fn change_owner_of_tables_in_db(
         return Err(PGCliError::Other("Invalid database name".to_string()));
     }
 
-    let client = postgres_connect(credentials, Some(db.to_string())).await?;
+    let pool = postgres_connect_pool(credentials, Some(db.to_string())).await?;
 
     // Query to select table names
     debug!("Querying tables to change owner");
-    let rows = client
-        .query(
-            "SELECT tablename FROM pg_tables WHERE schemaname = 'public'",
-            &[],
-        )
-        .await?;
+    let rows = {
+        let client = pool.get().await?;
+        client
+            .query(
+                "SELECT tablename FROM pg_tables WHERE schemaname = 'public'",
+                &[],
+            )
+            .await?
+    };
     trace!("Tables to change owner: {:?} ({})", rows, rows.len());
 
-    // Loop through each table and change its owner
-    for row in rows {
-        let tablename: &str = row.get(0);
-        debug!("Changing owner of table: {} to {}", tablename, new_owner);
+    // Process each table in parallel
+    let tasks: Vec<JoinHandle<Result<()>>> = rows
+        .into_iter()
+        .map(|row| {
+            let tablename: String = row.get(0);
+            let new_owner = new_owner.to_string();
+            let pool = pool.clone();
 
-        // Dynamically build the ALTER TABLE command
-        let statement = format!(
-            "ALTER TABLE \"public\".\"{}\" OWNER TO {}",
-            tablename, new_owner
-        );
+            tokio::spawn(async move {
+                let client = pool.get().await?;
+                debug!("Changing owner of table: {} to {}", tablename, new_owner);
 
-        // Execute the ALTER TABLE command
-        client.execute(&statement, &[]).await?;
+                // Dynamically build the ALTER TABLE command
+                let statement = format!(
+                    "ALTER TABLE \"public\".\"{}\" OWNER TO {}",
+                    tablename, new_owner
+                );
+
+                // Execute the ALTER TABLE command
+                client.execute(&statement, &[]).await?;
+                Ok::<(), PGCliError>(())
+            })
+        })
+        .collect();
+
+    // Wait for all tasks to complete
+    for task in tasks {
+        match task.await {
+            Ok(Ok(())) => {
+                // Task succeeded
+            }
+            Ok(Err(e)) => {
+                // A task returned an error
+                return Err(e);
+            }
+            Err(join_err) => {
+                // The task itself failed (e.g., panic or join failure)
+                return Err(join_err.into());
+            }
+        }
     }
 
     Ok(())
@@ -263,7 +296,7 @@ pub async fn change_owner_of_objects_in_db(
     credentials: &PostgresCredentials,
     db: &str,
     new_owner: &str,
-) -> Result<(), PGCliError> {
+) -> Result<()> {
     trace!("Changing owner of database {} to {}", db, new_owner);
     debug!("Connecting to postgres to change owner of database {}", db);
 
@@ -278,26 +311,56 @@ pub async fn change_owner_of_objects_in_db(
         return Err(PGCliError::Other("Invalid database name".to_string()));
     }
 
-    let client = postgres_connect(credentials, Some(db.to_string())).await?;
+    let pool = postgres_connect_pool(credentials, Some(db.to_string())).await?;
 
     // Query to select type names
     debug!("Querying types to change owner");
-    let rows = client.query(
+    let rows = {
+        let client = pool.get().await?;
+        client.query(
         "SELECT typname FROM pg_type WHERE typtype IN ('b', 'e') AND typcategory != 'A' AND typnamespace IN (SELECT oid FROM pg_namespace WHERE nspname NOT IN ('pg_catalog', 'information_schema'))",
         &[],
-    ).await?;
+    ).await?
+    };
     trace!("Types to change owner: {:?} ({})", rows, rows.len());
 
-    // Loop through each type and change its owner
-    for row in rows {
-        let typname: &str = row.get(0);
-        debug!("Changing owner of type: {} to {}", typname, new_owner);
+    // Process each table in parallel
+    let tasks: Vec<JoinHandle<Result<()>>> = rows
+        .into_iter()
+        .map(|row| {
+            let typname: String = row.get(0);
+            let new_owner = new_owner.to_string();
+            let pool = pool.clone();
 
-        // Dynamically build the ALTER TYPE command
-        let statement = format!("ALTER TYPE \"{}\" OWNER TO \"{}\"", typname, new_owner);
+            tokio::spawn(async move {
+                let client = pool.get().await?;
+                debug!("Changing owner of type: {} to {}", typname, new_owner);
 
-        // Execute the ALTER TYPE command
-        client.execute(&statement, &[]).await?;
+                // Dynamically build the ALTER TYPE command
+                let statement = format!("ALTER TYPE \"{}\" OWNER TO \"{}\"", typname, new_owner);
+
+                // Execute the ALTER TYPE command
+                client.execute(&statement, &[]).await?;
+                Ok::<(), PGCliError>(())
+            })
+        })
+        .collect();
+
+    // Await each task and handle errors
+    for task in tasks {
+        match task.await {
+            Ok(Ok(())) => {
+                // Task succeeded
+            }
+            Ok(Err(e)) => {
+                // A task returned an error
+                return Err(e);
+            }
+            Err(join_err) => {
+                // The task itself failed (e.g., panic or join failure)
+                return Err(join_err.into());
+            }
+        }
     }
 
     Ok(())
