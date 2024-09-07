@@ -104,7 +104,7 @@ struct Cli {
 
     /// Subcommands
     #[command(subcommand)]
-    command: Option<Commands>,
+    command: Commands,
 }
 
 #[derive(Subcommand, Debug, PartialEq)]
@@ -163,7 +163,7 @@ async fn main() -> Result<()> {
                     Ok(password) => pgpassword = password,
                     Err(e) => {
                         error!("Failed to read password: {}", e);
-                        std::process::exit(1);
+                        return Err(e.into());
                     }
                 }
             }
@@ -212,7 +212,7 @@ async fn main() -> Result<()> {
     // You can check for the existence of subcommands, and if found use their
     // matches just as you would the top level cmd
     match &cli.command {
-        Some(Commands::Clone(clone_data)) => {
+        Commands::Clone(clone_data) => {
             let pg_tools = check_pg_tools_version(&pg_tools_paths, pg_tools_min_version, false)
                 .map_err(|e| {
                     error!("Failed to check tools: {}", e);
@@ -226,7 +226,7 @@ async fn main() -> Result<()> {
                 }
             }
         }
-        Some(Commands::Backup(backup_data)) => {
+        Commands::Backup(backup_data) => {
             let pg_tools = check_pg_tools_version(&pg_tools_paths, pg_tools_min_version, false)
                 .map_err(|e| {
                     error!("Failed to check tools: {}", e);
@@ -248,7 +248,7 @@ async fn main() -> Result<()> {
                 }
             }
         }
-        Some(Commands::User(user_data)) => {
+        Commands::User(user_data) => {
             // Check if pg_dump and pg_restore are available but ignore the error as they are not needed, just a warning
             check_pg_tools_version(&pg_tools_paths, pg_tools_min_version, true).unwrap_or_default();
             match user::user(user_data, &pgpass, &pg_main_hostname).await {
@@ -259,7 +259,7 @@ async fn main() -> Result<()> {
                 }
             }
         }
-        Some(Commands::Database(database_data)) => {
+        Commands::Database(database_data) => {
             // Check if pg_dump and pg_restore are available but ignore the error as they are not needed, just a warning
             check_pg_tools_version(&pg_tools_paths, pg_tools_min_version, true).unwrap_or_default();
             match database::database(database_data, &pgpass, &pg_main_hostname).await {
@@ -270,11 +270,11 @@ async fn main() -> Result<()> {
                 }
             }
         }
-        Some(Commands::Completions { shell }) => {
+        Commands::Completions { shell } => {
             debug!("Generating completions for {:?}", shell);
             print_completions(*shell, &mut Cli::command());
         }
-        Some(Commands::CheckTools) => {
+        Commands::CheckTools => {
             match check_pg_tools_version(&pg_tools_paths, pg_tools_min_version, false) {
                 Ok(_) => info!("All tools are available"),
                 Err(e) => {
@@ -283,7 +283,6 @@ async fn main() -> Result<()> {
                 }
             }
         }
-        None => {}
     }
 
     Ok(())

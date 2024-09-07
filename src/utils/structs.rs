@@ -81,8 +81,8 @@ impl S3Credentials {
 
 #[derive(Error, Debug)]
 pub enum PGCliError {
-    #[error("I/O error: {0}")]
-    Io(#[from] tokio::io::Error),
+    #[error("Tokio I/O error: {0}")]
+    TokioIo(#[from] tokio::io::Error),
     #[error("Postgres error: {0}")]
     Postgres(#[from] tokio_postgres::Error),
     #[error("Task join error: {0}")]
@@ -169,7 +169,18 @@ impl AsRef<str> for DatabaseDetails {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub enum ExtensionDetails {
+    Extra {
+        name: String,
+        owner: u32,
+        version: String,
+        oid: u32,
+    },
+    Name(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Copy)]
 pub enum UserPrivileges {
     Full,
     ReadOnly,
@@ -217,7 +228,7 @@ impl ValueEnum for UserPrivileges {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Copy)]
 pub enum SortingOrder {
     Ascending,
     Descending,
@@ -257,7 +268,7 @@ impl ValueEnum for SortingOrder {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Copy)]
 pub enum OutputFormat {
     Json,
     JsonCompact,

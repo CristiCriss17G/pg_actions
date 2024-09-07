@@ -5,8 +5,7 @@ use super::db::database::{
 use super::db::general::{db_dump, db_restore, init_pgpass, postgres_connect};
 use super::db::user::{check_user_exists, create_user};
 use super::misc::{delete_file, generate_random_string};
-use super::structs::PGCliError;
-use super::structs::{PGTools, PostgresCredentials, SqlFileFormat};
+use super::structs::{PGCliError, PGTools, PostgresCredentials, Result, SqlFileFormat};
 use clap::Args;
 use log::{debug, error, info};
 use std::collections::HashMap;
@@ -55,7 +54,7 @@ pub async fn clone_db(
     credentials: &mut HashMap<String, PostgresCredentials>,
     pg_main_hostname: &String,
     pg_tools: &PGTools,
-) -> Result<(), PGCliError> {
+) -> Result<()> {
     info!(
         "Cloning database {} to {}",
         data.database, data.new_database
@@ -173,7 +172,7 @@ pub async fn clone_db(
             Ok(_) => info!("Connections killed successfully"),
             Err(e) => {
                 error!("Failed to kill connections: {}", e);
-                return Err(PGCliError::from(e));
+                return Err(e);
             }
         }
         match delete_db(&destination_client, &data.new_database).await {

@@ -5,7 +5,7 @@ use super::misc::{
     ensure_file_directory_path_exists,
 };
 use super::structs::{
-    DatabaseDetails, PGCliError, PGTools, PostgresCredentials, S3Credentials, SqlFileFormat,
+    DatabaseDetails, PGCliError, PGTools, PostgresCredentials, Result, S3Credentials, SqlFileFormat,
 };
 use clap::Args;
 use log::{debug, error, info};
@@ -49,7 +49,7 @@ pub async fn backup_db(
     pg_main_hostname: &String,
     s3_credentials: &S3Credentials,
     pg_tools: &PGTools,
-) -> Result<(), PGCliError> {
+) -> Result<()> {
     if let Some(output_location) = &data.output_location {
         if !check_file_directory_path_exists(output_location) {
             return Err(PGCliError::Other(

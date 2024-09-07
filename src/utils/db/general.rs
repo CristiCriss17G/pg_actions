@@ -1,5 +1,5 @@
 use crate::utils::misc::{ensure_file_path_exists, open_file_path_in_write_mode};
-use crate::utils::structs::{PGCliError, PGTools, PostgresCredentials, SqlFileFormat};
+use crate::utils::structs::{PGCliError, PGTools, PostgresCredentials, Result, SqlFileFormat};
 use deadpool_postgres::{
     Client, Config as DPConfig, ManagerConfig, Pool, RecyclingMethod, Runtime,
 };
@@ -35,7 +35,7 @@ fn compare_pgpass_credentials(
 }
 
 /// Initialize the .pgpass file with the credentials
-pub async fn init_pgpass(credentials: &[PostgresCredentials]) -> Result<(), PGCliError> {
+pub async fn init_pgpass(credentials: &[PostgresCredentials]) -> Result<()> {
     let home = dirs::home_dir().expect("Home directory not found");
     let pgpass_file = home.join(".pgpass");
 
@@ -83,7 +83,7 @@ pub async fn init_pgpass(credentials: &[PostgresCredentials]) -> Result<(), PGCl
             Ok(_) => trace!("pgpass written line {}", i),
             Err(e) => {
                 error!("Failed to write to pgpass file: {}", e);
-                return Err(PGCliError::Io(e));
+                return Err(PGCliError::TokioIo(e));
             }
         }
     }
@@ -149,10 +149,7 @@ type PoolMap = HashMap<(PostgresCredentials, String), Pool>;
 
 static POOL_MAP: OnceCell<Mutex<PoolMap>> = OnceCell::const_new();
 
-async fn get_or_init_pool(
-    credentials: &PostgresCredentials,
-    db: Option<String>,
-) -> Result<Pool, PGCliError> {
+async fn get_or_init_pool(credentials: &PostgresCredentials, db: Option<String>) -> Result<Pool> {
     // Initialize the global hashmap if it hasn't been initialized
     let pool_map = POOL_MAP
         .get_or_init(|| async { Mutex::new(HashMap::new()) })
@@ -208,7 +205,7 @@ async fn get_or_init_pool(
 pub async fn postgres_connect(
     credentials: &PostgresCredentials,
     db: Option<String>,
-) -> Result<Client, PGCliError> {
+) -> Result<Client> {
     // Get a pool from the global hashmap or create a new one
     let pool = get_or_init_pool(credentials, db).await?;
 
@@ -221,7 +218,7 @@ pub async fn postgres_connect(
 pub async fn postgres_connect_pool(
     credentials: &PostgresCredentials,
     db: Option<String>,
-) -> Result<Pool, PGCliError> {
+) -> Result<Pool> {
     // Get a pool from the global hashmap or create a new one
     get_or_init_pool(credentials, db).await
 }
@@ -232,7 +229,7 @@ pub async fn db_dump(
     dump_file: &str,
     pg_tools: &PGTools,
     dump_format: SqlFileFormat,
-) -> Result<String, PGCliError> {
+) -> Result<String> {
     info!("Dumping database {}", database_source);
 
     // Clone the data before moving it into the closure
@@ -317,7 +314,7 @@ pub async fn db_restore(
     dump_file: &str,
     pg_tools: &PGTools,
     restore_format: SqlFileFormat,
-) -> Result<String, PGCliError> {
+) -> Result<String> {
     info!("Restoring database {}", database_target);
 
     let input_file = match std::fs::File::open(dump_file) {

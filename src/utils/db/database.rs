@@ -1,11 +1,12 @@
 use super::general::{filter_entities, postgres_connect_pool, validate_pg_names};
-use crate::utils::structs::{DatabaseDetails, PGCliError, PostgresCredentials, SortingOrder};
+use crate::utils::structs::{
+    DatabaseDetails, PGCliError, PostgresCredentials, Result, SortingOrder,
+};
 use deadpool_postgres::Client;
 use log::{debug, error, trace};
 use tokio::task::JoinHandle;
-use tokio_postgres::Error;
 
-pub async fn check_database_exists(client: &Client, db: &str) -> Result<bool, PGCliError> {
+pub async fn check_database_exists(client: &Client, db: &str) -> Result<bool> {
     trace!("Checking if database {} exists", db);
     let db_exists = client
         .query_one(
@@ -22,7 +23,7 @@ pub async fn list_databases(
     sort: &Option<SortingOrder>,
     extra: bool,
     query: &Option<String>,
-) -> Result<Vec<DatabaseDetails>, PGCliError> {
+) -> Result<Vec<DatabaseDetails>> {
     let ignored_databases = "'template0','template1'";
     let fields = match extra {
         true => "d.datname, d.oid, pg_size_pretty(pg_database_size(d.datname)), r.rolname",
@@ -99,7 +100,7 @@ pub async fn list_databases(
     }
 }
 
-pub async fn create_db(client: &Client, db: &str, owner: &str) -> Result<u64, PGCliError> {
+pub async fn create_db(client: &Client, db: &str, owner: &str) -> Result<u64> {
     trace!("Creating database {}", db);
     if !validate_pg_names(db) {
         error!("Invalid database name: {}", db);
@@ -122,7 +123,7 @@ pub async fn create_db(client: &Client, db: &str, owner: &str) -> Result<u64, PG
     }
 }
 
-pub async fn delete_db(client: &Client, db: &str) -> Result<u64, PGCliError> {
+pub async fn delete_db(client: &Client, db: &str) -> Result<u64> {
     trace!("Deleting database {}", db);
     if !validate_pg_names(db) {
         error!("Invalid database name: {}", db);
@@ -141,14 +142,14 @@ pub async fn delete_db(client: &Client, db: &str) -> Result<u64, PGCliError> {
     }
 }
 
-pub async fn kill_connections_to_db(client: &Client, db: &str) -> Result<u64, Error> {
+pub async fn kill_connections_to_db(client: &Client, db: &str) -> Result<u64> {
     trace!("Killing connections to database {}", db);
     client
         .execute(
             "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE pid <> pg_backend_pid() AND datname = $1",
             &[&db],
         )
-        .await
+        .await.map_err(PGCliError::from)
 }
 
 pub async fn change_whole_owner_of_db(
@@ -156,7 +157,7 @@ pub async fn change_whole_owner_of_db(
     credentials: &PostgresCredentials,
     db: &str,
     new_owner: &str,
-) -> Result<(), PGCliError> {
+) -> Result<()> {
     trace!(
         "Changing owner on the whole database {} with objects to {}",
         db,
@@ -194,11 +195,7 @@ pub async fn change_whole_owner_of_db(
     change_owner_of_objects_in_db(credentials, db, new_owner).await
 }
 
-pub async fn change_owner_of_db(
-    client: &Client,
-    db: &str,
-    new_owner: &str,
-) -> Result<u64, PGCliError> {
+pub async fn change_owner_of_db(client: &Client, db: &str, new_owner: &str) -> Result<u64> {
     trace!("Changing owner of database {} to {}", db, new_owner);
     if !validate_pg_names(new_owner) {
         error!("Invalid new owner name: {}", new_owner);
@@ -219,7 +216,7 @@ pub async fn change_owner_of_tables_in_db(
     credentials: &PostgresCredentials,
     db: &str,
     new_owner: &str,
-) -> Result<(), PGCliError> {
+) -> Result<()> {
     trace!(
         "Changing owner of tables in database {} to {}",
         db,
@@ -251,7 +248,7 @@ pub async fn change_owner_of_tables_in_db(
     trace!("Tables to change owner: {:?} ({})", rows, rows.len());
 
     // Process each table in parallel
-    let tasks: Vec<JoinHandle<Result<(), PGCliError>>> = rows
+    let tasks: Vec<JoinHandle<Result<()>>> = rows
         .into_iter()
         .map(|row| {
             let tablename: String = row.get(0);
@@ -299,7 +296,7 @@ pub async fn change_owner_of_objects_in_db(
     credentials: &PostgresCredentials,
     db: &str,
     new_owner: &str,
-) -> Result<(), PGCliError> {
+) -> Result<()> {
     trace!("Changing owner of database {} to {}", db, new_owner);
     debug!("Connecting to postgres to change owner of database {}", db);
 
@@ -328,7 +325,7 @@ pub async fn change_owner_of_objects_in_db(
     trace!("Types to change owner: {:?} ({})", rows, rows.len());
 
     // Process each table in parallel
-    let tasks: Vec<JoinHandle<Result<(), PGCliError>>> = rows
+    let tasks: Vec<JoinHandle<Result<()>>> = rows
         .into_iter()
         .map(|row| {
             let typname: String = row.get(0);
