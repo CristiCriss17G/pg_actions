@@ -46,6 +46,10 @@
     * 5.5.3. [Create a database](#Createadatabase)
     * 5.5.4. [Delete a database](#Deleteadatabase)
     * 5.5.5. [Update a database](#Updateadatabase)
+    * 5.5.6. [Extension operations](#Extensionoperations)
+    * 5.5.7. [List extensions](#Listextensions)
+    * 5.5.8. [Create an extension](#Createanextension)
+    * 5.5.9. [Delete an extension](#Deleteanextension)
   * 5.6. [CLI completion](#CLIcompletion)
     * 5.6.1. [Help section](#Helpsection-1)
   * 5.7. [Tools checking](#Toolschecking)
@@ -235,7 +239,7 @@ pg_actions help
 ```bash
 A simple CLI tool for managing Postgres databases
 
-Usage: pg_actions [OPTIONS] [COMMAND]
+Usage: pg_actions [OPTIONS] <COMMAND>
 
 Commands:
   clone        Clone a database
@@ -249,7 +253,7 @@ Commands:
 Options:
   -H, --pg-hostname <PG_HOSTNAME>      Sets Postgres connection URL [env: PG_HOSTNAME=db] [default: localhost]
   -U, --pg-superuser <PG_SUPERUSER>    Sets Postgres username [env: PG_SUPERUSER=postgres] [default: postgres]
-  -P, --pg-password <PG_PASSWORD>      Sets Postgres password [env: PG_PASS] [default: postgres]
+  -P, --pg-password <PG_PASSWORD>      Sets Postgres password [env: PG_PASS]
   -p, --pg-port <PG_PORT>              Sets Postgres port [env: PG_PORT=5432] [default: 5432]
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
@@ -261,6 +265,7 @@ Options:
       --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
       --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
+      --log-file <LOG_FILE>            Log file location [env: LOG_FILE=pg_actions.log]
   -h, --help                           Print help
   -V, --version                        Print version
 ```
@@ -286,7 +291,7 @@ Options:
   -n, --new-database <NEW_DATABASE>    new destination database
   -U, --pg-superuser <PG_SUPERUSER>    Sets Postgres username [env: PG_SUPERUSER=postgres] [default: postgres]
       --overwrite                      overwrite new database if it exists
-  -P, --pg-password <PG_PASSWORD>      Sets Postgres password [env: PG_PASS] [default: postgres]
+  -P, --pg-password <PG_PASSWORD>      Sets Postgres password [env: PG_PASS]
   -o, --new-owner <NEW_OWNER>          owner user for db [default: postgres]
   -p, --pg-port <PG_PORT>              Sets Postgres port [env: PG_PORT=5432] [default: 5432]
   -c, --create-owner                   create the new owner user
@@ -306,6 +311,7 @@ Options:
       --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
       --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
+      --log-file <LOG_FILE>            Log file location [env: LOG_FILE=pg_actions.log]
   -h, --help                           Print help
 ```
 
@@ -355,44 +361,27 @@ Arguments:
   <DATABASE>  database to backup defaults to all
 
 Options:
-  -H, --pg-hostname <PG_HOSTNAME>
-          Sets Postgres connection URL [env: PG_HOSTNAME=db] [default: localhost]
-  -o, --output-location <OUTPUT_LOCATION>
-          output location chose between s3 or a file path, defaults to s3; when s3 is chosen, the output location is in the bucket specified by the S3_* environment variables with the name of postgresql-backup-<timestamp>.tar.xz; when a file path is chosen, the output location is the file path specified, but the extension is .tar.xz [env: BACKUP_LOCATION=]
-  -j, --jobs <JOBS>
-          Parallel jobs to use defaults to 5 [env: JOBS=] [default: 5]
-  -U, --pg-superuser <PG_SUPERUSER>
-          Sets Postgres username [env: PG_SUPERUSER=postgres] [default: postgres]
-  -f, --format <FORMAT>
-          Format of the output file defaults to bsql [env: FORMAT=] [default: bsql] [possible values: sql, bsql]
-  -P, --pg-password <PG_PASSWORD>
-          Sets Postgres password [env: PG_PASS] [default: postgres]
-      --no-archive
-          Create archive or just files, has no effect on `all` backups [env: NO_ARCHIVE=]
-  -p, --pg-port <PG_PORT>
-          Sets Postgres port [env: PG_PORT=5432] [default: 5432]
-      --pg-dump <PG_DUMP>
-          Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
-      --pg-restore <PG_RESTORE>
-          Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
-      --s3-endpoint <S3_ENDPOINT>
-          S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
-      --s3-access-key <S3_ACCESS_KEY>
-          S3/Minio access key [env: S3_ACCESS_KEY=minio]
-      --s3-secret-key <S3_SECRET_KEY>
-          S3/Minio secret key [env: S3_SECRET_KEY]
-      --s3-bucket <S3_BUCKET>
-          S3/Minio bucket [env: S3_BUCKET=pgbackups]
-      --s3-region <S3_REGION>
-          S3/Minio region [env: S3_REGION=local]
-      --s3-prefix <S3_PREFIX>
-          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
-  -v, --verbose...
-          Turn debugging information on repetitive use increases verbosity, at most 2 times
-      --use-json-logging
-          Show logging information as json [env: USE_JSON_LOGGING=]
-  -h, --help
-          Print help
+  -H, --pg-hostname <PG_HOSTNAME>          Sets Postgres connection URL [env: PG_HOSTNAME=db] [default: localhost]
+  -o, --output-location <OUTPUT_LOCATION>  output location chose between s3 or a file path, defaults to s3; when s3 is chosen, the output location is in the bucket specified by the S3_* environment variables with the name of
+                                           postgresql-backup-<timestamp>.tar.xz; when a file path is chosen, the output location is the file path specified, but the extension is .tar.xz [env: BACKUP_LOCATION=]
+  -j, --jobs <JOBS>                        Parallel jobs to use defaults to 5 [env: JOBS=] [default: 5]
+  -U, --pg-superuser <PG_SUPERUSER>        Sets Postgres username [env: PG_SUPERUSER=postgres] [default: postgres]
+  -f, --format <FORMAT>                    Format of the output file defaults to bsql [env: FORMAT=] [default: bsql] [possible values: sql, bsql]
+  -P, --pg-password <PG_PASSWORD>          Sets Postgres password [env: PG_PASS]
+      --no-archive                         Create archive or just files, has no effect on `all` backups [env: NO_ARCHIVE=]
+  -p, --pg-port <PG_PORT>                  Sets Postgres port [env: PG_PORT=5432] [default: 5432]
+      --pg-dump <PG_DUMP>                  Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
+      --pg-restore <PG_RESTORE>            Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
+      --s3-endpoint <S3_ENDPOINT>          S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
+      --s3-access-key <S3_ACCESS_KEY>      S3/Minio access key [env: S3_ACCESS_KEY=minio]
+      --s3-secret-key <S3_SECRET_KEY>      S3/Minio secret key [env: S3_SECRET_KEY]
+      --s3-bucket <S3_BUCKET>              S3/Minio bucket [env: S3_BUCKET=pgbackups]
+      --s3-region <S3_REGION>              S3/Minio region [env: S3_REGION=local]
+      --s3-prefix <S3_PREFIX>              S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
+  -v, --verbose...                         Turn debugging information on repetitive use increases verbosity, at most 2 times
+      --use-json-logging                   Show logging information as json [env: USE_JSON_LOGGING=]
+      --log-file <LOG_FILE>                Log file location [env: LOG_FILE=pg_actions.log]
+  -h, --help                               Print help
 ```
 
 ##### Additional Variables
@@ -401,7 +390,6 @@ Options:
 
 * `BACKUP_LOCATION` - `-o, --output-location` - Output location, choose between S3 or a file path, defaults to S3
 * `JOBS` - `-j, --jobs` - Parallel jobs to use, defaults to 5
-* `RETRY` - `--retry` - Retry just archive upload, path to the archive to retry from
 * `FORMAT` - `-f, --format` - Format of the output file, defaults to bsql
 * `NO_ARCHIVE` - `--no-archive` - Create archive or just files, has no effect on `all` backups
 
@@ -492,7 +480,7 @@ pg_actions help user
 ```bash
 User operations
 
-Usage: pg_actions user [OPTIONS] [COMMAND]
+Usage: pg_actions user [OPTIONS] <COMMAND>
 
 Commands:
   list    List users
@@ -506,7 +494,7 @@ Commands:
 Options:
   -H, --pg-hostname <PG_HOSTNAME>      Sets Postgres connection URL [env: PG_HOSTNAME=db] [default: localhost]
   -U, --pg-superuser <PG_SUPERUSER>    Sets Postgres username [env: PG_SUPERUSER=postgres] [default: postgres]
-  -P, --pg-password <PG_PASSWORD>      Sets Postgres password [env: PG_PASS] [default: postgres]
+  -P, --pg-password <PG_PASSWORD>      Sets Postgres password [env: PG_PASS]
   -p, --pg-port <PG_PORT>              Sets Postgres port [env: PG_PORT=5432] [default: 5432]
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
@@ -518,6 +506,7 @@ Options:
       --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
       --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
+      --log-file <LOG_FILE>            Log file location [env: LOG_FILE=pg_actions.log]
   -h, --help                           Print help
 ```
 
@@ -542,8 +531,9 @@ Options:
   -o, --output <OUTPUT>                quite mode [default: table] [possible values: json, json-compact, json-lines, csv, table, simple]
   -U, --pg-superuser <PG_SUPERUSER>    Sets Postgres username [env: PG_SUPERUSER=postgres] [default: postgres]
   -e, --extra                          extra details
-  -P, --pg-password <PG_PASSWORD>      Sets Postgres password [env: PG_PASS] [default: postgres]
+  -P, --pg-password <PG_PASSWORD>      Sets Postgres password [env: PG_PASS]
   -p, --pg-port <PG_PORT>              Sets Postgres port [env: PG_PORT=5432] [default: 5432]
+  -q, --query <QUERY>                  query string, fuzzy search
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
       --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
@@ -554,6 +544,7 @@ Options:
       --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
       --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
+      --log-file <LOG_FILE>            Log file location [env: LOG_FILE=pg_actions.log]
   -h, --help                           Print help
 ```
 
@@ -562,6 +553,7 @@ Options:
 * `--sort [asc|desc]` - Sort ascending or descending by username
 * `-o, --output [json|json-compact|json-lines|csv|table|simple]` - Output format, defaults to table
 * `-e, --extra` - Print extra information, such as right as superuser, createdb, and login, and oid
+* `-q, --query` - Query string, fuzzy search
 
 ##### Output formats
 
@@ -610,7 +602,7 @@ Options:
       --superuser                      user as superuser
   -U, --pg-superuser <PG_SUPERUSER>    Sets Postgres username [env: PG_SUPERUSER=postgres] [default: postgres]
       --createdb                       createdb for user
-  -P, --pg-password <PG_PASSWORD>      Sets Postgres password [env: PG_PASS] [default: postgres]
+  -P, --pg-password <PG_PASSWORD>      Sets Postgres password [env: PG_PASS]
   -n, --no-login                       role with no login defaults to false
   -p, --pg-port <PG_PORT>              Sets Postgres port [env: PG_PORT=5432] [default: 5432]
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
@@ -623,6 +615,7 @@ Options:
       --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
       --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
+      --log-file <LOG_FILE>            Log file location [env: LOG_FILE=pg_actions.log]
   -h, --help                           Print help
 ```
 
@@ -664,7 +657,7 @@ Arguments:
 Options:
   -H, --pg-hostname <PG_HOSTNAME>      Sets Postgres connection URL [env: PG_HOSTNAME=db] [default: localhost]
   -U, --pg-superuser <PG_SUPERUSER>    Sets Postgres username [env: PG_SUPERUSER=postgres] [default: postgres]
-  -P, --pg-password <PG_PASSWORD>      Sets Postgres password [env: PG_PASS] [default: postgres]
+  -P, --pg-password <PG_PASSWORD>      Sets Postgres password [env: PG_PASS]
   -p, --pg-port <PG_PORT>              Sets Postgres port [env: PG_PORT=5432] [default: 5432]
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
@@ -676,6 +669,7 @@ Options:
       --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
       --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
+      --log-file <LOG_FILE>            Log file location [env: LOG_FILE=pg_actions.log]
   -h, --help                           Print help
 ```
 
@@ -709,7 +703,7 @@ Options:
       --superuser <SUPERUSER>          user as superuser [possible values: true, false]
   -U, --pg-superuser <PG_SUPERUSER>    Sets Postgres username [env: PG_SUPERUSER=postgres] [default: postgres]
       --createdb <CREATEDB>            createdb for user [possible values: true, false]
-  -P, --pg-password <PG_PASSWORD>      Sets Postgres password [env: PG_PASS] [default: postgres]
+  -P, --pg-password <PG_PASSWORD>      Sets Postgres password [env: PG_PASS]
   -n, --no-login <NO_LOGIN>            role with no login [possible values: true, false]
   -p, --pg-port <PG_PORT>              Sets Postgres port [env: PG_PORT=5432] [default: 5432]
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
@@ -722,6 +716,7 @@ Options:
       --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
       --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
+      --log-file <LOG_FILE>            Log file location [env: LOG_FILE=pg_actions.log]
   -h, --help                           Print help
 ```
 
@@ -762,7 +757,7 @@ Options:
       --schema <SCHEMA>                schema [default: public]
   -U, --pg-superuser <PG_SUPERUSER>    Sets Postgres username [env: PG_SUPERUSER=postgres] [default: postgres]
   -g, --privileges <PRIVILEGES>        privileges full or read-only or read-update-only [possible values: full, read-only, read-update-only]
-  -P, --pg-password <PG_PASSWORD>      Sets Postgres password [env: PG_PASS] [default: postgres]
+  -P, --pg-password <PG_PASSWORD>      Sets Postgres password [env: PG_PASS]
   -p, --pg-port <PG_PORT>              Sets Postgres port [env: PG_PORT=5432] [default: 5432]
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
@@ -774,6 +769,7 @@ Options:
       --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
       --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
+      --log-file <LOG_FILE>            Log file location [env: LOG_FILE=pg_actions.log]
   -h, --help                           Print help
 ```
 
@@ -816,7 +812,7 @@ Options:
       --schema <SCHEMA>                schema [default: public]
   -U, --pg-superuser <PG_SUPERUSER>    Sets Postgres username [env: PG_SUPERUSER=postgres] [default: postgres]
   -g, --privileges <PRIVILEGES>        privileges [possible values: full, read-only, read-update-only]
-  -P, --pg-password <PG_PASSWORD>      Sets Postgres password [env: PG_PASS] [default: postgres]
+  -P, --pg-password <PG_PASSWORD>      Sets Postgres password [env: PG_PASS]
   -p, --pg-port <PG_PORT>              Sets Postgres port [env: PG_PORT=5432] [default: 5432]
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
@@ -828,6 +824,7 @@ Options:
       --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
       --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
+      --log-file <LOG_FILE>            Log file location [env: LOG_FILE=pg_actions.log]
   -h, --help                           Print help
 ```
 
@@ -859,19 +856,20 @@ pg_actions help database
 ```bash
 Database operations
 
-Usage: pg_actions database [OPTIONS] [COMMAND]
+Usage: pg_actions database [OPTIONS] <COMMAND>
 
 Commands:
-  list    List databases
-  create  Create a database
-  delete  Delete a database
-  update  Update a database
-  help    Print this message or the help of the given subcommand(s)
+  list       List databases
+  create     Create a database
+  delete     Delete a database
+  update     Update a database
+  extension  Manipulate extensions on a database
+  help       Print this message or the help of the given subcommand(s)
 
 Options:
   -H, --pg-hostname <PG_HOSTNAME>      Sets Postgres connection URL [env: PG_HOSTNAME=db] [default: localhost]
   -U, --pg-superuser <PG_SUPERUSER>    Sets Postgres username [env: PG_SUPERUSER=postgres] [default: postgres]
-  -P, --pg-password <PG_PASSWORD>      Sets Postgres password [env: PG_PASS] [default: postgres]
+  -P, --pg-password <PG_PASSWORD>      Sets Postgres password [env: PG_PASS]
   -p, --pg-port <PG_PORT>              Sets Postgres port [env: PG_PORT=5432] [default: 5432]
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
@@ -883,6 +881,7 @@ Options:
       --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
       --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
+      --log-file <LOG_FILE>            Log file location [env: LOG_FILE=pg_actions.log]
   -h, --help                           Print help
 ```
 
@@ -907,8 +906,9 @@ Options:
   -o, --output <OUTPUT>                quite mode [default: table] [possible values: json, json-compact, json-lines, csv, table, simple]
   -U, --pg-superuser <PG_SUPERUSER>    Sets Postgres username [env: PG_SUPERUSER=postgres] [default: postgres]
   -e, --extra                          extra details
-  -P, --pg-password <PG_PASSWORD>      Sets Postgres password [env: PG_PASS] [default: postgres]
+  -P, --pg-password <PG_PASSWORD>      Sets Postgres password [env: PG_PASS]
   -p, --pg-port <PG_PORT>              Sets Postgres port [env: PG_PORT=5432] [default: 5432]
+  -q, --query <QUERY>                  query string, fuzzy search
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
       --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
@@ -919,6 +919,7 @@ Options:
       --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
       --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
+      --log-file <LOG_FILE>            Log file location [env: LOG_FILE=pg_actions.log]
   -h, --help                           Print help
 ```
 
@@ -927,6 +928,7 @@ Options:
 * `--sort [asc|desc]` - Sort ascending or descending by database name
 * `-o, --output [json|json-compact|json-lines|csv|table|simple]` - Output format, defaults to table
 * `-e, --extra` - Print extra information, such as owner, size and oid
+* `-q, --query` - Query string, fuzzy search
 
 ##### Output formats
 
@@ -973,7 +975,7 @@ Options:
   -H, --pg-hostname <PG_HOSTNAME>      Sets Postgres connection URL [env: PG_HOSTNAME=db] [default: localhost]
   -o, --owner <OWNER>                  owner user for db
   -U, --pg-superuser <PG_SUPERUSER>    Sets Postgres username [env: PG_SUPERUSER=postgres] [default: postgres]
-  -P, --pg-password <PG_PASSWORD>      Sets Postgres password [env: PG_PASS] [default: postgres]
+  -P, --pg-password <PG_PASSWORD>      Sets Postgres password [env: PG_PASS]
   -p, --pg-port <PG_PORT>              Sets Postgres port [env: PG_PORT=5432] [default: 5432]
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
@@ -985,6 +987,7 @@ Options:
       --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
       --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
+      --log-file <LOG_FILE>            Log file location [env: LOG_FILE=pg_actions.log]
   -h, --help                           Print help
 ```
 
@@ -1019,7 +1022,7 @@ Arguments:
 Options:
   -H, --pg-hostname <PG_HOSTNAME>      Sets Postgres connection URL [env: PG_HOSTNAME=db] [default: localhost]
   -U, --pg-superuser <PG_SUPERUSER>    Sets Postgres username [env: PG_SUPERUSER=postgres] [default: postgres]
-  -P, --pg-password <PG_PASSWORD>      Sets Postgres password [env: PG_PASS] [default: postgres]
+  -P, --pg-password <PG_PASSWORD>      Sets Postgres password [env: PG_PASS]
   -p, --pg-port <PG_PORT>              Sets Postgres port [env: PG_PORT=5432] [default: 5432]
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
@@ -1031,6 +1034,7 @@ Options:
       --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
       --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
+      --log-file <LOG_FILE>            Log file location [env: LOG_FILE=pg_actions.log]
   -h, --help                           Print help
 ```
 
@@ -1062,7 +1066,7 @@ Options:
   -H, --pg-hostname <PG_HOSTNAME>      Sets Postgres connection URL [env: PG_HOSTNAME=db] [default: localhost]
   -o, --new-owner <NEW_OWNER>          new owner user for db
   -U, --pg-superuser <PG_SUPERUSER>    Sets Postgres username [env: PG_SUPERUSER=postgres] [default: postgres]
-  -P, --pg-password <PG_PASSWORD>      Sets Postgres password [env: PG_PASS] [default: postgres]
+  -P, --pg-password <PG_PASSWORD>      Sets Postgres password [env: PG_PASS]
   -p, --pg-port <PG_PORT>              Sets Postgres port [env: PG_PORT=5432] [default: 5432]
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
@@ -1074,6 +1078,7 @@ Options:
       --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
       --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
+      --log-file <LOG_FILE>            Log file location [env: LOG_FILE=pg_actions.log]
   -h, --help                           Print help
 ```
 
@@ -1085,6 +1090,192 @@ Options:
 
 ```bash
 pg_actions -H my_host database update -o my_new_owner my_db
+```
+
+#### 5.5.6. <a name='Extensionoperations'></a>Extension operations
+
+This command allows the user to list, create, delete, and update an extension on a database.
+
+##### Help
+
+```bash
+pg_actions help database extension
+```
+
+```bash
+Manipulate extensions on a database
+
+Usage: pg_actions database extension [OPTIONS] <DATABASE> <COMMAND>
+
+Commands:
+  list    List extensions
+  create  Create an extension
+  delete  Delete an extension
+  help    Print this message or the help of the given subcommand(s)
+
+Arguments:
+  <DATABASE>  Database name
+
+Options:
+  -H, --pg-hostname <PG_HOSTNAME>      Sets Postgres connection URL [env: PG_HOSTNAME=db] [default: localhost]
+  -U, --pg-superuser <PG_SUPERUSER>    Sets Postgres username [env: PG_SUPERUSER=postgres] [default: postgres]
+  -P, --pg-password <PG_PASSWORD>      Sets Postgres password [env: PG_PASS]
+  -p, --pg-port <PG_PORT>              Sets Postgres port [env: PG_PORT=5432] [default: 5432]
+      --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
+      --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
+      --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
+      --s3-access-key <S3_ACCESS_KEY>  S3/Minio access key [env: S3_ACCESS_KEY=minio]
+      --s3-secret-key <S3_SECRET_KEY>  S3/Minio secret key [env: S3_SECRET_KEY]
+      --s3-bucket <S3_BUCKET>          S3/Minio bucket [env: S3_BUCKET=pgbackups]
+      --s3-region <S3_REGION>          S3/Minio region [env: S3_REGION=local]
+      --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
+  -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
+      --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
+      --log-file <LOG_FILE>            Log file location [env: LOG_FILE=pg_actions.log]
+  -h, --help                           Print help
+```
+
+#### 5.5.7. <a name='Listextensions'></a>List extensions
+
+Prints a list of extensions on a database as a table
+
+##### Help
+
+```bash
+pg_actions help database extension list
+```
+
+```bash
+List extensions
+
+Usage: pg_actions database extension <DATABASE> list [OPTIONS]
+
+Options:
+  -H, --pg-hostname <PG_HOSTNAME>      Sets Postgres connection URL [env: PG_HOSTNAME=db] [default: localhost]
+      --sort <SORT>                    sort by extension name [possible values: asc, desc]
+  -o, --output <OUTPUT>                quite mode [default: table] [possible values: json, json-compact, json-lines, csv, table, simple]
+  -U, --pg-superuser <PG_SUPERUSER>    Sets Postgres username [env: PG_SUPERUSER=postgres] [default: postgres]
+  -e, --extra                          extra details
+  -P, --pg-password <PG_PASSWORD>      Sets Postgres password [env: PG_PASS]
+  -p, --pg-port <PG_PORT>              Sets Postgres port [env: PG_PORT=5432] [default: 5432]
+      --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
+      --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
+      --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
+      --s3-access-key <S3_ACCESS_KEY>  S3/Minio access key [env: S3_ACCESS_KEY=minio]
+      --s3-secret-key <S3_SECRET_KEY>  S3/Minio secret key [env: S3_SECRET_KEY]
+      --s3-bucket <S3_BUCKET>          S3/Minio bucket [env: S3_BUCKET=pgbackups]
+      --s3-region <S3_REGION>          S3/Minio region [env: S3_REGION=local]
+      --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
+  -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
+      --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
+      --log-file <LOG_FILE>            Log file location [env: LOG_FILE=pg_actions.log]
+  -h, --help                           Print help
+```
+
+##### Additional Variables
+
+* `--sort [asc|desc]` - Sort ascending or descending by extension name
+* `-o, --output [json|json-compact|json-lines|csv|table|simple]` - Output format, defaults to table
+* `-e, --extra` - Print extra information, such as owner, size and oid
+
+##### Execution
+
+```bash
+pg_actions -H my_host database extension my_db list
+```
+
+```bash
+pg_actions -H my_host database extension my_db list --sort desc -o json
+```
+
+```bash
+pg_actions -H my_host database extension my_db list --sort desc -o csv
+```
+
+#### 5.5.8. <a name='Createanextension'></a>Create an extension
+
+Create an extension on a database
+
+##### Help
+
+```bash
+pg_actions help database extension create
+```
+
+```bash
+Create an extension
+
+Usage: pg_actions database extension <DATABASE> create [OPTIONS] <EXTENSION>
+
+Arguments:
+  <EXTENSION>  extension name
+
+Options:
+  -H, --pg-hostname <PG_HOSTNAME>      Sets Postgres connection URL [env: PG_HOSTNAME=db] [default: localhost]
+  -U, --pg-superuser <PG_SUPERUSER>    Sets Postgres username [env: PG_SUPERUSER=postgres] [default: postgres]
+  -P, --pg-password <PG_PASSWORD>      Sets Postgres password [env: PG_PASS]
+  -p, --pg-port <PG_PORT>              Sets Postgres port [env: PG_PORT=5432] [default: 5432]
+      --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
+      --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
+      --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
+      --s3-access-key <S3_ACCESS_KEY>  S3/Minio access key [env: S3_ACCESS_KEY=minio]
+      --s3-secret-key <S3_SECRET_KEY>  S3/Minio secret key [env: S3_SECRET_KEY]
+      --s3-bucket <S3_BUCKET>          S3/Minio bucket [env: S3_BUCKET=pgbackups]
+      --s3-region <S3_REGION>          S3/Minio region [env: S3_REGION=local]
+      --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
+  -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
+      --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
+      --log-file <LOG_FILE>            Log file location [env: LOG_FILE=pg_actions.log]
+  -h, --help                           Print help
+```
+
+##### Execution
+
+```bash
+pg_actions -H my_host database extension my_db create my_extension
+```
+
+#### 5.5.9. <a name='Deleteanextension'></a>Delete an extension
+
+Delete an extension from a database
+
+##### Help
+
+```bash
+pg_actions help database extension delete
+```
+
+```bash
+Delete an extension
+
+Usage: pg_actions database extension <DATABASE> delete [OPTIONS] <EXTENSION>
+
+Arguments:
+  <EXTENSION>  extension name
+
+Options:
+  -H, --pg-hostname <PG_HOSTNAME>      Sets Postgres connection URL [env: PG_HOSTNAME=db] [default: localhost]
+  -U, --pg-superuser <PG_SUPERUSER>    Sets Postgres username [env: PG_SUPERUSER=postgres] [default: postgres]
+  -P, --pg-password <PG_PASSWORD>      Sets Postgres password [env: PG_PASS]
+  -p, --pg-port <PG_PORT>              Sets Postgres port [env: PG_PORT=5432] [default: 5432]
+      --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
+      --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
+      --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
+      --s3-access-key <S3_ACCESS_KEY>  S3/Minio access key [env: S3_ACCESS_KEY=minio]
+      --s3-secret-key <S3_SECRET_KEY>  S3/Minio secret key [env: S3_SECRET_KEY]
+      --s3-bucket <S3_BUCKET>          S3/Minio bucket [env: S3_BUCKET=pgbackups]
+      --s3-region <S3_REGION>          S3/Minio region [env: S3_REGION=local]
+      --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
+  -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
+      --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
+      --log-file <LOG_FILE>            Log file location [env: LOG_FILE=pg_actions.log]
+  -h, --help                           Print help
+```
+
+##### Execution
+
+```bash
+pg_actions -H my_host database extension my_db delete my_extension
 ```
 
 ### 5.6. <a name='CLIcompletion'></a>CLI completion
@@ -1108,7 +1299,7 @@ Arguments:
 Options:
   -H, --pg-hostname <PG_HOSTNAME>      Sets Postgres connection URL [env: PG_HOSTNAME=db] [default: localhost]
   -U, --pg-superuser <PG_SUPERUSER>    Sets Postgres username [env: PG_SUPERUSER=postgres] [default: postgres]
-  -P, --pg-password <PG_PASSWORD>      Sets Postgres password [env: PG_PASS] [default: postgres]
+  -P, --pg-password <PG_PASSWORD>      Sets Postgres password [env: PG_PASS]
   -p, --pg-port <PG_PORT>              Sets Postgres port [env: PG_PORT=5432] [default: 5432]
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
@@ -1120,6 +1311,7 @@ Options:
       --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
       --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
+      --log-file <LOG_FILE>            Log file location [env: LOG_FILE=pg_actions.log]
   -h, --help                           Print help
 ```
 
@@ -1188,7 +1380,7 @@ Usage: pg_actions check-tools [OPTIONS]
 Options:
   -H, --pg-hostname <PG_HOSTNAME>      Sets Postgres connection URL [env: PG_HOSTNAME=db] [default: localhost]
   -U, --pg-superuser <PG_SUPERUSER>    Sets Postgres username [env: PG_SUPERUSER=postgres] [default: postgres]
-  -P, --pg-password <PG_PASSWORD>      Sets Postgres password [env: PG_PASS] [default: postgres]
+  -P, --pg-password <PG_PASSWORD>      Sets Postgres password [env: PG_PASS]
   -p, --pg-port <PG_PORT>              Sets Postgres port [env: PG_PORT=5432] [default: 5432]
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
@@ -1199,6 +1391,8 @@ Options:
       --s3-region <S3_REGION>          S3/Minio region [env: S3_REGION=local]
       --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
+      --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
+      --log-file <LOG_FILE>            Log file location [env: LOG_FILE=pg_actions.log]
   -h, --help                           Print help
 ```
 

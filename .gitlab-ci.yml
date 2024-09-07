@@ -33,7 +33,7 @@ sonarqube-check:
   allow_failure: true
   rules:
     - if: '$CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "main"'
-    - if: '$CI_COMMIT_REF_NAME == "main"'
+    # - if: '$CI_COMMIT_REF_NAME == "main"'
 
 prepare:
   stage: prepare-build
@@ -53,18 +53,25 @@ prepare:
     - if [ "$CI_COMMIT_REF_NAME" == "main" ]; then echo "latest" > $TAGS; fi
     - echo $LONG_TAG >> $TAGS
     - echo $SHORT_TAG >> $TAGS
+    - |-
+      echo "LATEST_MR_DESC=$(curl --silent --header \"PRIVATE-TOKEN: ${CI_JOB_TOKEN}\" \"https://gitlab.com/api/v4/projects/${CI_PROJECT_ID}/merge_requests?state=merged&source_branch=main&order_by=updated_at&per_page=1\" | jq -r '.[0].description')" > variables.env
+  after_script:
+    - cat variables.env # Debug: Check the content of job.env
   artifacts:
     paths:
       - $TIMESTAMP
       - $TAGS
+    reports:
+      dotenv: variables.env
   only:
     - branches
     - merge_requests
 
 build:
   stage: build
-  dependencies:
-    - prepare
+  needs:
+    - job: prepare
+      artifacts: true
   image:
     name: $KANIKO_IMAGE
     entrypoint: [""]
@@ -88,8 +95,9 @@ build:
 
 build-manual:
   when: manual
-  dependencies:
-    - prepare
+  needs:
+    - job: prepare
+      artifacts: true
   image:
     name: $KANIKO_IMAGE
     entrypoint: [""]
@@ -116,8 +124,9 @@ build-manual:
 
 compile_dynamic:
   stage: build
-  dependencies:
-    - prepare
+  needs:
+    - job: prepare
+      artifacts: true
   image:
     name: rust:${RUST_VERSION}
   tags:
@@ -149,8 +158,9 @@ compile_dynamic:
 
 compile_static:
   stage: build
-  dependencies:
-    - prepare
+  needs:
+    - job: prepare
+      artifacts: true
   image:
     name: rust:${RUST_VERSION}-alpine
   tags:
