@@ -2,23 +2,24 @@ use super::structs::{PGCliError, PGTools, S3Credentials};
 use log::{debug, info, trace, warn};
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
-use rusoto_core::{HttpClient, Region};
+use rusoto_core::{HttpClient, Region, RusotoError};
 use rusoto_credential::StaticProvider;
 use rusoto_s3::{
     CompleteMultipartUploadRequest, CompletedMultipartUpload, CompletedPart,
-    CreateMultipartUploadRequest, S3Client, UploadPartRequest, S3,
+    CreateMultipartUploadRequest, GetObjectError, S3Client, UploadPartRequest, S3,
 };
 use std::collections::HashMap;
 use std::fs::File;
 use std::fs::Permissions;
 use std::os::unix::fs::PermissionsExt;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 use std::str::FromStr;
-use tar::Builder;
+use tar::{Archive, Builder};
 use tokio::fs::{self, File as AFile, OpenOptions};
 use tokio::io::AsyncReadExt;
 use tokio::{io, task};
+use xz2::read::XzDecoder;
 use xz2::stream::{Check, Stream};
 use xz2::write::XzEncoder;
 
@@ -113,6 +114,41 @@ pub async fn delete_directory<P: AsRef<Path>>(path: P) -> io::Result<()> {
     Ok(())
 }
 
+pub async fn search_file_in_directory(
+    directory: &Path,
+    file_name: &str,
+) -> Result<Option<PathBuf>, PGCliError> {
+    debug!(
+        "Searching for file '{}' in directory '{}'",
+        file_name,
+        directory.display()
+    );
+
+    if !check_file_directory_path_exists(directory) {
+        return Err(PGCliError::Other("Directory does not exist".to_string()));
+    }
+
+    // Spawn a blocking task to search the directory
+    let directory = directory.to_path_buf();
+    let file_name = file_name.to_string();
+    let result = task::spawn_blocking(move || {
+        for entry in walkdir::WalkDir::new(&directory) {
+            let entry = entry?;
+            let path = entry.path();
+
+            // Check if the file matches the search query
+            if path.is_file() && *path.file_name().unwrap_or_default() == *file_name {
+                trace!("Found file: {:?}", path);
+                return Ok(Some(path.to_path_buf()));
+            }
+        }
+        Ok(None) // Return None if the file is not found
+    })
+    .await?;
+
+    result
+}
+
 pub async fn create_compressed_archive(
     input_dir: &str,
     output_file: &str,
@@ -166,6 +202,43 @@ pub async fn create_compressed_archive(
 
         // Ensure all data is flushed and the archive is finished
         archive.finish()?;
+
+        Ok(())
+    })
+    .await?
+}
+
+pub async fn extract_compressed_archive(
+    input_file: &Path,
+    output_dir: &Path,
+) -> Result<(), PGCliError> {
+    debug!("Extracting compressed archive");
+
+    // clone the input_file and output_dir to move into the blocking task
+    let input_file = input_file.to_path_buf();
+    let output_dir = output_dir.to_path_buf();
+
+    if !check_file_path_exists(&input_file) {
+        return Err(PGCliError::Other("Input file does not exist".to_string()));
+    }
+
+    // if the output directory does not exist, create it
+    if !check_file_directory_path_exists(&output_dir) {
+        ensure_file_directory_path_exists(&output_dir).await?;
+        trace!("Created output directory {:?}", output_dir);
+    }
+
+    // spawn a blocking task to extract the compressed archive
+    task::spawn_blocking(move || {
+        // Open the compressed file
+        let file = File::open(&input_file)?;
+        let decoder = XzDecoder::new(file);
+
+        let mut archive = Archive::new(decoder);
+
+        debug!("Extracting files from the archive");
+        // Extract all files from the archive to the output directory
+        archive.unpack(&output_dir)?;
 
         Ok(())
     })
@@ -354,6 +427,81 @@ impl S3Credentials {
 
         debug!("Completing multipart upload");
         s3_client.complete_multipart_upload(complete_req).await?;
+
+        Ok(())
+    }
+
+    pub async fn download_file<P: AsRef<Path>>(
+        &self,
+        file_key: &str,
+        file_path: P,
+    ) -> Result<(), PGCliError> {
+        debug!("Downloading file from S3");
+        let file_path = file_path.as_ref();
+        let region = match self.s3_endpoint {
+            Some(ref endpoint) => Region::Custom {
+                name: self
+                    .s3_region
+                    .clone()
+                    .unwrap_or_else(|| "us-east-1".to_owned()),
+                endpoint: endpoint.clone(),
+            },
+            None => self
+                .s3_region
+                .clone()
+                .map_or(Region::UsEast1, |region_name| {
+                    Region::from_str(&region_name).unwrap_or(Region::UsEast1)
+                }),
+        };
+
+        let s3_client = S3Client::new_with(
+            HttpClient::new()?,
+            StaticProvider::new_minimal(
+                self.s3_access_key.clone().unwrap(),
+                self.s3_secret_key.clone().unwrap(),
+            ),
+            region,
+        );
+
+        let file_key_prepared = match self.s3_prefix {
+            Some(ref prefix) => format!("{}/{}", prefix, file_key),
+            None => file_key.to_string(),
+        };
+
+        let get_req = rusoto_s3::GetObjectRequest {
+            bucket: self
+                .s3_bucket
+                .clone()
+                .ok_or_else(|| PGCliError::Other("S3 bucket is required".to_string()))?,
+            key: file_key_prepared.clone(),
+            ..Default::default()
+        };
+
+        match s3_client.get_object(get_req).await {
+            Ok(response) => {
+                let mut stream = response
+                    .body
+                    .ok_or(PGCliError::Other(
+                        "Failed to get object body from S3 response".to_string(),
+                    ))?
+                    .into_async_read();
+                let mut file = open_file_path_in_write_mode(file_path, None).await?;
+                io::copy(&mut stream, &mut file).await?;
+            }
+            Err(RusotoError::Service(GetObjectError::NoSuchKey(_))) => {
+                // Handle the case where the file does not exist in the S3 bucket
+                return Err(PGCliError::Other(format!(
+                    "File {} does not exist in the S3 bucket",
+                    file_key_prepared
+                )));
+            }
+            Err(e) => {
+                // Handle any other errors (network issues, permissions, etc.)
+                return Err(PGCliError::Other(format!("Failed to download file: {}", e)));
+            }
+        };
+
+        debug!("Downloaded file to {:?}", file_path);
 
         Ok(())
     }

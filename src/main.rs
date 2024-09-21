@@ -9,7 +9,9 @@ use std::io;
 use std::path::PathBuf;
 use utils::db::general::try_read_pgpass;
 use utils::structs::{PostgresCredentials, Result, S3Credentials};
-use utils::{backup, clone, database, logging::log_init, misc::check_pg_tools_version, user};
+use utils::{
+    backup, clone, database, logging::log_init, misc::check_pg_tools_version, restore, user,
+};
 
 #[derive(Parser, Debug, PartialEq)]
 #[command(name = "pg_actions", author, version, about, long_about = None)]
@@ -113,6 +115,8 @@ enum Commands {
     Clone(clone::CloneArgs),
     /// Backup operations
     Backup(backup::BackupArgs),
+    /// Restore operations
+    Restore(restore::RestoreArgs),
     /// User operations
     User(user::UserArgs),
     /// Database operations
@@ -244,6 +248,28 @@ async fn main() -> Result<()> {
                 Ok(_) => info!("Database backed up successfully"),
                 Err(e) => {
                     error!("Failed to backup database: {}", e);
+                    return Err(e);
+                }
+            }
+        }
+        Commands::Restore(restore_data) => {
+            let pg_tools = check_pg_tools_version(&pg_tools_paths, pg_tools_min_version, false)
+                .map_err(|e| {
+                    error!("Failed to check tools: {}", e);
+                    e
+                })?;
+            match restore::restore_db(
+                restore_data,
+                &pgpass,
+                &pg_main_hostname,
+                &s3_credentials,
+                &pg_tools,
+            )
+            .await
+            {
+                Ok(_) => info!("Database restored successfully"),
+                Err(e) => {
+                    error!("Failed to restore database: {}", e);
                     return Err(e);
                 }
             }

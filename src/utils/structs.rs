@@ -128,7 +128,7 @@ pub enum PGCliError {
 /// A `Result` alias where the `Err` case is `ClodociError`.
 pub type Result<T> = std::result::Result<T, PGCliError>;
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub enum UserDetails {
     Extra {
         username: String,
@@ -149,7 +149,17 @@ impl AsRef<str> for UserDetails {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+// impl PartialEq for UserDetails with String
+impl PartialEq<String> for UserDetails {
+    fn eq(&self, other: &String) -> bool {
+        match self {
+            UserDetails::Extra { username, .. } => username == other,
+            UserDetails::Username(username) => username == other,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub enum DatabaseDetails {
     Extra {
         name: String,
@@ -169,7 +179,17 @@ impl AsRef<str> for DatabaseDetails {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+// impl PartialEq for DatabaseDetails with String
+impl PartialEq<String> for DatabaseDetails {
+    fn eq(&self, other: &String) -> bool {
+        match self {
+            DatabaseDetails::Extra { name, .. } => name == other,
+            DatabaseDetails::Name(name) => name == other,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub enum ExtensionDetails {
     Extra {
         name: String,
@@ -178,6 +198,25 @@ pub enum ExtensionDetails {
         oid: u32,
     },
     Name(String),
+}
+
+impl AsRef<str> for ExtensionDetails {
+    fn as_ref(&self) -> &str {
+        match self {
+            ExtensionDetails::Extra { name, .. } => name,
+            ExtensionDetails::Name(name) => name,
+        }
+    }
+}
+
+// impl PartialEq for ExtensionDetails with String
+impl PartialEq<String> for ExtensionDetails {
+    fn eq(&self, other: &String) -> bool {
+        match self {
+            ExtensionDetails::Extra { name, .. } => name == other,
+            ExtensionDetails::Name(name) => name == other,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Copy)]
