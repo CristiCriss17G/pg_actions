@@ -56,12 +56,12 @@
         "christian-kohler.path-intellisense",
         "esbenp.prettier-vscode",
         "redhat.fabric8-analytics",
-        "1YiB.rust-bundle",
         "SonarSource.sonarlint-vscode",
         "redhat.vscode-yaml",
         "DotJoshJohnson.xml",
         "joffreykern.markdown-toc",
-        "fill-labs.dependi"
+        "fill-labs.dependi",
+        "rust-lang.rust-analyzer"
       ]
     }
   },

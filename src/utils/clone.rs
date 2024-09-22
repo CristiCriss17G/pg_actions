@@ -9,6 +9,7 @@ use super::structs::{PGCliError, PGTools, PostgresCredentials, Result, SqlFileFo
 use clap::Args;
 use log::{debug, error, info};
 use std::collections::HashMap;
+use std::path::PathBuf;
 
 #[derive(Args, Debug, PartialEq)]
 pub struct CloneArgs {
@@ -113,11 +114,11 @@ pub async fn clone_db(
         )));
     }
 
-    let dump_file = format!(
-        "/tmp/psql_backup/{}-{}.bsql",
+    let dump_file = PathBuf::from(r"/tmp/psql_backup/").join(format!(
+        "{}-{}.bsql",
         data.new_database,
         generate_random_string(6, true)
-    );
+    ));
 
     match db_dump(
         source_credentials.clone(),
@@ -248,7 +249,7 @@ pub async fn clone_db(
     }
 
     if !data.keep_dump {
-        info!("Deleting dump file {}", &dump_file);
+        info!("Deleting dump file {}", &dump_file.display());
         match delete_file(&dump_file).await {
             Ok(_) => info!("Dump file deleted successfully"),
             Err(e) => {
@@ -257,7 +258,7 @@ pub async fn clone_db(
             }
         }
     } else {
-        info!("Dump file kept at {}", &dump_file);
+        info!("Dump file kept at {}", &dump_file.display());
     }
 
     Ok(())

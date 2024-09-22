@@ -39,13 +39,15 @@ impl PostgresCredentials {
 pub struct PGTools {
     pub pg_dump: String,
     pub pg_restore: String,
+    pub psql: String,
 }
 
 impl PGTools {
-    pub fn new(pg_dump: String, pg_restore: String) -> PGTools {
+    pub fn new(pg_dump: String, pg_restore: String, psql: String) -> PGTools {
         PGTools {
             pg_dump,
             pg_restore,
+            psql,
         }
     }
 }
@@ -374,6 +376,15 @@ impl ValueEnum for OutputFormat {
 pub enum SqlFileFormat {
     Sql,
     Bsql,
+}
+
+impl SqlFileFormat {
+    pub fn file_extension(&self) -> &str {
+        match self {
+            SqlFileFormat::Sql => "sql",
+            SqlFileFormat::Bsql => "bsql",
+        }
+    }
 }
 
 impl FromStr for SqlFileFormat {

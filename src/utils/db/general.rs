@@ -12,6 +12,7 @@ use nucleo_matcher::{
 use postgres_native_tls::MakeTlsConnector;
 use std::collections::{HashMap, HashSet};
 use std::fs;
+use std::path::Path;
 use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::Command;
@@ -22,6 +23,7 @@ pub(super) fn validate_pg_names(name: &str) -> bool {
         .all(|c| c.is_alphanumeric() || c == '_' || c == '-')
 }
 
+#[allow(clippy::ptr_arg)]
 fn compare_pgpass_credentials(
     credentials: &Vec<&PostgresCredentials>,
     pgpass: &PostgresCredentials,
@@ -223,10 +225,10 @@ pub async fn postgres_connect_pool(
     get_or_init_pool(credentials, db).await
 }
 
-pub async fn db_dump(
+pub async fn db_dump<P: AsRef<Path>>(
     credentials: PostgresCredentials,
     database_source: &str,
-    dump_file: &str,
+    dump_file: P,
     pg_tools: &PGTools,
     dump_format: SqlFileFormat,
 ) -> Result<String> {
@@ -235,7 +237,7 @@ pub async fn db_dump(
     // Clone the data before moving it into the closure
     // let credentials = credentials.clone();
     // Open the file inside the closure to ensure it's owned by the closure
-    match ensure_file_path_exists(dump_file).await {
+    match ensure_file_path_exists(&dump_file).await {
         Ok(_) => (),
         Err(_) => {
             return Err(PGCliError::Other(
@@ -248,7 +250,7 @@ pub async fn db_dump(
         .write(true)
         .create(true)
         .truncate(true)
-        .open(dump_file)
+        .open(&dump_file)
     {
         Ok(file) => file,
         Err(e) => {
@@ -308,21 +310,25 @@ pub async fn db_dump(
     }
 }
 
-pub async fn db_restore(
+pub async fn db_restore<P: AsRef<Path>>(
     credentials: PostgresCredentials,
     database_target: &str,
-    dump_file: &str,
+    dump_file: P,
     pg_tools: &PGTools,
     restore_format: SqlFileFormat,
 ) -> Result<String> {
     info!("Restoring database {}", database_target);
 
-    let input_file = match std::fs::File::open(dump_file) {
+    trace!("Restoring format: {}", restore_format);
+
+    if restore_format == SqlFileFormat::Sql {
+        return db_restore_from_sql(credentials, database_target, dump_file, pg_tools).await;
+    }
+
+    let input_file = match std::fs::File::open(&dump_file) {
         Ok(file) => file,
         Err(_) => return Err(PGCliError::Other("Failed to open dump file".to_string())),
     };
-
-    trace!("Restoring format: {}", restore_format);
 
     let mut child = match Command::new(&pg_tools.pg_restore)
         .arg("-v") // Enable verbose mode
@@ -330,7 +336,6 @@ pub async fn db_restore(
         .arg(format!("--username={}", credentials.pg_superuser))
         .arg(format!("--port={}", credentials.pg_port))
         .arg(format!("--dbname={}", database_target))
-        .arg(format!("--format={}", restore_format))
         .arg("--no-owner")
         .arg("--no-privileges")
         .stdin(Stdio::from(input_file)) // Redirect standard input from file
@@ -362,6 +367,88 @@ pub async fn db_restore(
             }
         }
     }
+
+    match child.wait().await {
+        Ok(status) if status.success() => Ok("Success".to_string()),
+        Ok(_) => Err(PGCliError::Other("Failed to restore database".to_string())),
+        Err(e) => Err(PGCliError::Other(format!(
+            "Failed to restore database: {}",
+            e
+        ))),
+    }
+}
+
+async fn db_restore_from_sql<P: AsRef<Path>>(
+    credentials: PostgresCredentials,
+    database_target: &str,
+    dump_file: P,
+    pg_tools: &PGTools,
+) -> Result<String> {
+    debug!("Restoring database {} from SQL file", database_target);
+
+    let mut child = match Command::new(&pg_tools.psql)
+        .arg("-e") // Enable verbose mode
+        .arg(format!("--host={}", credentials.pg_hostname))
+        .arg(format!("--username={}", credentials.pg_superuser))
+        .arg(format!("--port={}", credentials.pg_port))
+        .arg(format!("--dbname={}", database_target))
+        .arg(format!("--file={}", dump_file.as_ref().to_str().unwrap()))
+        .stdin(Stdio::null()) // Redirect standard input from null
+        .stdout(Stdio::piped()) // Capture the standard output
+        .stderr(Stdio::piped()) // Capture the standard error
+        .spawn()
+    {
+        Ok(child) => child,
+        Err(_) => {
+            return Err(PGCliError::Other(
+                "Failed to spawn psql command for SQL file".to_string(),
+            ))
+        }
+    };
+
+    let stdout = child
+        .stdout
+        .take()
+        .ok_or_else(|| PGCliError::Other("Failed to take stdout".to_string()))?;
+
+    let database_target_clone = database_target.to_string();
+    let stdouth = tokio::spawn(async move {
+        let mut reader = BufReader::new(stdout).lines();
+
+        // Process each line of the stdout
+        loop {
+            match reader.next_line().await {
+                Ok(Some(ln)) => debug!("[{}:stdout]: {}", database_target_clone, ln),
+                Ok(None) => break, // End of stream
+                Err(e) => {
+                    error!("Error reading stdout: {}", e);
+                    break;
+                }
+            }
+        }
+    });
+
+    let stderr = child
+        .stderr
+        .take()
+        .ok_or_else(|| PGCliError::Other("Failed to take stderr".to_string()))?;
+
+    let mut reader = BufReader::new(stderr).lines();
+
+    let database_target = database_target.to_string();
+    // Process each line of the stderr
+    loop {
+        match reader.next_line().await {
+            Ok(Some(ln)) => debug!("[{}:stderr]: {}", database_target, ln),
+            Ok(None) => break, // End of stream
+            Err(e) => {
+                error!("Error reading stderr: {}", e);
+                break;
+            }
+        }
+    }
+
+    stdouth.await?;
 
     match child.wait().await {
         Ok(status) if status.success() => Ok("Success".to_string()),

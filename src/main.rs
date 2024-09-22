@@ -67,6 +67,11 @@ struct Cli {
     #[arg(long, env, global = true)]
     pg_restore: Option<String>,
 
+    /// Optional custom psql path
+    /// If not set, the default from PATH will be used
+    #[arg(long, env, global = true)]
+    psql: Option<String>,
+
     /// S3/Minio endpoint
     #[arg(long, env, global = true)]
     s3_endpoint: Option<String>,
@@ -208,6 +213,7 @@ async fn main() -> Result<()> {
             "pg_restore".to_string(),
             cli.pg_restore.unwrap_or("pg_restore".to_string()),
         ),
+        ("psql".to_string(), cli.psql.unwrap_or("psql".to_string())),
     ]);
     let pg_tools_min_version: u32 = 16;
 

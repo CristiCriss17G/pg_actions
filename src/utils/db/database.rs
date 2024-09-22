@@ -8,14 +8,28 @@ use tokio::task::JoinHandle;
 
 pub async fn check_database_exists(client: &Client, db: &str) -> Result<bool> {
     trace!("Checking if database {} exists", db);
-    let db_exists = client
+    let database_exists = client
         .query_one(
             "SELECT EXISTS(SELECT 1 FROM pg_database WHERE datname=$1)",
             &[&db],
         )
         .await?
         .get::<_, bool>(0);
-    Ok(db_exists)
+    Ok(database_exists)
+}
+
+pub async fn get_database_owner(client: &Client, db: &str) -> Result<String> {
+    trace!("Getting owner of database {}", db);
+    let owner = client
+        .query_one(
+            "SELECT r.rolname FROM pg_database d \
+        LEFT JOIN pg_roles r ON d.datdba = r.oid \
+        WHERE d.datname = $1",
+            &[&db],
+        )
+        .await?
+        .get::<_, String>(0);
+    Ok(owner)
 }
 
 pub async fn list_databases(
@@ -323,10 +337,15 @@ pub async fn change_owner_of_objects_in_db(
     debug!("Querying types to change owner");
     let rows = {
         let client = pool.get().await?;
-        client.query(
-        "SELECT typname FROM pg_type WHERE typtype IN ('b', 'e') AND typcategory != 'A' AND typnamespace IN (SELECT oid FROM pg_namespace WHERE nspname NOT IN ('pg_catalog', 'information_schema'))",
-        &[],
-    ).await?
+        client
+            .query(
+                "SELECT typname FROM pg_type \
+        WHERE typtype IN ('b', 'e') AND typcategory != 'A' \
+        AND typnamespace IN (SELECT oid \
+        FROM pg_namespace WHERE nspname NOT IN ('pg_catalog', 'information_schema'))",
+                &[],
+            )
+            .await?
     };
     trace!("Types to change owner: {:?} ({})", rows, rows.len());
 

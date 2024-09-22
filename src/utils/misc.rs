@@ -131,7 +131,7 @@ pub async fn search_file_in_directory(
     // Spawn a blocking task to search the directory
     let directory = directory.to_path_buf();
     let file_name = file_name.to_string();
-    let result = task::spawn_blocking(move || {
+    task::spawn_blocking(move || {
         for entry in walkdir::WalkDir::new(&directory) {
             let entry = entry?;
             let path = entry.path();
@@ -144,9 +144,7 @@ pub async fn search_file_in_directory(
         }
         Ok(None) // Return None if the file is not found
     })
-    .await?;
-
-    result
+    .await?
 }
 
 pub async fn create_compressed_archive(
@@ -527,6 +525,7 @@ fn parse_version(version_output: &str) -> Option<u32> {
 fn pg_tools_error_messages(
     pg_dump_version: Option<u32>,
     pg_restore_version: Option<u32>,
+    psql_version: Option<u32>,
     min_version: u32,
 ) -> Option<String> {
     let mut error_message = String::new();
@@ -548,6 +547,7 @@ fn pg_tools_error_messages(
 
     error_message.push_str(&format_error("pg_dump", pg_dump_version));
     error_message.push_str(&format_error("pg_restore", pg_restore_version));
+    error_message.push_str(&format_error("psql", psql_version));
 
     if !error_message.is_empty() {
         error_message.push_str(&format!("\nPlease install {} {} or later.\nFor more information, visit: https://www.postgresql.org/download/", "PostgreSQL", min_version));
@@ -576,6 +576,13 @@ pub fn check_pg_tools_version(
         }
         _ => "pg_restore",
     };
+    let psql = match commands.get("psql") {
+        Some(path) => {
+            debug!("Using psql from: {}", path);
+            path
+        }
+        _ => "psql",
+    };
 
     let pg_dump_version = check_command_availability(pg_dump)
         .map(|output| String::from_utf8_lossy(&output.stdout).to_string())
@@ -587,14 +594,26 @@ pub fn check_pg_tools_version(
         .map(|version_output| parse_version(&version_output))
         .unwrap_or(None);
 
-    if let Some(error_message) =
-        pg_tools_error_messages(pg_dump_version, pg_restore_version, min_version)
-    {
+    let psql_version = check_command_availability(psql)
+        .map(|output| String::from_utf8_lossy(&output.stdout).to_string())
+        .map(|version_output| parse_version(&version_output))
+        .unwrap_or(None);
+
+    if let Some(error_message) = pg_tools_error_messages(
+        pg_dump_version,
+        pg_restore_version,
+        psql_version,
+        min_version,
+    ) {
         if warn {
             warn!("{}", error_message);
         }
         Err(PGCliError::PGToolsError(error_message))
     } else {
-        Ok(PGTools::new(pg_dump.to_string(), pg_restore.to_string()))
+        Ok(PGTools::new(
+            pg_dump.to_string(),
+            pg_restore.to_string(),
+            psql.to_string(),
+        ))
     }
 }
