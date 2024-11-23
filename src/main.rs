@@ -117,6 +117,7 @@ struct Cli {
 #[derive(Subcommand, Debug, PartialEq)]
 enum Commands {
     /// Clone a database
+    #[clap(visible_alias("cl"))]
     Clone(clone::CloneArgs),
     /// Backup operations
     Backup(backup::BackupArgs),
@@ -134,6 +135,7 @@ enum Commands {
     },
     /// Do a basic check of the tools
     /// This is useful for CI/CD pipelines
+    #[clap(visible_alias("ct"))]
     CheckTools,
 }
 
