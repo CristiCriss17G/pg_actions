@@ -280,11 +280,11 @@ create_release:
     - echo $JOB_ID_STATIC
     - echo $JOB_ID_DEB
     - echo $MINIO_URL
-    - echo $LAST_MR_DESC
+    - echo $LATEST_MR_DESC
   release:
     name: "Release v${RELEASE_VERSION}"
     tag_name: "v${RELEASE_VERSION}"
-    description: "Release created using the release-cli. Release 'v${RELEASE_VERSION}'\n\n${LAST_MR_DESC}" # Use double quotes for variable interpolation
+    description: "Release created using the release-cli. Release 'v${RELEASE_VERSION}'\n\n${LATEST_MR_DESC}" # Use double quotes for variable interpolation
     ref: "$CI_COMMIT_SHA"
     assets:
       links:

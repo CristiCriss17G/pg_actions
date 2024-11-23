@@ -79,13 +79,8 @@ pub async fn database(
         }
         DatabaseSubCommands::Create { database, owner } => {
             debug!("Create database {}", database);
-            let owner = owner.clone();
-            create_db(
-                &client,
-                database,
-                &owner.unwrap_or(main_credentials.pg_superuser.clone()),
-            )
-            .await?;
+            let owner = owner.as_deref();
+            create_db(&client, database, owner).await?;
             info!("Database {} created", database);
         }
         DatabaseSubCommands::Delete { database } => {

@@ -100,15 +100,17 @@ pub async fn list_databases(
     }
 }
 
-pub async fn create_db(client: &Client, db: &str, owner: &str) -> Result<u64> {
+pub async fn create_db(client: &Client, db: &str, owner: Option<&str>) -> Result<u64> {
     trace!("Creating database {}", db);
     if !validate_pg_names(db) {
         error!("Invalid database name: {}", db);
         return Err(PGCliError::Other("Invalid database name".to_string()));
     }
-    if !validate_pg_names(owner) {
-        error!("Invalid owner name: {}", owner);
-        return Err(PGCliError::Other("Invalid owner name".to_string()));
+    if let Some(owner) = owner {
+        if !validate_pg_names(owner) {
+            error!("Invalid owner name: {}", owner);
+            return Err(PGCliError::Other("Invalid owner name".to_string()));
+        }
     }
 
     if check_database_exists(client, db).await? {
@@ -116,7 +118,11 @@ pub async fn create_db(client: &Client, db: &str, owner: &str) -> Result<u64> {
         return Err(PGCliError::Other("Database already exists".to_string()));
     }
 
-    let statement = format!("CREATE DATABASE \"{}\" WITH OWNER \"{}\"", db, owner);
+    let statement = match owner {
+        Some(owner) => format!("CREATE DATABASE \"{}\" WITH OWNER \"{}\"", db, owner),
+        None => format!("CREATE DATABASE \"{}\"", db),
+    };
+
     match client.execute(&statement, &[]).await {
         Ok(r) => Ok(r),
         Err(e) => Err(PGCliError::from(e)),
