@@ -296,11 +296,18 @@ pub async fn grant_privileges(
     // prepare the statements for granting privileges on tables
     let statements = prepare_grant_privileges_tables(privileges, schema, role);
 
+    let mut error_occurred = false;
     for statement in statements {
         match db_client.execute(&statement, &[]).await {
             Ok(r) => res += r,
-            Err(e) => return Err(PGCliError::from(e)),
+            Err(e) => {
+                error!("Error granting privileges: {}", e);
+                error_occurred = true;
+            }
         };
+    }
+    if error_occurred {
+        return Err(PGCliError::Other("Error granting privileges".to_string()));
     }
 
     debug!("Privilege {} granted to role {}", privileges, role);
@@ -316,6 +323,10 @@ fn prepare_grant_privileges_tables(
     let mut statements = Vec::with_capacity(4); // Set initial capacity to 4
     match access_level {
         UserPrivileges::Full => {
+            statements.push(format!(
+                "GRANT ALL ON SCHEMA \"{}\" TO \"{}\"",
+                schema, role
+            ));
             statements.push(format!(
                 "GRANT ALL PRIVILEGES ON SCHEMA \"{}\" TO \"{}\"",
                 schema, role

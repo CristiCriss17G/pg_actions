@@ -22,8 +22,8 @@ pub struct CloneArgs {
     #[arg(long)]
     overwrite: bool,
     /// owner user for db
-    #[arg(short = 'o', long, default_value = "postgres")]
-    new_owner: String,
+    #[arg(short = 'o', long)]
+    new_owner: Option<String>,
     /// create the new owner user
     #[arg(short, long)]
     create_owner: bool,
@@ -138,22 +138,23 @@ pub async fn clone_db(
     let destination_client = postgres_connect(&destination_credentials, None).await?;
 
     // check if data.new_owner exists
-    let new_owner_exists = check_user_exists(&destination_client, &data.new_owner).await?;
-
-    if !new_owner_exists && data.create_owner {
-        info!("Creating new owner {}", &data.new_owner);
-        match create_user(&destination_client, &data.new_owner, &data.new_password).await {
-            Ok(_) => info!("New owner created successfully"),
-            Err(e) => {
-                error!("Failed to create new owner: {}", e);
-                return Err(e);
+    if let Some(owner) = &data.new_owner {
+        let new_owner_exists = check_user_exists(&destination_client, owner).await?;
+        if !new_owner_exists && data.create_owner {
+            info!("Creating new owner {}", owner);
+            match create_user(&destination_client, owner, &data.new_password).await {
+                Ok(_) => info!("New owner created successfully"),
+                Err(e) => {
+                    error!("Failed to create new owner: {}", e);
+                    return Err(e);
+                }
             }
+        } else if !new_owner_exists && !data.create_owner {
+            error!("New owner does not exist and create_owner is not set");
+            return Err(PGCliError::Other(
+                "New owner does not exist and create_owner is not set".to_string(),
+            ));
         }
-    } else if !new_owner_exists && !data.create_owner {
-        error!("New owner does not exist and create_owner is not set");
-        return Err(PGCliError::Other(
-            "New owner does not exist and create_owner is not set".to_string(),
-        ));
     }
 
     // check if data.new_database exists
@@ -185,7 +186,13 @@ pub async fn clone_db(
     }
 
     info!("Creating database {}", &data.new_database);
-    match create_db(&destination_client, &data.new_database, &data.new_owner).await {
+    match create_db(
+        &destination_client,
+        &data.new_database,
+        data.new_owner.as_deref(),
+    )
+    .await
+    {
         Ok(_) => info!("Database created successfully"),
         Err(e) => {
             error!("Failed to create database: {}", e);
@@ -210,39 +217,33 @@ pub async fn clone_db(
         }
     }
 
-    info!(
-        "Changing owner of tables in database {}",
-        &data.new_database
-    );
-    match change_owner_of_tables_in_db(
-        &destination_credentials,
-        &data.new_database,
-        &data.new_owner,
-    )
-    .await
-    {
-        Ok(_) => info!("Owner of tables changed successfully"),
-        Err(e) => {
-            error!("Failed to change owner of tables: {}", e);
-            return Err(e);
+    if let Some(owner) = &data.new_owner {
+        info!(
+            "Changing owner of tables in database {}",
+            &data.new_database
+        );
+        match change_owner_of_tables_in_db(&destination_credentials, &data.new_database, owner)
+            .await
+        {
+            Ok(_) => info!("Owner of tables changed successfully"),
+            Err(e) => {
+                error!("Failed to change owner of tables: {}", e);
+                return Err(e);
+            }
         }
-    }
 
-    info!(
-        "Changing owner of objects in database {}",
-        &data.new_database
-    );
-    match change_owner_of_objects_in_db(
-        &destination_credentials,
-        &data.new_database,
-        &data.new_owner,
-    )
-    .await
-    {
-        Ok(_) => info!("Owner of objects changed successfully"),
-        Err(e) => {
-            error!("Failed to change owner of objects: {}", e);
-            return Err(e);
+        info!(
+            "Changing owner of objects in database {}",
+            &data.new_database
+        );
+        match change_owner_of_objects_in_db(&destination_credentials, &data.new_database, owner)
+            .await
+        {
+            Ok(_) => info!("Owner of objects changed successfully"),
+            Err(e) => {
+                error!("Failed to change owner of objects: {}", e);
+                return Err(e);
+            }
         }
     }
 
