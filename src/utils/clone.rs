@@ -249,7 +249,7 @@ pub async fn clone_db(
     }
 
     if !data.keep_dump {
-        info!("Deleting dump file {}", &dump_file.display());
+        debug!("Deleting dump file {}", &dump_file.display());
         match delete_file(&dump_file).await {
             Ok(_) => info!("Dump file deleted successfully"),
             Err(e) => {
@@ -260,6 +260,11 @@ pub async fn clone_db(
     } else {
         info!("Dump file kept at {}", &dump_file.display());
     }
+
+    info!(
+        "Database {} cloned to {}",
+        &data.database, &data.new_database
+    );
 
     Ok(())
 }
