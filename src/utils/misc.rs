@@ -1,7 +1,7 @@
 use super::structs::{PGCliError, PGTools, S3Credentials};
 use log::{debug, info, trace, warn};
-use rand::distributions::Alphanumeric;
-use rand::{thread_rng, Rng};
+use rand::distr::Alphanumeric;
+use rand::{rng, Rng};
 use rusoto_core::{HttpClient, Region, RusotoError};
 use rusoto_credential::StaticProvider;
 use rusoto_s3::{
@@ -37,7 +37,7 @@ fn bytes_to_human_readable(size: u64) -> String {
 }
 
 pub fn generate_random_string(length: usize, to_lowercase: bool) -> String {
-    let mut rng = thread_rng();
+    let mut rng = rng();
     let random_string: String = (&mut rng)
         .sample_iter(&Alphanumeric)
         .take(length)

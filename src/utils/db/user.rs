@@ -339,6 +339,30 @@ fn prepare_grant_privileges_tables(
                 "GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA \"{}\" TO \"{}\"",
                 schema, role
             ));
+            statements.push(format!(
+                "GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA \"{}\" TO \"{}\"",
+                schema, role
+            ));
+            statements.push(format!(
+                "GRANT ALL PRIVILEGES ON ALL PROCEDURES IN SCHEMA \"{}\" TO \"{}\"",
+                schema, role
+            ));
+            statements.push(format!(
+                "ALTER DEFAULT PRIVILEGES IN SCHEMA \"{}\" GRANT ALL ON TABLES TO \"{}\"",
+                schema, role
+            ));
+            statements.push(format!(
+                "ALTER DEFAULT PRIVILEGES IN SCHEMA \"{}\" GRANT ALL ON SEQUENCES TO \"{}\"",
+                schema, role
+            ));
+            statements.push(format!(
+                "ALTER DEFAULT PRIVILEGES IN SCHEMA \"{}\" GRANT ALL ON FUNCTIONS TO \"{}\"",
+                schema, role
+            ));
+            statements.push(format!(
+                "ALTER DEFAULT PRIVILEGES IN SCHEMA \"{}\" GRANT ALL ON TYPES TO \"{}\"",
+                schema, role
+            ));
         }
         UserPrivileges::ReadOnly => {
             statements.push(format!(
@@ -421,11 +445,18 @@ pub async fn revoke_privileges(
     // prepare the statements for revoking privileges on tables
     let statements = prepare_revoke_privileges_tables(privileges, schema, role);
 
+    let mut error_occurred = false;
     for statement in statements {
         match db_client.execute(&statement, &[]).await {
             Ok(r) => res += r,
-            Err(e) => return Err(PGCliError::from(e)),
+            Err(e) => {
+                error!("Error revoking privileges: {}", e);
+                error_occurred = true;
+            }
         };
+    }
+    if error_occurred {
+        return Err(PGCliError::Other("Error revoking privileges".to_string()));
     }
 
     debug!("Privilege {} revoked from role {}", privileges, role);
@@ -451,6 +482,30 @@ fn prepare_revoke_privileges_tables(
             ));
             statements.push(format!(
                 "REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA \"{}\" FROM \"{}\"",
+                schema, role
+            ));
+            statements.push(format!(
+                "REVOKE ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA \"{}\" FROM \"{}\"",
+                schema, role
+            ));
+            statements.push(format!(
+                "REVOKE ALL PRIVILEGES ON ALL PROCEDURES IN SCHEMA \"{}\" FROM \"{}\"",
+                schema, role
+            ));
+            statements.push(format!(
+                "ALTER DEFAULT PRIVILEGES IN SCHEMA \"{}\" REVOKE ALL ON TABLES FROM \"{}\"",
+                schema, role
+            ));
+            statements.push(format!(
+                "ALTER DEFAULT PRIVILEGES IN SCHEMA \"{}\" REVOKE ALL ON SEQUENCES FROM \"{}\"",
+                schema, role
+            ));
+            statements.push(format!(
+                "ALTER DEFAULT PRIVILEGES IN SCHEMA \"{}\" REVOKE ALL ON FUNCTIONS FROM \"{}\"",
+                schema, role
+            ));
+            statements.push(format!(
+                "ALTER DEFAULT PRIVILEGES IN SCHEMA \"{}\" REVOKE ALL ON TYPES FROM \"{}\"",
                 schema, role
             ));
         }
