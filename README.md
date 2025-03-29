@@ -26,34 +26,39 @@
 * 5. [CLI structure and examples](#CLIstructureandexamples)
   * 5.1. [Help command](#Helpcommand)
   * 5.2. [Clone command](#Clonecommand)
-    * 5.2.1. [Help section](#Helpsection)
-    * 5.2.2. [Example](#Example-1)
+    * 5.2.1. [Available aliases](#Availablealiases)
+    * 5.2.2. [Help section](#Helpsection)
+    * 5.2.3. [Example](#Example-1)
   * 5.3. [Backup command](#Backupcommand)
     * 5.3.1. [Help section](#Helpsection-1)
     * 5.3.2. [Example](#Example-1)
     * 5.3.3. [Backup Command Test Cases Documentation](#BackupCommandTestCasesDocumentation)
-  * 5.4. [User operations](#Useroperations)
+  * 5.4. [Restore command](#Restorecommand)
     * 5.4.1. [Help section](#Helpsection-1)
-    * 5.4.2. [List users](#Listusers)
-    * 5.4.3. [Create a user](#Createauser)
-    * 5.4.4. [Delete a user](#Deleteauser)
-    * 5.4.5. [Update a user](#Updateauser)
-    * 5.4.6. [Grant privileges to a user](#Grantprivilegestoauser)
-    * 5.4.7. [Revoke privileges from a user](#Revokeprivilegesfromauser)
-  * 5.5. [Database operations](#Databaseoperations)
+    * 5.4.2. [Example](#Example-1)
+  * 5.5. [User operations](#Useroperations)
     * 5.5.1. [Help section](#Helpsection-1)
-    * 5.5.2. [List databases](#Listdatabases)
-    * 5.5.3. [Create a database](#Createadatabase)
-    * 5.5.4. [Delete a database](#Deleteadatabase)
-    * 5.5.5. [Update a database](#Updateadatabase)
-    * 5.5.6. [Extension operations](#Extensionoperations)
-    * 5.5.7. [List extensions](#Listextensions)
-    * 5.5.8. [Create an extension](#Createanextension)
-    * 5.5.9. [Delete an extension](#Deleteanextension)
-  * 5.6. [CLI completion](#CLIcompletion)
+    * 5.5.2. [List users](#Listusers)
+    * 5.5.3. [Create a user](#Createauser)
+    * 5.5.4. [Delete a user](#Deleteauser)
+    * 5.5.5. [Update a user](#Updateauser)
+    * 5.5.6. [Grant privileges to a user](#Grantprivilegestoauser)
+    * 5.5.7. [Revoke privileges from a user](#Revokeprivilegesfromauser)
+  * 5.6. [Database operations](#Databaseoperations)
     * 5.6.1. [Help section](#Helpsection-1)
-  * 5.7. [Tools checking](#Toolschecking)
+    * 5.6.2. [List databases](#Listdatabases)
+    * 5.6.3. [Create a database](#Createadatabase)
+    * 5.6.4. [Delete a database](#Deleteadatabase)
+    * 5.6.5. [Update a database](#Updateadatabase)
+    * 5.6.6. [Extension operations](#Extensionoperations)
+    * 5.6.7. [List extensions](#Listextensions)
+    * 5.6.8. [Create an extension](#Createanextension)
+    * 5.6.9. [Delete an extension](#Deleteanextension)
+  * 5.7. [CLI completion](#CLIcompletion)
     * 5.7.1. [Help section](#Helpsection-1)
+  * 5.8. [Tools checking](#Toolschecking)
+    * 5.8.1. [Available aliases](#Availablealiases-1)
+    * 5.8.2. [Help section](#Helpsection-1)
 * 6. [CI/CD usage](#CICDusage)
   * 6.1. [Gitlab CI/CD](#GitlabCICD)
 
@@ -65,7 +70,7 @@
 
 ## 2. <a name='Description'></a>Description
 
-`pg_actions` is a small executable that allows various operation on a PostgreSQL database, form the administrative side. It can clone a database, backup a database, create, delete, update a user, create, delete, update a database, and list users and databases.
+`pg_actions` is a small executable that allows various operation on a PostgreSQL database, form the administrative side. It can clone a database, backup a database, restore a database, create, delete, update a user, create, delete, update a database, and list users and databases.
 
 ## 3. <a name='Installation'></a>Installation
 
@@ -73,14 +78,14 @@
 
 * `openssl (>= 3.0.0)` - Required for the `pg_actions` executable, it is used for the encryption and decryption of the database connection and S3/Minio authentication.
 * `xz-utils` - Required for the `pg_actions` executable, it is used for the compression and decompression of the backup files.
-* `pg_dump` and `pg_restore` `(>=16.0)` - Optional, but recommended, they are used for the backup and clone operations, if they are not installed, the executable will fail to perform these operations. For installation, see the [Postgres documentation](https://www.postgresql.org/download/).
+* `pg_dump`, `pg_restore` and `psql` `(>=16.0)` - Optional, but recommended, they are used for the backup and clone operations, if they are not installed, the executable will fail to perform these operations. For installation, see the [Postgres documentation](https://www.postgresql.org/download/).
   * Ubuntu/Debian:
 
   ```bash
   sudo apt update && sudo apt upgrade -y && sudo apt install gpg wget lsb-release apt-transport-https -y
   wget -qO - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /usr/share/keyrings/postgresql-archive-keyring.gpg
   echo "deb [signed-by=/usr/share/keyrings/postgresql-archive-keyring.gpg] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
-  sudo apt update && sudo apt install -y postgresql-client
+  sudo apt update && sudo apt install -y postgresql-client-16
   ```
 
   * Alpine:
@@ -242,12 +247,13 @@ A simple CLI tool for managing Postgres databases
 Usage: pg_actions [OPTIONS] <COMMAND>
 
 Commands:
-  clone        Clone a database
+  clone        Clone a database [aliases: cl]
   backup       Backup operations
+  restore      Restore operations
   user         User operations
   database     Database operations
   completions  Generate shell completions
-  check-tools  Do a basic check of the tools This is useful for CI/CD pipelines
+  check-tools  Do a basic check of the tools This is useful for CI/CD pipelines [aliases: ct]
   help         Print this message or the help of the given subcommand(s)
 
 Options:
@@ -257,6 +263,7 @@ Options:
   -p, --pg-port <PG_PORT>              Sets Postgres port [env: PG_PORT=5432] [default: 5432]
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
+      --psql <PSQL>                    Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
       --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
       --s3-access-key <S3_ACCESS_KEY>  S3/Minio access key [env: S3_ACCESS_KEY=minio]
       --s3-secret-key <S3_SECRET_KEY>  S3/Minio secret key [env: S3_SECRET_KEY]
@@ -274,8 +281,13 @@ Options:
 
 It clones a database within the same server, or between servers. It can also create the owner user if it does not exist.
 
-#### 5.2.1. <a name='Helpsection'></a>Help section
-  
+#### 5.2.1. <a name='Availablealiases'></a>Available aliases
+
+* `clone` - Clone command
+* `cl` - Clone command alias
+
+#### 5.2.2. <a name='Helpsection'></a>Help section
+
 ```bash
 pg_actions help clone
 ```
@@ -292,21 +304,22 @@ Options:
   -U, --pg-superuser <PG_SUPERUSER>    Sets Postgres username [env: PG_SUPERUSER=postgres] [default: postgres]
       --overwrite                      overwrite new database if it exists
   -P, --pg-password <PG_PASSWORD>      Sets Postgres password [env: PG_PASS]
-  -o, --new-owner <NEW_OWNER>          owner user for db [default: postgres]
+  -o, --new-owner <NEW_OWNER>          owner user for db
   -p, --pg-port <PG_PORT>              Sets Postgres port [env: PG_PORT=5432] [default: 5432]
   -c, --create-owner                   create the new owner user
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
   -s, --new-password <NEW_PASSWORD>    new password for db provide if the user does not exist
   -k, --keep-dump                      keep the dump file defaults to false [env: KEEP_DUMP=]
-      --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
+      --psql <PSQL>                    Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
       --pg-hostname2 <PG_HOSTNAME2>    Optional new host [env: PG_HOSTNAME2=]
-      --s3-access-key <S3_ACCESS_KEY>  S3/Minio access key [env: S3_ACCESS_KEY=minio]
+      --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
       --pg-port2 <PG_PORT2>            Optional new port [env: PG_PORT2=] [default: 5432]
-      --s3-secret-key <S3_SECRET_KEY>  S3/Minio secret key [env: S3_SECRET_KEY]
+      --s3-access-key <S3_ACCESS_KEY>  S3/Minio access key [env: S3_ACCESS_KEY=minio]
       --pg-superuser2 <PG_SUPERUSER2>  Optional user for new host [env: PG_SUPERUSER2=]
-      --s3-bucket <S3_BUCKET>          S3/Minio bucket [env: S3_BUCKET=pgbackups]
+      --s3-secret-key <S3_SECRET_KEY>  S3/Minio secret key [env: S3_SECRET_KEY]
       --pg-password2 <PG_PASSWORD2>    Optional password for new host [env: PG_PASSWORD2]
+      --s3-bucket <S3_BUCKET>          S3/Minio bucket [env: S3_BUCKET=pgbackups]
       --s3-region <S3_REGION>          S3/Minio region [env: S3_REGION=local]
       --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
@@ -326,7 +339,7 @@ Options:
 * `-k, --keep-dump` - Keep the dump file, defaults to false
 * `--overwrite` - Overwrite new database if it exists
 
-#### 5.2.2. <a name='Example-1'></a>Example
+#### 5.2.3. <a name='Example-1'></a>Example
 
 * In the same server
 
@@ -362,8 +375,10 @@ Arguments:
 
 Options:
   -H, --pg-hostname <PG_HOSTNAME>          Sets Postgres connection URL [env: PG_HOSTNAME=db] [default: localhost]
-  -o, --output-location <OUTPUT_LOCATION>  output location chose between s3 or a file path, defaults to s3; when s3 is chosen, the output location is in the bucket specified by the S3_* environment variables with the name of
-                                           postgresql-backup-<timestamp>.tar.xz; when a file path is chosen, the output location is the file path specified, but the extension is .tar.xz [env: BACKUP_LOCATION=]
+  -o, --output-location <OUTPUT_LOCATION>  output location chose between s3 or a file path, defaults to s3; when s3 is chosen, the output location is
+                                           in the bucket specified by the S3_* environment variables with the name of
+                                           postgresql-backup-<timestamp>.tar.xz; when a file path is chosen, the output location is the file path
+                                           specified, but the extension is .tar.xz [env: BACKUP_LOCATION=]
   -j, --jobs <JOBS>                        Parallel jobs to use defaults to 5 [env: JOBS=] [default: 5]
   -U, --pg-superuser <PG_SUPERUSER>        Sets Postgres username [env: PG_SUPERUSER=postgres] [default: postgres]
   -f, --format <FORMAT>                    Format of the output file defaults to bsql [env: FORMAT=] [default: bsql] [possible values: sql, bsql]
@@ -372,6 +387,7 @@ Options:
   -p, --pg-port <PG_PORT>                  Sets Postgres port [env: PG_PORT=5432] [default: 5432]
       --pg-dump <PG_DUMP>                  Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>            Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
+      --psql <PSQL>                        Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
       --s3-endpoint <S3_ENDPOINT>          S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
       --s3-access-key <S3_ACCESS_KEY>      S3/Minio access key [env: S3_ACCESS_KEY=minio]
       --s3-secret-key <S3_SECRET_KEY>      S3/Minio secret key [env: S3_SECRET_KEY]
@@ -467,11 +483,131 @@ pg_actions -H my_host backup dvdrentals --format bsql -o ./pgbk.tar.xz
 
 This command backs up the dvdrentals database in BSQL format to a file named pgbk.tar.xz in the current directory. Similar to the previous case, the absence of the --no-archive option means the output may be archived.
 
-### 5.4. <a name='Useroperations'></a>User operations
+### 5.4. <a name='Restorecommand'></a>Restore command
+
+It restores a database from a file or from S3/Minio storage.
+
+#### 5.4.1. <a name='Helpsection-1'></a>Help section
+
+```bash
+pg_actions help restore
+```
+
+```bash
+Restore operations
+
+Usage: pg_actions restore [OPTIONS] --input-location <INPUT_LOCATION> <DATABASE>
+
+Arguments:
+  <DATABASE>  database to restore
+
+Options:
+  -H, --pg-hostname <PG_HOSTNAME>        Sets Postgres connection URL [env: PG_HOSTNAME=db] [default: localhost]
+  -i, --input-location <INPUT_LOCATION>  input location chose between s3 or a file path when s3 is chosen, the input location should be in the format
+                                         s3://bucket_name/file_path you can also specify all the S3_* args/environment variables to use S3, the file
+                                         url will have priority [env: RESTORE_LOCATION=]
+  -j, --jobs <JOBS>                      Parallel jobs to use defaults to 5 [env: JOBS=] [default: 5]
+  -U, --pg-superuser <PG_SUPERUSER>      Sets Postgres username [env: PG_SUPERUSER=postgres] [default: postgres]
+  -f, --format <FORMAT>                  Format of the input file defaults to bsql [env: FORMAT=] [default: bsql] [possible values: sql, bsql]
+  -P, --pg-password <PG_PASSWORD>        Sets Postgres password [env: PG_PASS]
+      --file <FILE_NAME>                 File name, without extension, in case of archive extraction and the file name is different from the database
+                                         name [env: FILE_NAME=]
+  -p, --pg-port <PG_PORT>                Sets Postgres port [env: PG_PORT=5432] [default: 5432]
+  -o, --owner <OWNER>                    Owner user for db
+      --pg-dump <PG_DUMP>                Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
+      --overwrite                        overwrite the database if it exists [env: OVERWRITE=]
+      --pg-restore <PG_RESTORE>          Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
+  -k, --keep-temp                        keep the temp files defaults to false [env: KEEP_TEMP=]
+      --psql <PSQL>                      Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
+      --s3-endpoint <S3_ENDPOINT>        S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
+      --s3-access-key <S3_ACCESS_KEY>    S3/Minio access key [env: S3_ACCESS_KEY=minio]
+      --s3-secret-key <S3_SECRET_KEY>    S3/Minio secret key [env: S3_SECRET_KEY]
+      --s3-bucket <S3_BUCKET>            S3/Minio bucket [env: S3_BUCKET=pgbackups]
+      --s3-region <S3_REGION>            S3/Minio region [env: S3_REGION=local]
+      --s3-prefix <S3_PREFIX>            S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
+  -v, --verbose...                       Turn debugging information on repetitive use increases verbosity, at most 2 times
+      --use-json-logging                 Show logging information as json [env: USE_JSON_LOGGING=]
+      --log-file <LOG_FILE>              Log file location [env: LOG_FILE=pg_actions.log]
+  -h, --help                             Print help
+```
+
+##### Additional Variables
+
+* `RESTORE_LOCATION` - `-i, --input-location` - Input location, choose between S3 or a file path
+* `JOBS` - `-j, --jobs` - Parallel jobs to use, defaults to 5
+* `FORMAT` - `-f, --format` - Format of the input file, defaults to bsql
+* `FILE_NAME` - `--file` - File name, without extension, in case of archive extraction and the file name is different from the database name
+* `OVERWRITE` - `--overwrite` - Overwrite the database if it exists
+* `KEEP_TEMP` - `--keep-temp` - Keep the temp files, defaults to false
+* `OWNER` - `-o, --owner` - Owner user for db
+
+#### 5.4.2. <a name='Example-1'></a>Example
+
+1. Restore a database from S3
+
+```bash
+pg_actions -H my_host restore my_db -i s3://bucket_name/file_path
+```
+
+2. Restore a database from a file
+
+```bash
+pg_actions -H my_host restore my_db -i ./my_db.tar.xz
+```
+
+3. Restore a database from a file with a different name
+
+```bash
+pg_actions -H my_host restore my_db -i ./my_db.tar.xz --file my_db
+```
+
+4. Restore a database from a file with a different name and overwrite the existing database
+
+```bash
+pg_actions -H my_host restore my_db -i ./my_db.tar.xz --file my_db --overwrite
+```
+
+5. Restore a database from a file with a different name, overwrite the existing database, and keep the temp files
+
+```bash
+pg_actions -H my_host restore my_db -i ./my_db.tar.xz --file my_db --overwrite --keep-temp
+```
+
+6. Restore a database from a file with a different name, overwrite the existing database, keep the temp files, and change the owner
+
+```bash
+pg_actions -H my_host restore my_db -i ./my_db.tar.xz --file my_db --overwrite --keep-temp --owner new_owner
+```
+
+7. Restore a database from a file with a different name, overwrite the existing database, keep the temp files, and change the owner with a different format
+
+```bash
+pg_actions -H my_host restore my_db -i ./my_db.sql --format sql --overwrite
+```
+
+8. Restore a database from a file with a different name, overwrite the existing database, keep the temp files, and change the owner with a different format
+
+```bash
+pg_actions -H my_host restore my_db -i ./my_db.bsql --format bsql --overwrite
+```
+
+9. Restore a database from a file with a different name, overwrite the existing database, keep the temp files, and change the owner with a different format
+
+```bash
+pg_actions -H my_host restore my_db -i ./my_db.sql --format sql --overwrite --keep-temp
+```
+
+10. Restore a database from a file with a different name, overwrite the existing database, keep the temp files, and change the owner with a different format
+
+```bash
+pg_actions -H my_host restore my_db -i ./my_db.bsql --format bsql --overwrite --keep-temp
+```
+
+### 5.5. <a name='Useroperations'></a>User operations
 
 This command allows the user to list, create, delete, and update a user, and to grant and revoke privileges from a user.
 
-#### 5.4.1. <a name='Helpsection-1'></a>Help section
+#### 5.5.1. <a name='Helpsection-1'></a>Help section
 
 ```bash
 pg_actions help user
@@ -498,6 +634,7 @@ Options:
   -p, --pg-port <PG_PORT>              Sets Postgres port [env: PG_PORT=5432] [default: 5432]
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
+      --psql <PSQL>                    Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
       --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
       --s3-access-key <S3_ACCESS_KEY>  S3/Minio access key [env: S3_ACCESS_KEY=minio]
       --s3-secret-key <S3_SECRET_KEY>  S3/Minio secret key [env: S3_SECRET_KEY]
@@ -510,7 +647,7 @@ Options:
   -h, --help                           Print help
 ```
 
-#### 5.4.2. <a name='Listusers'></a>List users
+#### 5.5.2. <a name='Listusers'></a>List users
 
 Prints a list of user names as a table
 
@@ -536,6 +673,7 @@ Options:
   -q, --query <QUERY>                  query string, fuzzy search
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
+      --psql <PSQL>                    Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
       --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
       --s3-access-key <S3_ACCESS_KEY>  S3/Minio access key [env: S3_ACCESS_KEY=minio]
       --s3-secret-key <S3_SECRET_KEY>  S3/Minio secret key [env: S3_SECRET_KEY]
@@ -578,7 +716,7 @@ pg_actions -H my_host user list --sort desc -o json
 pg_actions -H my_host user list --sort desc -o csv
 ```
 
-#### 5.4.3. <a name='Createauser'></a>Create a user
+#### 5.5.3. <a name='Createauser'></a>Create a user
 
 Create a user with the specified options
 
@@ -607,6 +745,7 @@ Options:
   -p, --pg-port <PG_PORT>              Sets Postgres port [env: PG_PORT=5432] [default: 5432]
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
+      --psql <PSQL>                    Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
       --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
       --s3-access-key <S3_ACCESS_KEY>  S3/Minio access key [env: S3_ACCESS_KEY=minio]
       --s3-secret-key <S3_SECRET_KEY>  S3/Minio secret key [env: S3_SECRET_KEY]
@@ -636,7 +775,7 @@ pg_actions -H my_host user create -s my_password my_user
 pg_actions -H my_host user create --superuser my_user
 ```
 
-#### 5.4.4. <a name='Deleteauser'></a>Delete a user
+#### 5.5.4. <a name='Deleteauser'></a>Delete a user
 
 Delete a user with the specified username
 
@@ -661,6 +800,7 @@ Options:
   -p, --pg-port <PG_PORT>              Sets Postgres port [env: PG_PORT=5432] [default: 5432]
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
+      --psql <PSQL>                    Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
       --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
       --s3-access-key <S3_ACCESS_KEY>  S3/Minio access key [env: S3_ACCESS_KEY=minio]
       --s3-secret-key <S3_SECRET_KEY>  S3/Minio secret key [env: S3_SECRET_KEY]
@@ -679,7 +819,7 @@ Options:
 pg_actions -H my_host user delete my_user
 ```
 
-#### 5.4.5. <a name='Updateauser'></a>Update a user
+#### 5.5.5. <a name='Updateauser'></a>Update a user
 
 Update a user with the specified options
 
@@ -708,6 +848,7 @@ Options:
   -p, --pg-port <PG_PORT>              Sets Postgres port [env: PG_PORT=5432] [default: 5432]
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
+      --psql <PSQL>                    Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
       --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
       --s3-access-key <S3_ACCESS_KEY>  S3/Minio access key [env: S3_ACCESS_KEY=minio]
       --s3-secret-key <S3_SECRET_KEY>  S3/Minio secret key [env: S3_SECRET_KEY]
@@ -733,7 +874,7 @@ Options:
 pg_actions -H my_host user update -s my_password my_user
 ```
 
-#### 5.4.6. <a name='Grantprivilegestoauser'></a>Grant privileges to a user
+#### 5.5.6. <a name='Grantprivilegestoauser'></a>Grant privileges to a user
 
 Grant privileges to a user on a database, currently supported, read-only or full access.
 
@@ -761,6 +902,7 @@ Options:
   -p, --pg-port <PG_PORT>              Sets Postgres port [env: PG_PORT=5432] [default: 5432]
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
+      --psql <PSQL>                    Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
       --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
       --s3-access-key <S3_ACCESS_KEY>  S3/Minio access key [env: S3_ACCESS_KEY=minio]
       --s3-secret-key <S3_SECRET_KEY>  S3/Minio secret key [env: S3_SECRET_KEY]
@@ -788,7 +930,7 @@ pg_actions -H my_host user grant -d my_db -g full my_user
 pg_actions -H my_host user grant -d my_db -g read-only my_user
 ```
 
-#### 5.4.7. <a name='Revokeprivilegesfromauser'></a>Revoke privileges from a user
+#### 5.5.7. <a name='Revokeprivilegesfromauser'></a>Revoke privileges from a user
 
 Revoke privileges from a user on a database, currently supported, read-only or full access, the reverse of the grant command.
 
@@ -816,6 +958,7 @@ Options:
   -p, --pg-port <PG_PORT>              Sets Postgres port [env: PG_PORT=5432] [default: 5432]
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
+      --psql <PSQL>                    Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
       --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
       --s3-access-key <S3_ACCESS_KEY>  S3/Minio access key [env: S3_ACCESS_KEY=minio]
       --s3-secret-key <S3_SECRET_KEY>  S3/Minio secret key [env: S3_SECRET_KEY]
@@ -843,11 +986,11 @@ pg_actions -H my_host user revoke -d my_db -g full my_user
 pg_actions -H my_host user revoke -d my_db -g read-only my_user
 ```
 
-### 5.5. <a name='Databaseoperations'></a>Database operations
+### 5.6. <a name='Databaseoperations'></a>Database operations
 
 This command allows the user to list, create, delete, and update a database.
 
-#### 5.5.1. <a name='Helpsection-1'></a>Help section
+#### 5.6.1. <a name='Helpsection-1'></a>Help section
 
 ```bash
 pg_actions help database
@@ -863,7 +1006,7 @@ Commands:
   create     Create a database
   delete     Delete a database
   update     Update a database
-  extension  Manipulate extensions on a database
+  extension  Manipulate extensions on a database [aliases: ext]
   help       Print this message or the help of the given subcommand(s)
 
 Options:
@@ -873,6 +1016,7 @@ Options:
   -p, --pg-port <PG_PORT>              Sets Postgres port [env: PG_PORT=5432] [default: 5432]
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
+      --psql <PSQL>                    Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
       --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
       --s3-access-key <S3_ACCESS_KEY>  S3/Minio access key [env: S3_ACCESS_KEY=minio]
       --s3-secret-key <S3_SECRET_KEY>  S3/Minio secret key [env: S3_SECRET_KEY]
@@ -885,7 +1029,7 @@ Options:
   -h, --help                           Print help
 ```
 
-#### 5.5.2. <a name='Listdatabases'></a>List databases
+#### 5.6.2. <a name='Listdatabases'></a>List databases
 
 Prints a list of databases as a table
 
@@ -911,6 +1055,7 @@ Options:
   -q, --query <QUERY>                  query string, fuzzy search
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
+      --psql <PSQL>                    Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
       --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
       --s3-access-key <S3_ACCESS_KEY>  S3/Minio access key [env: S3_ACCESS_KEY=minio]
       --s3-secret-key <S3_SECRET_KEY>  S3/Minio secret key [env: S3_SECRET_KEY]
@@ -953,7 +1098,7 @@ pg_actions -H my_host database list --sort desc -o json
 pg_actions -H my_host database list --sort desc -o csv
 ```
 
-#### 5.5.3. <a name='Createadatabase'></a>Create a database
+#### 5.6.3. <a name='Createadatabase'></a>Create a database
 
 Create a database with the specified options
 
@@ -979,6 +1124,7 @@ Options:
   -p, --pg-port <PG_PORT>              Sets Postgres port [env: PG_PORT=5432] [default: 5432]
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
+      --psql <PSQL>                    Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
       --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
       --s3-access-key <S3_ACCESS_KEY>  S3/Minio access key [env: S3_ACCESS_KEY=minio]
       --s3-secret-key <S3_SECRET_KEY>  S3/Minio secret key [env: S3_SECRET_KEY]
@@ -1001,7 +1147,7 @@ Options:
 pg_actions -H my_host database create my_db
 ```
 
-#### 5.5.4. <a name='Deleteadatabase'></a>Delete a database
+#### 5.6.4. <a name='Deleteadatabase'></a>Delete a database
 
 Delete a database with the specified name
 
@@ -1026,6 +1172,7 @@ Options:
   -p, --pg-port <PG_PORT>              Sets Postgres port [env: PG_PORT=5432] [default: 5432]
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
+      --psql <PSQL>                    Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
       --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
       --s3-access-key <S3_ACCESS_KEY>  S3/Minio access key [env: S3_ACCESS_KEY=minio]
       --s3-secret-key <S3_SECRET_KEY>  S3/Minio secret key [env: S3_SECRET_KEY]
@@ -1044,7 +1191,7 @@ Options:
 pg_actions -H my_host database delete my_db
 ```
 
-#### 5.5.5. <a name='Updateadatabase'></a>Update a database
+#### 5.6.5. <a name='Updateadatabase'></a>Update a database
 
 Update a database with the specified options
 
@@ -1070,6 +1217,7 @@ Options:
   -p, --pg-port <PG_PORT>              Sets Postgres port [env: PG_PORT=5432] [default: 5432]
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
+      --psql <PSQL>                    Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
       --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
       --s3-access-key <S3_ACCESS_KEY>  S3/Minio access key [env: S3_ACCESS_KEY=minio]
       --s3-secret-key <S3_SECRET_KEY>  S3/Minio secret key [env: S3_SECRET_KEY]
@@ -1092,9 +1240,14 @@ Options:
 pg_actions -H my_host database update -o my_new_owner my_db
 ```
 
-#### 5.5.6. <a name='Extensionoperations'></a>Extension operations
+#### 5.6.6. <a name='Extensionoperations'></a>Extension operations
 
 This command allows the user to list, create, delete, and update an extension on a database.
+
+##### Available aliases
+
+* `database ext` - Alias for `database extension`
+* `database extension` - Alias for `database extension`
 
 ##### Help
 
@@ -1123,6 +1276,7 @@ Options:
   -p, --pg-port <PG_PORT>              Sets Postgres port [env: PG_PORT=5432] [default: 5432]
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
+      --psql <PSQL>                    Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
       --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
       --s3-access-key <S3_ACCESS_KEY>  S3/Minio access key [env: S3_ACCESS_KEY=minio]
       --s3-secret-key <S3_SECRET_KEY>  S3/Minio secret key [env: S3_SECRET_KEY]
@@ -1135,7 +1289,7 @@ Options:
   -h, --help                           Print help
 ```
 
-#### 5.5.7. <a name='Listextensions'></a>List extensions
+#### 5.6.7. <a name='Listextensions'></a>List extensions
 
 Prints a list of extensions on a database as a table
 
@@ -1160,6 +1314,7 @@ Options:
   -p, --pg-port <PG_PORT>              Sets Postgres port [env: PG_PORT=5432] [default: 5432]
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
+      --psql <PSQL>                    Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
       --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
       --s3-access-key <S3_ACCESS_KEY>  S3/Minio access key [env: S3_ACCESS_KEY=minio]
       --s3-secret-key <S3_SECRET_KEY>  S3/Minio secret key [env: S3_SECRET_KEY]
@@ -1192,7 +1347,7 @@ pg_actions -H my_host database extension my_db list --sort desc -o json
 pg_actions -H my_host database extension my_db list --sort desc -o csv
 ```
 
-#### 5.5.8. <a name='Createanextension'></a>Create an extension
+#### 5.6.8. <a name='Createanextension'></a>Create an extension
 
 Create an extension on a database
 
@@ -1217,6 +1372,7 @@ Options:
   -p, --pg-port <PG_PORT>              Sets Postgres port [env: PG_PORT=5432] [default: 5432]
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
+      --psql <PSQL>                    Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
       --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
       --s3-access-key <S3_ACCESS_KEY>  S3/Minio access key [env: S3_ACCESS_KEY=minio]
       --s3-secret-key <S3_SECRET_KEY>  S3/Minio secret key [env: S3_SECRET_KEY]
@@ -1235,7 +1391,7 @@ Options:
 pg_actions -H my_host database extension my_db create my_extension
 ```
 
-#### 5.5.9. <a name='Deleteanextension'></a>Delete an extension
+#### 5.6.9. <a name='Deleteanextension'></a>Delete an extension
 
 Delete an extension from a database
 
@@ -1260,6 +1416,7 @@ Options:
   -p, --pg-port <PG_PORT>              Sets Postgres port [env: PG_PORT=5432] [default: 5432]
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
+      --psql <PSQL>                    Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
       --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
       --s3-access-key <S3_ACCESS_KEY>  S3/Minio access key [env: S3_ACCESS_KEY=minio]
       --s3-secret-key <S3_SECRET_KEY>  S3/Minio secret key [env: S3_SECRET_KEY]
@@ -1278,11 +1435,11 @@ Options:
 pg_actions -H my_host database extension my_db delete my_extension
 ```
 
-### 5.6. <a name='CLIcompletion'></a>CLI completion
+### 5.7. <a name='CLIcompletion'></a>CLI completion
 
 The CLI completion is available for bash, elvish, fish, powershell and zsh.
 
-#### 5.6.1. <a name='Helpsection-1'></a>Help section
+#### 5.7.1. <a name='Helpsection-1'></a>Help section
 
 ```bash
 pg_actions help completions
@@ -1303,6 +1460,7 @@ Options:
   -p, --pg-port <PG_PORT>              Sets Postgres port [env: PG_PORT=5432] [default: 5432]
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
+      --psql <PSQL>                    Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
       --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
       --s3-access-key <S3_ACCESS_KEY>  S3/Minio access key [env: S3_ACCESS_KEY=minio]
       --s3-secret-key <S3_SECRET_KEY>  S3/Minio secret key [env: S3_SECRET_KEY]
@@ -1362,11 +1520,16 @@ Options:
   source <(pg_actions completions zsh)
   ```
 
-### 5.7. <a name='Toolschecking'></a>Tools checking
+### 5.8. <a name='Toolschecking'></a>Tools checking
 
 This command checks the tools needed for the CLI to work, such as `pg_dump` and `pg_restore`.
 
-#### 5.7.1. <a name='Helpsection-1'></a>Help section
+#### 5.8.1. <a name='Availablealiases-1'></a>Available aliases
+
+* `check-tools` - Alias for `check tools`
+* `ct` - Alias for `check tools`
+
+#### 5.8.2. <a name='Helpsection-1'></a>Help section
 
 ```bash
 pg_actions help check-tools
@@ -1384,6 +1547,7 @@ Options:
   -p, --pg-port <PG_PORT>              Sets Postgres port [env: PG_PORT=5432] [default: 5432]
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
+      --psql <PSQL>                    Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
       --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
       --s3-access-key <S3_ACCESS_KEY>  S3/Minio access key [env: S3_ACCESS_KEY=minio]
       --s3-secret-key <S3_SECRET_KEY>  S3/Minio secret key [env: S3_SECRET_KEY]

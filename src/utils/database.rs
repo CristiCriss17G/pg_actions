@@ -57,6 +57,7 @@ pub enum DatabaseSubCommands {
         new_owner: Option<String>,
     },
     /// Manipulate extensions on a database
+    #[clap(visible_alias("ext"))]
     Extension(extension::ExtensionArgs),
 }
 
