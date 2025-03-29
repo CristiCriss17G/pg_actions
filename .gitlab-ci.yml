@@ -8,7 +8,6 @@ stages:
 variables:
   SERVICE_NAME: "tools/postgres-db-actions"
   HARBOR_PROJ: devops-services
-  TIMESTAMP: ./timestamp.txt
   TAGS: ./tags.txt
   KANIKO_IMAGE: gcr.io/kaniko-project/executor:debug
   DOCKER_CONFIG: /kaniko/.docker/
@@ -48,18 +47,18 @@ prepare:
     - export CI_PIPELINE_CREATED_AT=$(date +%d%m%Y%H%M)
     - export SHORT_TAG=$(echo $CI_COMMIT_REF_NAME | sed 's/[^a-zA-Z0-9]/-/g' | tr '[:upper:]' '[:lower:]')-latest
     - export LONG_TAG=$(echo $CI_COMMIT_REF_NAME | sed 's/[^a-zA-Z0-9]/-/g' | tr '[:upper:]' '[:lower:]')-$CI_COMMIT_SHORT_SHA-$CI_PIPELINE_CREATED_AT
+    - export VERSION_TAG=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml)
   script:
-    - echo $CI_PIPELINE_CREATED_AT > $TIMESTAMP
     - if [ "$CI_COMMIT_REF_NAME" == "main" ]; then echo "latest" > $TAGS; fi
     - echo $LONG_TAG >> $TAGS
     - echo $SHORT_TAG >> $TAGS
+    - echo $VERSION_TAG >> $TAGS
     - |-
       echo "LATEST_MR_DESC=$(curl --silent --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" "https://gitlab.com/api/v4/projects/${CI_PROJECT_ID}/merge_requests?state=merged&target_branch=main&order_by=updated_at&per_page=1" | jq -r '.[0].description' | tr '\n' ' ' | sed 's/"/\\"/g')" > variables.env
   after_script:
     - cat variables.env # Debug: Check the content of job.env
   artifacts:
     paths:
-      - $TIMESTAMP
       - $TAGS
     reports:
       dotenv: variables.env
@@ -88,39 +87,11 @@ build:
     - chmod +x devops/prepare.sh && ./devops/prepare.sh
   artifacts:
     paths:
-      - $TIMESTAMP
       - $TAGS
   rules:
     - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "dev"
-
-build-manual:
-  when: manual
-  needs:
-    - job: prepare
-      artifacts: true
-  image:
-    name: $KANIKO_IMAGE
-    entrypoint: [""]
-  tags:
-    - ivfhq
-  stage: build
-  interruptible: true
-  cache: {}
-  before_script:
-    - echo "Building ..."
-    - path=$(pwd)
-    - export CI_PIPELINE_CREATED_AT=$(date +%d%m%Y%H%M)
-    - mkdir -p /kaniko/.docker
-    - echo "{\"auths\":{\"${HARBOR_REPO}\":{\"username\":\"${HARBOR_USERNAME}\",\"password\":\"${HARBOR_PASSWORD}\"}}}" > /kaniko/.docker/config.json
-  script:
-    - chmod +x devops/prepare.sh && ./devops/prepare.sh
-    - echo $CI_PIPELINE_CREATED_AT > $TIMESTAMP
-  artifacts:
-    paths:
-      - $TIMESTAMP
-      - $TAGS
-  rules:
     - if: $CI_COMMIT_BRANCH != "main" && $CI_COMMIT_BRANCH != "dev"
+      when: manual
 
 compile_dynamic:
   stage: build
@@ -139,7 +110,7 @@ compile_dynamic:
     - apt update && apt upgrade -y && apt install -y clang lld build-essential gpg sudo wget lsb-release
     - wget -qO - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /usr/share/keyrings/postgresql-archive-keyring.gpg
     - echo "deb [signed-by=/usr/share/keyrings/postgresql-archive-keyring.gpg] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
-    - apt update && apt install -y postgresql-client
+    - apt update && apt install -y postgresql-client-16
   script:
     - cargo fetch --locked
     - cargo build --locked --release --target-dir ./target

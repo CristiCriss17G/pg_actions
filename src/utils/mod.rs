@@ -5,5 +5,6 @@ pub mod db;
 pub mod extension;
 pub mod logging;
 pub mod misc;
+pub mod restore;
 pub mod structs;
 pub mod user;

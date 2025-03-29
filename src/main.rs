@@ -9,7 +9,9 @@ use std::io;
 use std::path::PathBuf;
 use utils::db::general::try_read_pgpass;
 use utils::structs::{PostgresCredentials, Result, S3Credentials};
-use utils::{backup, clone, database, logging::log_init, misc::check_pg_tools_version, user};
+use utils::{
+    backup, clone, database, logging::log_init, misc::check_pg_tools_version, restore, user,
+};
 
 #[derive(Parser, Debug, PartialEq)]
 #[command(name = "pg_actions", author, version, about, long_about = None)]
@@ -65,6 +67,11 @@ struct Cli {
     #[arg(long, env, global = true)]
     pg_restore: Option<String>,
 
+    /// Optional custom psql path
+    /// If not set, the default from PATH will be used
+    #[arg(long, env, global = true)]
+    psql: Option<String>,
+
     /// S3/Minio endpoint
     #[arg(long, env, global = true)]
     s3_endpoint: Option<String>,
@@ -110,9 +117,12 @@ struct Cli {
 #[derive(Subcommand, Debug, PartialEq)]
 enum Commands {
     /// Clone a database
+    #[clap(visible_alias("cl"))]
     Clone(clone::CloneArgs),
     /// Backup operations
     Backup(backup::BackupArgs),
+    /// Restore operations
+    Restore(restore::RestoreArgs),
     /// User operations
     User(user::UserArgs),
     /// Database operations
@@ -125,6 +135,7 @@ enum Commands {
     },
     /// Do a basic check of the tools
     /// This is useful for CI/CD pipelines
+    #[clap(visible_alias("ct"))]
     CheckTools,
 }
 
@@ -204,6 +215,7 @@ async fn main() -> Result<()> {
             "pg_restore".to_string(),
             cli.pg_restore.unwrap_or("pg_restore".to_string()),
         ),
+        ("psql".to_string(), cli.psql.unwrap_or("psql".to_string())),
     ]);
     let pg_tools_min_version: u32 = 16;
 
@@ -244,6 +256,28 @@ async fn main() -> Result<()> {
                 Ok(_) => info!("Database backed up successfully"),
                 Err(e) => {
                     error!("Failed to backup database: {}", e);
+                    return Err(e);
+                }
+            }
+        }
+        Commands::Restore(restore_data) => {
+            let pg_tools = check_pg_tools_version(&pg_tools_paths, pg_tools_min_version, false)
+                .map_err(|e| {
+                    error!("Failed to check tools: {}", e);
+                    e
+                })?;
+            match restore::restore_db(
+                restore_data,
+                &pgpass,
+                &pg_main_hostname,
+                &s3_credentials,
+                &pg_tools,
+            )
+            .await
+            {
+                Ok(_) => info!("Database restored successfully"),
+                Err(e) => {
+                    error!("Failed to restore database: {}", e);
                     return Err(e);
                 }
             }

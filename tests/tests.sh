@@ -56,3 +56,15 @@ docker run -e PG_HOSTNAME -e PG_SUPERUSER -e PG_PASS -e PG_PORT -e S3_ENDPOINT -
 
 cargo run database list -o json-compact --use-json-logging
 USE_JSON_LOGGING=true cargo run database list -o json-compact
+
+cargo run restore ivf_commerce_fit_solution -i s3://pgbackups/pgbackups/postgresql-backup-2024-09-22-16-51-51.tar.xz --overwrite -vv
+
+cargo run restore ivf_commerce_fit_solution -i s3://postgresql-backup-2024-09-22-16-51-51.tar.xz --overwrite -vv
+
+cargo run restore ivf_commerce_fit_solution4 -i ./postgresql-backup-2024-09-22-16-51-51.tar.xz --file ivf_commerce_fit_solution3 --overwrite -vv
+
+cargo run restore fugym_demo -i s3://fugym_demo-2024-07-03-20-50-14.sql --format sql --overwrite -vv
+
+cargo run restore fugym_demo -i s3://fugym_demo-2024-07-03-20-50-27.bsql --overwrite -vv
+
+cargo run restore fugym_demo -i s3://fugym_demo-2024-07-03-20-50-27.bsql --overwrite -o abcd -vv
