@@ -54,7 +54,7 @@ prepare:
     - echo $SHORT_TAG >> $TAGS
     - echo $VERSION_TAG >> $TAGS
     - |-
-      echo "LATEST_MR_DESC=$(curl --silent --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" "https://gitlab.com/api/v4/projects/${CI_PROJECT_ID}/merge_requests?state=merged&target_branch=main&order_by=updated_at&per_page=1" | jq -r '.[0].description' | tr '\n' ' ' | sed 's/"/\\"/g')" > variables.env
+      echo "LATEST_MR_DESC=$(curl --silent --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" "https://gitlab.com/api/v4/projects/${CI_PROJECT_ID}/merge_requests?state=merged&target_branch=main&order_by=updated_at&per_page=1" | jq -r '.[0].description' | tr '\n' ' ' | sed -e 's/"/\\"/g' -e 's/&/\\&/g')" > variables.env
   after_script:
     - cat variables.env # Debug: Check the content of job.env
   artifacts:
@@ -251,7 +251,7 @@ create_release:
     - echo $JOB_ID_STATIC
     - echo $JOB_ID_DEB
     - echo $MINIO_URL
-    - echo $LATEST_MR_DESC
+    - echo $LATEST_MR_DESC | cat -v
   release:
     name: "Release v${RELEASE_VERSION}"
     tag_name: "v${RELEASE_VERSION}"
