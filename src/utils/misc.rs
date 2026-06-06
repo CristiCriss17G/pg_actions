@@ -1,7 +1,7 @@
 use super::structs::{PGCliError, PGTools, S3Credentials};
 use log::{debug, info, trace, warn};
-use rand::distr::Alphanumeric;
-use rand::{rng, Rng};
+use rand::distr::{Alphanumeric, SampleString};
+use rand::rng;
 use rusoto_core::{HttpClient, Region, RusotoError};
 use rusoto_credential::StaticProvider;
 use rusoto_s3::{
@@ -38,19 +38,12 @@ fn bytes_to_human_readable(size: u64) -> String {
 
 pub fn generate_random_string(length: usize, to_lowercase: bool) -> String {
     let mut rng = rng();
-    let random_string: String = (&mut rng)
-        .sample_iter(&Alphanumeric)
-        .take(length)
-        .map(char::from)
-        .map(|c| {
-            if to_lowercase {
-                c.to_ascii_lowercase()
-            } else {
-                c
-            }
-        })
-        .collect();
-    random_string
+    let random_string: String = Alphanumeric.sample_string(&mut rng, length);
+    if to_lowercase {
+        random_string.to_lowercase()
+    } else {
+        random_string
+    }
 }
 
 pub fn check_file_path_exists<P: AsRef<Path>>(path: P) -> bool {

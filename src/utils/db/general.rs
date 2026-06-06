@@ -23,17 +23,11 @@ pub(super) fn validate_pg_names(name: &str) -> bool {
         .all(|c| c.is_alphanumeric() || c == '_' || c == '-')
 }
 
-#[allow(clippy::ptr_arg)]
 fn compare_pgpass_credentials(
-    credentials: &Vec<&PostgresCredentials>,
+    credentials: &[&PostgresCredentials],
     pgpass: &PostgresCredentials,
 ) -> bool {
-    credentials.iter().any(|c| {
-        c.pg_hostname == pgpass.pg_hostname
-            && c.pg_port == pgpass.pg_port
-            && c.pg_superuser == pgpass.pg_superuser
-            && c.pg_password == pgpass.pg_password
-    })
+    credentials.contains(&pgpass)
 }
 
 /// Initialize the .pgpass file with the credentials
@@ -51,7 +45,7 @@ pub async fn init_pgpass(credentials: &[PostgresCredentials]) -> Result<()> {
             debug!("pgpass file is empty");
         } else {
             let mut valid = true;
-            let pgpass_values = pgpass.values().collect();
+            let pgpass_values: Vec<_> = pgpass.values().collect();
             for value in credentials.iter() {
                 trace!("Checking pgpass line: {:?}", value);
                 if !compare_pgpass_credentials(&pgpass_values, value) {
@@ -467,6 +461,6 @@ pub(super) fn filter_entities<T: AsRef<str>>(
     let mut matcher = Matcher::new(Config::DEFAULT);
     let mut matches = Pattern::parse(query, CaseMatching::Ignore, Normalization::Smart)
         .match_list(entities, &mut matcher);
-    matches.sort_by(|a, b| a.1.cmp(&b.1));
+    matches.sort_by_key(|a| a.1);
     matches.into_iter().map(|(db, _)| db).collect()
 }
