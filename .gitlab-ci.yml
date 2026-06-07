@@ -16,7 +16,7 @@ variables:
 prepare:
   stage: prepare-build
   image:
-    name: regcr.ivfuture.uk/gitlab-cicd/prepare:latest
+    name: ghcr.io/cristicriss17g/pg_actions:latest
     entrypoint: [""]
   tags:
     - ivfhq

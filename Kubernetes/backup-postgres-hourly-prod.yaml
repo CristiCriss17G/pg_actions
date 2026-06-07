@@ -22,7 +22,7 @@ spec:
                 - "backup"
                 - "all"
                 - "-v"
-              image: regcr.ivfuture.uk/devops-services/tools/postgres-db-actions:latest
+              image: ghcr.io/cristicriss17g/pg_actions:latest
               imagePullPolicy: Always
               name: backup-postgres-prod
               resources: {}

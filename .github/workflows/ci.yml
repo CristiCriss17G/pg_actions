@@ -19,6 +19,7 @@ permissions:
   pull-requests: read
   id-token: write
   attestations: write
+  artifact-metadata: write
 
 jobs:
   prepare:
@@ -26,6 +27,8 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       image: ${{ steps.meta.outputs.image }}
+      major_tag: ${{ steps.meta.outputs.major_tag }}
+      minor_tag: ${{ steps.meta.outputs.minor_tag }}
       long_tag: ${{ steps.meta.outputs.long_tag }}
       short_tag: ${{ steps.meta.outputs.short_tag }}
       version: ${{ steps.meta.outputs.version }}
@@ -43,6 +46,9 @@ jobs:
           created_at="$(date +'%Y%m%d%H%M%S')"
           short_sha="${GITHUB_SHA::8}"
           version_tag="$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml)"
+          IFS='.' read -r version_major version_minor version_patch <<EOF
+          ${version_tag}
+          EOF
           image="ghcr.io/$(printf '%s' "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]')"
 
           : > "$TAGS_FILE"
@@ -52,12 +58,18 @@ jobs:
 
           long_tag="${safe_ref}-${short_sha}-${created_at}"
           short_tag="${safe_ref}-latest"
+          major_tag="${version_major}"
+          minor_tag="${version_major}.${version_minor}"
 
           echo "$long_tag" >> "$TAGS_FILE"
           echo "$short_tag" >> "$TAGS_FILE"
+          echo "$major_tag" >> "$TAGS_FILE"
+          echo "$minor_tag" >> "$TAGS_FILE"
           echo "$version_tag" >> "$TAGS_FILE"
 
           echo "image=$image" >> "$GITHUB_OUTPUT"
+          echo "major_tag=$major_tag" >> "$GITHUB_OUTPUT"
+          echo "minor_tag=$minor_tag" >> "$GITHUB_OUTPUT"
           echo "long_tag=$long_tag" >> "$GITHUB_OUTPUT"
           echo "short_tag=$short_tag" >> "$GITHUB_OUTPUT"
           echo "version=$version_tag" >> "$GITHUB_OUTPUT"
@@ -114,6 +126,8 @@ jobs:
           images: ${{ needs.prepare.outputs.image }}
           tags: |
             type=raw,value=latest,enable=${{ github.ref_name == 'main' }}
+            type=raw,value=${{ needs.prepare.outputs.major_tag }}
+            type=raw,value=${{ needs.prepare.outputs.minor_tag }}
             type=raw,value=${{ needs.prepare.outputs.long_tag }}
             type=raw,value=${{ needs.prepare.outputs.short_tag }}
             type=raw,value=${{ needs.prepare.outputs.version }}
@@ -132,7 +146,7 @@ jobs:
             ALPINE_VERSION=${{ env.ALPINE_VERSION }}
 
       - name: Attest
-        uses: actions/attest-build-provenance@v4
+        uses: actions/attest@v4
         id: attest
         with:
           subject-name: ${{ needs.prepare.outputs.image }}
@@ -301,3 +315,8 @@ jobs:
           else
             gh release create "$tag" dist/* --target "$GITHUB_SHA" --title "Release v${RELEASE_VERSION}" --notes "$notes"
           fi
+      
+      - name: Attest build provenance
+        uses: actions/attest@v4
+        with:
+          subject-path: ./dist/*

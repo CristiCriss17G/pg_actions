@@ -7,15 +7,15 @@
 ## 1. <a name='Tableofcontents'></a>Table of contents
 <!-- vscode-markdown-toc -->
 * 1. [Table of contents](#Tableofcontents)
-* 2. [Description](#Description)
-* 3. [Installation](#Installation)
+* 1. [Description](#Description)
+* 1. [Installation](#Installation)
   * 3.1. [Requirements](#Requirements)
   * 3.2. [Distribution](#Distribution)
   * 3.3. [Utilization](#Utilization)
     * 3.3.1. [Docker](#Docker)
     * 3.3.2. [Executables](#Executables)
     * 3.3.3. [Deb package](#Debpackage)
-* 4. [Usage](#Usage)
+* 1. [Usage](#Usage)
   * 4.1. [Docker run](#Dockerrun)
     * 4.1.1. [Mount .pgpass file](#Mount.pgpassfile)
   * 4.2. [Executables run](#Executablesrun)
@@ -23,7 +23,7 @@
   * 4.4. [Authentication](#Authentication)
     * 4.4.1. [Example](#Example)
   * 4.5. [Mention](#Mention)
-* 5. [CLI structure and examples](#CLIstructureandexamples)
+* 1. [CLI structure and examples](#CLIstructureandexamples)
   * 5.1. [Help command](#Helpcommand)
   * 5.2. [Clone command](#Clonecommand)
     * 5.2.1. [Available aliases](#Availablealiases)
@@ -59,7 +59,7 @@
   * 5.8. [Tools checking](#Toolschecking)
     * 5.8.1. [Available aliases](#Availablealiases-1)
     * 5.8.2. [Help section](#Helpsection-1)
-* 6. [CI/CD usage](#CICDusage)
+* 1. [CI/CD usage](#CICDusage)
   * 6.1. [Gitlab CI/CD](#GitlabCICD)
 
 <!-- vscode-markdown-toc-config
@@ -98,7 +98,7 @@
 
 There are 3 main ways to get the executable:
 
-* `Docker` - Recommended for CI/CD pipelines, cronjobs, or any other automated process, or unsupported platforms: `regcr.ivfuture.uk/devops-services/tools/postgres-db-actions:latest`
+* `Docker` - Recommended for CI/CD pipelines, cronjobs, or any other automated process, or unsupported platforms: `ghcr.io/cristicriss17g/pg_actions:latest`
 * `Direct executables` - For local development or testing, or local execution without installation. This is also split into 2 subcategories:
   * `pg_actions` - the main executable, smallest, and most efficient, but it relies on a linux system that has `openssl (>= 3.0.0)` and `xz-utils` installed.
   * `pg_actions-static` - the same as `pg_actions` but statically compiled, so it does not rely on the system libraries.
@@ -113,7 +113,7 @@ All downloads can be found in the [releases](https://gitlab.com/iv_future/infras
 #### 3.3.1. <a name='Docker'></a>Docker
 
 ```bash
-docker run -e PG_HOSTNAME -e PG_SUPERUSER -e PG_PASS -e PG_PORT -e S3_ENDPOINT -e S3_ACCESS_KEY -e S3_SECRET_KEY -e S3_BUCKET -e S3_PREFIX -e S3_REGION -it --rm regcr.ivfuture.uk/devops-services/tools/postgres-db-actions:latest help
+docker run -e PG_HOSTNAME -e PG_SUPERUSER -e PG_PASS -e PG_PORT -e S3_ENDPOINT -e S3_ACCESS_KEY -e S3_SECRET_KEY -e S3_BUCKET -e S3_PREFIX -e S3_REGION -it --rm ghcr.io/cristicriss17g/pg_actions:latest help
 ```
 
 #### 3.3.2. <a name='Executables'></a>Executables
@@ -153,13 +153,13 @@ pg_actions help
 ### 4.1. <a name='Dockerrun'></a>Docker run
 
 ```bash
-docker run -e PG_HOSTNAME -e PG_SUPERUSER -e PG_PASS -e PG_PORT -e S3_ENDPOINT -e S3_ACCESS_KEY -e S3_SECRET_KEY -e S3_BUCKET -e S3_PREFIX -e S3_REGION -it --rm regcr.ivfuture.uk/devops-services/tools/postgres-db-actions:latest help
+docker run -e PG_HOSTNAME -e PG_SUPERUSER -e PG_PASS -e PG_PORT -e S3_ENDPOINT -e S3_ACCESS_KEY -e S3_SECRET_KEY -e S3_BUCKET -e S3_PREFIX -e S3_REGION -it --rm ghcr.io/cristicriss17g/pg_actions:latest help
 ```
 
 #### 4.1.1. <a name='Mount.pgpassfile'></a>Mount .pgpass file
 
 ```bash
-docker run -v $HOME/.pgpass:/pghome/.pgpass -e PG_HOSTNAME -e PG_SUPERUSER -e PG_PASS -e PG_PORT -e S3_ENDPOINT -e S3_ACCESS_KEY -e S3_SECRET_KEY -e S3_BUCKET -e S3_PREFIX -e S3_REGION -it --rm regcr.ivfuture.uk/devops-services/tools/postgres-db-actions:latest help
+docker run -v $HOME/.pgpass:/pghome/.pgpass -e PG_HOSTNAME -e PG_SUPERUSER -e PG_PASS -e PG_PORT -e S3_ENDPOINT -e S3_ACCESS_KEY -e S3_SECRET_KEY -e S3_BUCKET -e S3_PREFIX -e S3_REGION -it --rm ghcr.io/cristicriss17g/pg_actions:latest help
 ```
 
 > The flags with `-e` are optional and can be passed as arguments to the command.
@@ -435,7 +435,7 @@ pg_actions -H my_host backup all --format sql
 
 This command backs up all databases in SQL format. The output location defaults to S3, as specified by the BACKUP_LOCATION environment variable or its default setting.
 
-2. Backup All Databases to a File with SQL Format
+1. Backup All Databases to a File with SQL Format
 
 ```bash
 pg_actions -H my_host backup all --format sql -o ./pgbk.tar.xz
@@ -443,7 +443,7 @@ pg_actions -H my_host backup all --format sql -o ./pgbk.tar.xz
 
 This command backs up all databases in SQL format to a file named pgbk.tar.xz in the current directory. The -o option overrides the default S3 output location.
 
-3. Backup All Databases to Default Location with BSQL Format
+1. Backup All Databases to Default Location with BSQL Format
 
 ```bash
 pg_actions -H my_host backup all --format bsql
@@ -451,7 +451,7 @@ pg_actions -H my_host backup all --format bsql
 
 This command backs up all databases in BSQL format. The output location defaults to S3, similar to the first command.
 
-4. Backup Specific Database (dvdrentals) to a File with SQL Format Without Creating an Archive
+1. Backup Specific Database (dvdrentals) to a File with SQL Format Without Creating an Archive
 
 ```bash
 pg_actions -H my_host backup dvdrentals --format sql -o ./pgbk.sql --no-archive
@@ -459,7 +459,7 @@ pg_actions -H my_host backup dvdrentals --format sql -o ./pgbk.sql --no-archive
 
 This command backs up the dvdrentals database in SQL format to a file named pgbk.sql in the current directory. The --no-archive option indicates that the output should not be archived, which is relevant for individual database backups.
 
-5. Backup Specific Database (dvdrentals) to a File with BSQL Format Without Creating an Archive
+1. Backup Specific Database (dvdrentals) to a File with BSQL Format Without Creating an Archive
 
 ```bash
 pg_actions -H my_host backup dvdrentals --format bsql -o ./pgbk.bsql --no-archive
@@ -467,7 +467,7 @@ pg_actions -H my_host backup dvdrentals --format bsql -o ./pgbk.bsql --no-archiv
 
 This command backs up the dvdrentals database in BSQL format to a file named pgbk.bsql in the current directory, without creating an archive.
 
-6. Backup Specific Database (dvdrentals) to a File with SQL Format
+1. Backup Specific Database (dvdrentals) to a File with SQL Format
 
 ```bash
 pg_actions -H my_host backup dvdrentals --format sql -o ./pgbk.tar.xz
@@ -475,7 +475,7 @@ pg_actions -H my_host backup dvdrentals --format sql -o ./pgbk.tar.xz
 
 This command backs up the dvdrentals database in SQL format to a file named pgbk.tar.xz in the current directory. This case does not specify the --no-archive option, so the output may be archived depending on the utility's behavior.
 
-7. Backup Specific Database (dvdrentals) to a File with BSQL Format
+1. Backup Specific Database (dvdrentals) to a File with BSQL Format
 
 ```bash
 pg_actions -H my_host backup dvdrentals --format bsql -o ./pgbk.tar.xz
@@ -549,55 +549,55 @@ Options:
 pg_actions -H my_host restore my_db -i s3://bucket_name/file_path
 ```
 
-2. Restore a database from a file
+1. Restore a database from a file
 
 ```bash
 pg_actions -H my_host restore my_db -i ./my_db.tar.xz
 ```
 
-3. Restore a database from a file with a different name
+1. Restore a database from a file with a different name
 
 ```bash
 pg_actions -H my_host restore my_db -i ./my_db.tar.xz --file my_db
 ```
 
-4. Restore a database from a file with a different name and overwrite the existing database
+1. Restore a database from a file with a different name and overwrite the existing database
 
 ```bash
 pg_actions -H my_host restore my_db -i ./my_db.tar.xz --file my_db --overwrite
 ```
 
-5. Restore a database from a file with a different name, overwrite the existing database, and keep the temp files
+1. Restore a database from a file with a different name, overwrite the existing database, and keep the temp files
 
 ```bash
 pg_actions -H my_host restore my_db -i ./my_db.tar.xz --file my_db --overwrite --keep-temp
 ```
 
-6. Restore a database from a file with a different name, overwrite the existing database, keep the temp files, and change the owner
+1. Restore a database from a file with a different name, overwrite the existing database, keep the temp files, and change the owner
 
 ```bash
 pg_actions -H my_host restore my_db -i ./my_db.tar.xz --file my_db --overwrite --keep-temp --owner new_owner
 ```
 
-7. Restore a database from a file with a different name, overwrite the existing database, keep the temp files, and change the owner with a different format
+1. Restore a database from a file with a different name, overwrite the existing database, keep the temp files, and change the owner with a different format
 
 ```bash
 pg_actions -H my_host restore my_db -i ./my_db.sql --format sql --overwrite
 ```
 
-8. Restore a database from a file with a different name, overwrite the existing database, keep the temp files, and change the owner with a different format
+1. Restore a database from a file with a different name, overwrite the existing database, keep the temp files, and change the owner with a different format
 
 ```bash
 pg_actions -H my_host restore my_db -i ./my_db.bsql --format bsql --overwrite
 ```
 
-9. Restore a database from a file with a different name, overwrite the existing database, keep the temp files, and change the owner with a different format
+1. Restore a database from a file with a different name, overwrite the existing database, keep the temp files, and change the owner with a different format
 
 ```bash
 pg_actions -H my_host restore my_db -i ./my_db.sql --format sql --overwrite --keep-temp
 ```
 
-10. Restore a database from a file with a different name, overwrite the existing database, keep the temp files, and change the owner with a different format
+1. Restore a database from a file with a different name, overwrite the existing database, keep the temp files, and change the owner with a different format
 
 ```bash
 pg_actions -H my_host restore my_db -i ./my_db.bsql --format bsql --overwrite --keep-temp
@@ -1579,7 +1579,7 @@ stages:
 clone:
   stage: clone
   image: 
-    name: regcr.ivfuture.uk/devops-services/tools/postgres-db-actions:latest
+    name: ghcr.io/cristicriss17g/pg_actions:latest
     entrypoint: [""]
   script:
     - pg_actions -H my_host clone my_db my_new_db -o my_user
