@@ -7,12 +7,6 @@ on:
   pull_request:
   workflow_dispatch:
 
-env:
-  APP_NAME: pg_actions
-  RUST_VERSION: "1.96"
-  ALPINE_VERSION: "3.21"
-  TAGS_FILE: tags.txt
-
 permissions:
   contents: write
   packages: write
@@ -24,299 +18,36 @@ permissions:
 jobs:
   prepare:
     name: Prepare
-    runs-on: ubuntu-latest
-    outputs:
-      image: ${{ steps.meta.outputs.image }}
-      major_tag: ${{ steps.meta.outputs.major_tag }}
-      minor_tag: ${{ steps.meta.outputs.minor_tag }}
-      long_tag: ${{ steps.meta.outputs.long_tag }}
-      short_tag: ${{ steps.meta.outputs.short_tag }}
-      version: ${{ steps.meta.outputs.version }}
-      latest_mr_desc: ${{ steps.release_notes.outputs.latest_mr_desc }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Prepare tags
-        id: meta
-        shell: bash
-        run: |
-          ref_name="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
-          safe_ref="$(printf '%s' "$ref_name" | sed 's/[^a-zA-Z0-9]/-/g' | tr '[:upper:]' '[:lower:]')"
-          created_at="$(date +'%Y%m%d%H%M%S')"
-          short_sha="${GITHUB_SHA::8}"
-          version_tag="$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml)"
-          IFS='.' read -r version_major version_minor version_patch <<EOF
-          ${version_tag}
-          EOF
-          image="ghcr.io/$(printf '%s' "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]')"
-
-          : > "$TAGS_FILE"
-          if [ "$ref_name" = "main" ]; then
-            echo "latest" >> "$TAGS_FILE"
-          fi
-
-          long_tag="${safe_ref}-${short_sha}-${created_at}"
-          short_tag="${safe_ref}-latest"
-          major_tag="${version_major}"
-          minor_tag="${version_major}.${version_minor}"
-
-          echo "$long_tag" >> "$TAGS_FILE"
-          echo "$short_tag" >> "$TAGS_FILE"
-          echo "$major_tag" >> "$TAGS_FILE"
-          echo "$minor_tag" >> "$TAGS_FILE"
-          echo "$version_tag" >> "$TAGS_FILE"
-
-          echo "image=$image" >> "$GITHUB_OUTPUT"
-          echo "major_tag=$major_tag" >> "$GITHUB_OUTPUT"
-          echo "minor_tag=$minor_tag" >> "$GITHUB_OUTPUT"
-          echo "long_tag=$long_tag" >> "$GITHUB_OUTPUT"
-          echo "short_tag=$short_tag" >> "$GITHUB_OUTPUT"
-          echo "version=$version_tag" >> "$GITHUB_OUTPUT"
-
-      - name: Get latest merged PR description
-        id: release_notes
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          desc="$(
-            gh api "repos/${GITHUB_REPOSITORY}/pulls?state=closed&base=main&sort=updated&direction=desc&per_page=20" \
-              --jq '[.[] | select(.merged_at != null)][0].body // ""' \
-              | tr '\n' ' ' \
-              | tr -d '`&' \
-              | sed 's/"/\\"/g'
-          )"
-          {
-            echo "latest_mr_desc<<EOF"
-            echo "$desc"
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Upload tags
-        uses: actions/upload-artifact@v7
-        with:
-          name: image-tags
-          path: ${{ env.TAGS_FILE }}
+    uses: ./.github/workflows/prepare.yml
+    with:
+      tags_file: tags.txt
 
   docker:
-    name: Docker Image
-    runs-on: ubuntu-latest
+    name: Docker
     needs: prepare
     if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || github.ref_name == 'main' || github.ref_name == 'dev'
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
+    uses: ./.github/workflows/docker-build.yml
+    with:
+      app_name: pg_actions
+      rust_version: "1.96"
+      alpine_version: "3.23"
+      image: ${{ needs.prepare.outputs.image }}
+      major_tag: ${{ needs.prepare.outputs.major_tag }}
+      minor_tag: ${{ needs.prepare.outputs.minor_tag }}
+      long_tag: ${{ needs.prepare.outputs.long_tag }}
+      short_tag: ${{ needs.prepare.outputs.short_tag }}
+      version: ${{ needs.prepare.outputs.version }}
+    secrets: inherit
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
-
-      - name: Log in to GHCR
-        if: github.event_name != 'pull_request' && (github.event_name == 'workflow_dispatch' || github.ref_name == 'main' || github.ref_name == 'dev')
-        uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Docker metadata
-        id: docker_meta
-        uses: docker/metadata-action@v6
-        with:
-          images: ${{ needs.prepare.outputs.image }}
-          tags: |
-            type=raw,value=latest,enable=${{ github.ref_name == 'main' }}
-            type=raw,value=${{ needs.prepare.outputs.major_tag }}
-            type=raw,value=${{ needs.prepare.outputs.minor_tag }}
-            type=raw,value=${{ needs.prepare.outputs.long_tag }}
-            type=raw,value=${{ needs.prepare.outputs.short_tag }}
-            type=raw,value=${{ needs.prepare.outputs.version }}
-
-      - name: Build and push image
-        uses: docker/build-push-action@v7
-        id: push
-        with:
-          context: .
-          file: ./Dockerfile
-          push: ${{ github.event_name != 'pull_request' && (github.event_name == 'workflow_dispatch' || github.ref_name == 'main' || github.ref_name == 'dev') }}
-          tags: ${{ steps.docker_meta.outputs.tags }}
-          labels: ${{ steps.docker_meta.outputs.labels }}
-          build-args: |
-            RUST_VERSION=${{ env.RUST_VERSION }}
-            ALPINE_VERSION=${{ env.ALPINE_VERSION }}
-
-      - name: Attest
-        uses: actions/attest@v4
-        id: attest
-        with:
-          subject-name: ${{ needs.prepare.outputs.image }}
-          subject-digest: ${{ steps.push.outputs.digest }}
-          push-to-registry: true
-
-  compile_dynamic:
-    name: Compile Dynamic
-    runs-on: ubuntu-latest
+  standalone:
+    name: Standalone And Release
     needs: prepare
-    if: github.event_name == 'workflow_dispatch' || github.ref_name == 'main' || github.ref_name == 'dev'
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Install Rust
-        shell: bash
-        run: |
-          rustup toolchain install "$RUST_VERSION" --profile minimal
-          rustup default "$RUST_VERSION"
-
-      - name: Install system dependencies
-        shell: bash
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y clang lld build-essential gpg sudo wget lsb-release ca-certificates
-          wget -qO - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /usr/share/keyrings/postgresql-archive-keyring.gpg
-          echo "deb [signed-by=/usr/share/keyrings/postgresql-archive-keyring.gpg] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
-          sudo apt-get update
-          sudo apt-get install -y postgresql-client-16
-
-      - name: Build
-        shell: bash
-        run: |
-          cargo fetch --locked
-          cargo build --locked --release --target-dir ./target
-          cp "target/release/${APP_NAME}" "$APP_NAME"
-
-      - name: Upload dynamic binary
-        uses: actions/upload-artifact@v7
-        with:
-          name: ${{ env.APP_NAME }}
-          path: ${{ env.APP_NAME }}
-          retention-days: 7
-
-  compile_static:
-    name: Compile Static
-    runs-on: ubuntu-latest
-    needs: prepare
-    if: github.event_name == 'workflow_dispatch' || github.ref_name == 'main' || github.ref_name == 'dev'
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Build static binary
-        shell: bash
-        run: |
-          docker run --rm \
-            -e APP_NAME="$APP_NAME" \
-            -v "$PWD:/workspace" \
-            -w /workspace \
-            "rust:${RUST_VERSION}-alpine${ALPINE_VERSION}" \
-            sh -lc 'apk update && apk upgrade --no-cache && apk add --no-cache build-base clang lld musl-dev git file pkgconfig openssl-dev libcrypto3 libssl3 openssl-libs-static postgresql16-client && cargo fetch --locked && cargo build --locked --release --target-dir ./target && cp "target/release/${APP_NAME}" "${APP_NAME}-static"'
-
-      - name: Upload static binary
-        uses: actions/upload-artifact@v7
-        with:
-          name: ${{ env.APP_NAME }}-static
-          path: ${{ env.APP_NAME }}-static
-          retention-days: 7
-
-  make_deb_files:
-    name: Debian Packages
-    runs-on: ubuntu-latest
-    needs:
-      - prepare
-      - compile_dynamic
-      - compile_static
-    if: github.event_name == 'workflow_dispatch' || github.ref_name == 'main' || github.ref_name == 'dev'
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Download dynamic binary
-        uses: actions/download-artifact@v8
-        with:
-          name: ${{ env.APP_NAME }}
-          path: .
-
-      - name: Download static binary
-        uses: actions/download-artifact@v8
-        with:
-          name: ${{ env.APP_NAME }}-static
-          path: .
-
-      - name: Install packaging dependencies
-        shell: bash
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential devscripts curl
-
-      - name: Build Debian packages
-        env:
-          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
-        shell: bash
-        run: |
-          sed -i "s/\(Version: \)[0-9]\+\.[0-9]\+\.[0-9]\+\(-static\.[0-9]\+\)/\1${RELEASE_VERSION}\2/" debian/static/DEBIAN/control
-          sed -i "s/\(Version: \)[0-9]\+\.[0-9]\+\.[0-9]\+\(-[0-9]\+\)/\1${RELEASE_VERSION}\2/" debian/dynamic/DEBIAN/control
-          cp "$APP_NAME" "debian/dynamic/usr/local/bin/$APP_NAME"
-          rm -f debian/dynamic/usr/local/bin/.gitkeep
-          cp "${APP_NAME}-static" "debian/static/usr/local/bin/${APP_NAME}"
-          rm -f debian/static/usr/local/bin/.gitkeep
-          chmod -R 755 debian/
-          dpkg-deb --build debian/dynamic "${APP_NAME}_${RELEASE_VERSION}_amd64.deb"
-          dpkg-deb --build debian/static "${APP_NAME}-static_${RELEASE_VERSION}_amd64.deb"
-
-      - name: Upload Debian packages
-        uses: actions/upload-artifact@v7
-        with:
-          name: debian-packages
-          path: |
-            ${{ env.APP_NAME }}_${{ needs.prepare.outputs.version }}_amd64.deb
-            ${{ env.APP_NAME }}-static_${{ needs.prepare.outputs.version }}_amd64.deb
-          retention-days: 7
-
-  create_release:
-    name: Create Release
-    runs-on: ubuntu-latest
-    needs:
-      - prepare
-      - compile_dynamic
-      - compile_static
-      - make_deb_files
-    if: github.event_name == 'push' && github.ref_name == 'main'
-    steps:
-      - name: Download dynamic binary
-        uses: actions/download-artifact@v8
-        with:
-          name: ${{ env.APP_NAME }}
-          path: dist
-
-      - name: Download static binary
-        uses: actions/download-artifact@v8
-        with:
-          name: ${{ env.APP_NAME }}-static
-          path: dist
-
-      - name: Download Debian packages
-        uses: actions/download-artifact@v8
-        with:
-          name: debian-packages
-          path: dist
-
-      - name: Create GitHub release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
-          LATEST_MR_DESC: ${{ needs.prepare.outputs.latest_mr_desc }}
-        shell: bash
-        run: |
-          tag="v${RELEASE_VERSION}"
-          notes="Release created using GitHub Actions. Release '${tag}': ${LATEST_MR_DESC}"
-
-          if gh release view "$tag" >/dev/null 2>&1; then
-            gh release upload "$tag" dist/* --clobber
-          else
-            gh release create "$tag" dist/* --target "$GITHUB_SHA" --title "Release v${RELEASE_VERSION}" --notes "$notes"
-          fi
-      
-      - name: Attest build provenance
-        uses: actions/attest@v4
-        with:
-          subject-path: ./dist/*
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || github.ref_name == 'main' || github.ref_name == 'dev'
+    uses: ./.github/workflows/standalone-release.yml
+    with:
+      app_name: pg_actions
+      rust_version: "1.96"
+      alpine_version: "3.23"
+      version: ${{ needs.prepare.outputs.version }}
+      latest_mr_desc: ${{ needs.prepare.outputs.latest_mr_desc }}
+    secrets: inherit

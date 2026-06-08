@@ -1,0 +1,110 @@
+name: Prepare
+
+on:
+  workflow_call:
+    inputs:
+      tags_file:
+        description: File name used for the generated image tags artifact.
+        required: false
+        type: string
+        default: tags.txt
+    outputs:
+      image:
+        description: Lowercase GHCR image name.
+        value: ${{ jobs.prepare.outputs.image }}
+      major_tag:
+        description: Major version image tag.
+        value: ${{ jobs.prepare.outputs.major_tag }}
+      minor_tag:
+        description: Minor version image tag.
+        value: ${{ jobs.prepare.outputs.minor_tag }}
+      long_tag:
+        description: Ref, short SHA, and timestamp image tag.
+        value: ${{ jobs.prepare.outputs.long_tag }}
+      short_tag:
+        description: Ref latest image tag.
+        value: ${{ jobs.prepare.outputs.short_tag }}
+      version:
+        description: Cargo package version.
+        value: ${{ jobs.prepare.outputs.version }}
+      latest_mr_desc:
+        description: Latest merged main PR description.
+        value: ${{ jobs.prepare.outputs.latest_mr_desc }}
+
+jobs:
+  prepare:
+    name: Prepare
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.meta.outputs.image }}
+      major_tag: ${{ steps.meta.outputs.major_tag }}
+      minor_tag: ${{ steps.meta.outputs.minor_tag }}
+      long_tag: ${{ steps.meta.outputs.long_tag }}
+      short_tag: ${{ steps.meta.outputs.short_tag }}
+      version: ${{ steps.meta.outputs.version }}
+      latest_mr_desc: ${{ steps.release_notes.outputs.latest_mr_desc }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Prepare tags
+        id: meta
+        shell: bash
+        run: |
+          ref_name="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
+          safe_ref="$(printf '%s' "$ref_name" | sed 's/[^a-zA-Z0-9]/-/g' | tr '[:upper:]' '[:lower:]')"
+          created_at="$(date +'%Y%m%d%H%M%S')"
+          short_sha="${GITHUB_SHA::8}"
+          version_tag="$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml)"
+          IFS='.' read -r version_major version_minor version_patch <<EOF
+          ${version_tag}
+          EOF
+          image="ghcr.io/$(printf '%s' "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]')"
+
+          : > "${{ inputs.tags_file }}"
+          if [ "$ref_name" = "main" ]; then
+            echo "latest" >> "${{ inputs.tags_file }}"
+          fi
+
+          long_tag="${safe_ref}-${short_sha}-${created_at}"
+          short_tag="${safe_ref}-latest"
+          major_tag="${version_major}"
+          minor_tag="${version_major}.${version_minor}"
+
+          echo "$long_tag" >> "${{ inputs.tags_file }}"
+          echo "$short_tag" >> "${{ inputs.tags_file }}"
+          echo "$major_tag" >> "${{ inputs.tags_file }}"
+          echo "$minor_tag" >> "${{ inputs.tags_file }}"
+          echo "$version_tag" >> "${{ inputs.tags_file }}"
+
+          echo "image=$image" >> "$GITHUB_OUTPUT"
+          echo "major_tag=$major_tag" >> "$GITHUB_OUTPUT"
+          echo "minor_tag=$minor_tag" >> "$GITHUB_OUTPUT"
+          echo "long_tag=$long_tag" >> "$GITHUB_OUTPUT"
+          echo "short_tag=$short_tag" >> "$GITHUB_OUTPUT"
+          echo "version=$version_tag" >> "$GITHUB_OUTPUT"
+
+      - name: Get latest merged PR description
+        id: release_notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          desc="$(
+            gh api "repos/${GITHUB_REPOSITORY}/pulls?state=closed&base=main&sort=updated&direction=desc&per_page=20" \
+              --jq '[.[] | select(.merged_at != null)][0].body // ""' \
+              | tr '\n' ' ' \
+              | tr -d '`&' \
+              | sed 's/"/\\"/g'
+          )"
+          {
+            echo "latest_mr_desc<<EOF"
+            echo "$desc"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Upload tags
+        uses: actions/upload-artifact@v7
+        with:
+          name: image-tags
+          path: ${{ inputs.tags_file }}
