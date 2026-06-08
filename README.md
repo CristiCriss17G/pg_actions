@@ -76,7 +76,7 @@
 
 ### 3.1. <a name='Requirements'></a>Requirements
 
-* `openssl (>= 3.0.0)` - Required for the `pg_actions` executable, it is used for the encryption and decryption of the database connection and S3/Minio authentication.
+* `openssl (>= 3.0.0)` - Required for the `pg_actions` executable, it is used for the encryption and decryption of the database connection and S3/RustFS authentication.
 * `xz-utils` - Required for the `pg_actions` executable, it is used for the compression and decompression of the backup files.
 * `pg_dump`, `pg_restore` and `psql` `(>=16.0)` - Optional, but recommended, they are used for the backup and clone operations, if they are not installed, the executable will fail to perform these operations. For installation, see the [Postgres documentation](https://www.postgresql.org/download/).
   * Ubuntu/Debian:
@@ -191,14 +191,14 @@ Main variables for database connection:
 
 These variables can be simplified by using a `.pgpass` file in the user's home directory. For more information about the `.pgpass` file, see the [Postgres documentation](https://www.postgresql.org/docs/current/libpq-pgpass.html).
 
-Main variables for S3/Minio, these are required just for the backup operation, but they can be used for all operations that require S3/Minio storage:
+Main variables for S3/RustFS, these are required just for the backup operation, but they can be used for all operations that require S3/RustFS storage:
 
-* `S3_ENDPOINT` - `--s3-endpoint` - S3/Minio endpoint
-* `S3_ACCESS_KEY` - `--s3-access-key` - S3/Minio access key
-* `S3_SECRET_KEY` - `--s3-secret-key` - S3/Minio secret key
-* `S3_BUCKET` - `--s3-bucket` - S3/Minio bucket
-* `S3_REGION` - `--s3-region` - S3/Minio region
-* `S3_PREFIX` - `--s3-prefix` - S3/Minio bucket prefix/folder
+* `S3_ENDPOINT` - `--s3-endpoint` - S3/RustFS endpoint
+* `S3_ACCESS_KEY` - `--s3-access-key` - S3/RustFS access key
+* `S3_SECRET_KEY` - `--s3-secret-key` - S3/RustFS secret key
+* `S3_BUCKET` - `--s3-bucket` - S3/RustFS bucket
+* `S3_REGION` - `--s3-region` - S3/RustFS region
+* `S3_PREFIX` - `--s3-prefix` - S3/RustFS bucket prefix/folder
 
 Optional variables:
 
@@ -264,12 +264,12 @@ Options:
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
       --psql <PSQL>                    Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
-      --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
-      --s3-access-key <S3_ACCESS_KEY>  S3/Minio access key [env: S3_ACCESS_KEY=minio]
-      --s3-secret-key <S3_SECRET_KEY>  S3/Minio secret key [env: S3_SECRET_KEY]
-      --s3-bucket <S3_BUCKET>          S3/Minio bucket [env: S3_BUCKET=pgbackups]
-      --s3-region <S3_REGION>          S3/Minio region [env: S3_REGION=local]
-      --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
+      --s3-endpoint <S3_ENDPOINT>      S3/RustFS endpoint [env: S3_ENDPOINT=https://rustfslocal:9000]
+      --s3-access-key <S3_ACCESS_KEY>  S3/RustFS access key [env: S3_ACCESS_KEY=rustfsadmin]
+      --s3-secret-key <S3_SECRET_KEY>  S3/RustFS secret key [env: S3_SECRET_KEY]
+      --s3-bucket <S3_BUCKET>          S3/RustFS bucket [env: S3_BUCKET=pgbackups]
+      --s3-region <S3_REGION>          S3/RustFS region [env: S3_REGION=local]
+      --s3-prefix <S3_PREFIX>          S3/RustFS bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
       --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
       --log-file <LOG_FILE>            Log file location [env: LOG_FILE=pg_actions.log]
@@ -313,15 +313,15 @@ Options:
   -k, --keep-dump                      keep the dump file defaults to false [env: KEEP_DUMP=]
       --psql <PSQL>                    Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
       --pg-hostname2 <PG_HOSTNAME2>    Optional new host [env: PG_HOSTNAME2=]
-      --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
+      --s3-endpoint <S3_ENDPOINT>      S3/RustFS endpoint [env: S3_ENDPOINT=https://rustfslocal:9000]
       --pg-port2 <PG_PORT2>            Optional new port [env: PG_PORT2=] [default: 5432]
-      --s3-access-key <S3_ACCESS_KEY>  S3/Minio access key [env: S3_ACCESS_KEY=minio]
+      --s3-access-key <S3_ACCESS_KEY>  S3/RustFS access key [env: S3_ACCESS_KEY=rustfsadmin]
       --pg-superuser2 <PG_SUPERUSER2>  Optional user for new host [env: PG_SUPERUSER2=]
-      --s3-secret-key <S3_SECRET_KEY>  S3/Minio secret key [env: S3_SECRET_KEY]
+      --s3-secret-key <S3_SECRET_KEY>  S3/RustFS secret key [env: S3_SECRET_KEY]
       --pg-password2 <PG_PASSWORD2>    Optional password for new host [env: PG_PASSWORD2]
-      --s3-bucket <S3_BUCKET>          S3/Minio bucket [env: S3_BUCKET=pgbackups]
-      --s3-region <S3_REGION>          S3/Minio region [env: S3_REGION=local]
-      --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
+      --s3-bucket <S3_BUCKET>          S3/RustFS bucket [env: S3_BUCKET=pgbackups]
+      --s3-region <S3_REGION>          S3/RustFS region [env: S3_REGION=local]
+      --s3-prefix <S3_PREFIX>          S3/RustFS bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
       --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
       --log-file <LOG_FILE>            Log file location [env: LOG_FILE=pg_actions.log]
@@ -357,7 +357,7 @@ pg_actions -H my_host clone -d old_db -n new_db -o new_owner --pg-hostname new_h
 
 ### 5.3. <a name='Backupcommand'></a>Backup command
 
-It backs up a database to a file or to S3/Minio storage.
+It backs up a database to a file or to S3/RustFS storage.
 
 #### 5.3.1. <a name='Helpsection-1'></a>Help section
 
@@ -388,12 +388,12 @@ Options:
       --pg-dump <PG_DUMP>                  Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>            Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
       --psql <PSQL>                        Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
-      --s3-endpoint <S3_ENDPOINT>          S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
-      --s3-access-key <S3_ACCESS_KEY>      S3/Minio access key [env: S3_ACCESS_KEY=minio]
-      --s3-secret-key <S3_SECRET_KEY>      S3/Minio secret key [env: S3_SECRET_KEY]
-      --s3-bucket <S3_BUCKET>              S3/Minio bucket [env: S3_BUCKET=pgbackups]
-      --s3-region <S3_REGION>              S3/Minio region [env: S3_REGION=local]
-      --s3-prefix <S3_PREFIX>              S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
+      --s3-endpoint <S3_ENDPOINT>          S3/RustFS endpoint [env: S3_ENDPOINT=https://rustfslocal:9000]
+      --s3-access-key <S3_ACCESS_KEY>      S3/RustFS access key [env: S3_ACCESS_KEY=rustfsadmin]
+      --s3-secret-key <S3_SECRET_KEY>      S3/RustFS secret key [env: S3_SECRET_KEY]
+      --s3-bucket <S3_BUCKET>              S3/RustFS bucket [env: S3_BUCKET=pgbackups]
+      --s3-region <S3_REGION>              S3/RustFS region [env: S3_REGION=local]
+      --s3-prefix <S3_PREFIX>              S3/RustFS bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                         Turn debugging information on repetitive use increases verbosity, at most 2 times
       --use-json-logging                   Show logging information as json [env: USE_JSON_LOGGING=]
       --log-file <LOG_FILE>                Log file location [env: LOG_FILE=pg_actions.log]
@@ -402,7 +402,7 @@ Options:
 
 ##### Additional Variables
 
-> This commands needs the S3/Minio variables to be set, but they can be passed as arguments.
+> This commands needs the S3/RustFS variables to be set, but they can be passed as arguments.
 
 * `BACKUP_LOCATION` - `-o, --output-location` - Output location, choose between S3 or a file path, defaults to S3
 * `JOBS` - `-j, --jobs` - Parallel jobs to use, defaults to 5
@@ -485,7 +485,7 @@ This command backs up the dvdrentals database in BSQL format to a file named pgb
 
 ### 5.4. <a name='Restorecommand'></a>Restore command
 
-It restores a database from a file or from S3/Minio storage.
+It restores a database from a file or from S3/RustFS storage.
 
 #### 5.4.1. <a name='Helpsection-1'></a>Help section
 
@@ -519,12 +519,12 @@ Options:
       --pg-restore <PG_RESTORE>          Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
   -k, --keep-temp                        keep the temp files defaults to false [env: KEEP_TEMP=]
       --psql <PSQL>                      Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
-      --s3-endpoint <S3_ENDPOINT>        S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
-      --s3-access-key <S3_ACCESS_KEY>    S3/Minio access key [env: S3_ACCESS_KEY=minio]
-      --s3-secret-key <S3_SECRET_KEY>    S3/Minio secret key [env: S3_SECRET_KEY]
-      --s3-bucket <S3_BUCKET>            S3/Minio bucket [env: S3_BUCKET=pgbackups]
-      --s3-region <S3_REGION>            S3/Minio region [env: S3_REGION=local]
-      --s3-prefix <S3_PREFIX>            S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
+      --s3-endpoint <S3_ENDPOINT>        S3/RustFS endpoint [env: S3_ENDPOINT=https://rustfslocal:9000]
+      --s3-access-key <S3_ACCESS_KEY>    S3/RustFS access key [env: S3_ACCESS_KEY=rustfsadmin]
+      --s3-secret-key <S3_SECRET_KEY>    S3/RustFS secret key [env: S3_SECRET_KEY]
+      --s3-bucket <S3_BUCKET>            S3/RustFS bucket [env: S3_BUCKET=pgbackups]
+      --s3-region <S3_REGION>            S3/RustFS region [env: S3_REGION=local]
+      --s3-prefix <S3_PREFIX>            S3/RustFS bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                       Turn debugging information on repetitive use increases verbosity, at most 2 times
       --use-json-logging                 Show logging information as json [env: USE_JSON_LOGGING=]
       --log-file <LOG_FILE>              Log file location [env: LOG_FILE=pg_actions.log]
@@ -635,12 +635,12 @@ Options:
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
       --psql <PSQL>                    Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
-      --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
-      --s3-access-key <S3_ACCESS_KEY>  S3/Minio access key [env: S3_ACCESS_KEY=minio]
-      --s3-secret-key <S3_SECRET_KEY>  S3/Minio secret key [env: S3_SECRET_KEY]
-      --s3-bucket <S3_BUCKET>          S3/Minio bucket [env: S3_BUCKET=pgbackups]
-      --s3-region <S3_REGION>          S3/Minio region [env: S3_REGION=local]
-      --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
+      --s3-endpoint <S3_ENDPOINT>      S3/RustFS endpoint [env: S3_ENDPOINT=https://rustfslocal:9000]
+      --s3-access-key <S3_ACCESS_KEY>  S3/RustFS access key [env: S3_ACCESS_KEY=rustfsadmin]
+      --s3-secret-key <S3_SECRET_KEY>  S3/RustFS secret key [env: S3_SECRET_KEY]
+      --s3-bucket <S3_BUCKET>          S3/RustFS bucket [env: S3_BUCKET=pgbackups]
+      --s3-region <S3_REGION>          S3/RustFS region [env: S3_REGION=local]
+      --s3-prefix <S3_PREFIX>          S3/RustFS bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
       --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
       --log-file <LOG_FILE>            Log file location [env: LOG_FILE=pg_actions.log]
@@ -674,12 +674,12 @@ Options:
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
       --psql <PSQL>                    Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
-      --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
-      --s3-access-key <S3_ACCESS_KEY>  S3/Minio access key [env: S3_ACCESS_KEY=minio]
-      --s3-secret-key <S3_SECRET_KEY>  S3/Minio secret key [env: S3_SECRET_KEY]
-      --s3-bucket <S3_BUCKET>          S3/Minio bucket [env: S3_BUCKET=pgbackups]
-      --s3-region <S3_REGION>          S3/Minio region [env: S3_REGION=local]
-      --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
+      --s3-endpoint <S3_ENDPOINT>      S3/RustFS endpoint [env: S3_ENDPOINT=https://rustfslocal:9000]
+      --s3-access-key <S3_ACCESS_KEY>  S3/RustFS access key [env: S3_ACCESS_KEY=rustfsadmin]
+      --s3-secret-key <S3_SECRET_KEY>  S3/RustFS secret key [env: S3_SECRET_KEY]
+      --s3-bucket <S3_BUCKET>          S3/RustFS bucket [env: S3_BUCKET=pgbackups]
+      --s3-region <S3_REGION>          S3/RustFS region [env: S3_REGION=local]
+      --s3-prefix <S3_PREFIX>          S3/RustFS bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
       --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
       --log-file <LOG_FILE>            Log file location [env: LOG_FILE=pg_actions.log]
@@ -746,12 +746,12 @@ Options:
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
       --psql <PSQL>                    Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
-      --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
-      --s3-access-key <S3_ACCESS_KEY>  S3/Minio access key [env: S3_ACCESS_KEY=minio]
-      --s3-secret-key <S3_SECRET_KEY>  S3/Minio secret key [env: S3_SECRET_KEY]
-      --s3-bucket <S3_BUCKET>          S3/Minio bucket [env: S3_BUCKET=pgbackups]
-      --s3-region <S3_REGION>          S3/Minio region [env: S3_REGION=local]
-      --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
+      --s3-endpoint <S3_ENDPOINT>      S3/RustFS endpoint [env: S3_ENDPOINT=https://rustfslocal:9000]
+      --s3-access-key <S3_ACCESS_KEY>  S3/RustFS access key [env: S3_ACCESS_KEY=rustfsadmin]
+      --s3-secret-key <S3_SECRET_KEY>  S3/RustFS secret key [env: S3_SECRET_KEY]
+      --s3-bucket <S3_BUCKET>          S3/RustFS bucket [env: S3_BUCKET=pgbackups]
+      --s3-region <S3_REGION>          S3/RustFS region [env: S3_REGION=local]
+      --s3-prefix <S3_PREFIX>          S3/RustFS bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
       --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
       --log-file <LOG_FILE>            Log file location [env: LOG_FILE=pg_actions.log]
@@ -801,12 +801,12 @@ Options:
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
       --psql <PSQL>                    Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
-      --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
-      --s3-access-key <S3_ACCESS_KEY>  S3/Minio access key [env: S3_ACCESS_KEY=minio]
-      --s3-secret-key <S3_SECRET_KEY>  S3/Minio secret key [env: S3_SECRET_KEY]
-      --s3-bucket <S3_BUCKET>          S3/Minio bucket [env: S3_BUCKET=pgbackups]
-      --s3-region <S3_REGION>          S3/Minio region [env: S3_REGION=local]
-      --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
+      --s3-endpoint <S3_ENDPOINT>      S3/RustFS endpoint [env: S3_ENDPOINT=https://rustfslocal:9000]
+      --s3-access-key <S3_ACCESS_KEY>  S3/RustFS access key [env: S3_ACCESS_KEY=rustfsadmin]
+      --s3-secret-key <S3_SECRET_KEY>  S3/RustFS secret key [env: S3_SECRET_KEY]
+      --s3-bucket <S3_BUCKET>          S3/RustFS bucket [env: S3_BUCKET=pgbackups]
+      --s3-region <S3_REGION>          S3/RustFS region [env: S3_REGION=local]
+      --s3-prefix <S3_PREFIX>          S3/RustFS bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
       --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
       --log-file <LOG_FILE>            Log file location [env: LOG_FILE=pg_actions.log]
@@ -849,12 +849,12 @@ Options:
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
       --psql <PSQL>                    Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
-      --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
-      --s3-access-key <S3_ACCESS_KEY>  S3/Minio access key [env: S3_ACCESS_KEY=minio]
-      --s3-secret-key <S3_SECRET_KEY>  S3/Minio secret key [env: S3_SECRET_KEY]
-      --s3-bucket <S3_BUCKET>          S3/Minio bucket [env: S3_BUCKET=pgbackups]
-      --s3-region <S3_REGION>          S3/Minio region [env: S3_REGION=local]
-      --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
+      --s3-endpoint <S3_ENDPOINT>      S3/RustFS endpoint [env: S3_ENDPOINT=https://rustfslocal:9000]
+      --s3-access-key <S3_ACCESS_KEY>  S3/RustFS access key [env: S3_ACCESS_KEY=rustfsadmin]
+      --s3-secret-key <S3_SECRET_KEY>  S3/RustFS secret key [env: S3_SECRET_KEY]
+      --s3-bucket <S3_BUCKET>          S3/RustFS bucket [env: S3_BUCKET=pgbackups]
+      --s3-region <S3_REGION>          S3/RustFS region [env: S3_REGION=local]
+      --s3-prefix <S3_PREFIX>          S3/RustFS bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
       --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
       --log-file <LOG_FILE>            Log file location [env: LOG_FILE=pg_actions.log]
@@ -903,12 +903,12 @@ Options:
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
       --psql <PSQL>                    Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
-      --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
-      --s3-access-key <S3_ACCESS_KEY>  S3/Minio access key [env: S3_ACCESS_KEY=minio]
-      --s3-secret-key <S3_SECRET_KEY>  S3/Minio secret key [env: S3_SECRET_KEY]
-      --s3-bucket <S3_BUCKET>          S3/Minio bucket [env: S3_BUCKET=pgbackups]
-      --s3-region <S3_REGION>          S3/Minio region [env: S3_REGION=local]
-      --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
+      --s3-endpoint <S3_ENDPOINT>      S3/RustFS endpoint [env: S3_ENDPOINT=https://rustfslocal:9000]
+      --s3-access-key <S3_ACCESS_KEY>  S3/RustFS access key [env: S3_ACCESS_KEY=rustfsadmin]
+      --s3-secret-key <S3_SECRET_KEY>  S3/RustFS secret key [env: S3_SECRET_KEY]
+      --s3-bucket <S3_BUCKET>          S3/RustFS bucket [env: S3_BUCKET=pgbackups]
+      --s3-region <S3_REGION>          S3/RustFS region [env: S3_REGION=local]
+      --s3-prefix <S3_PREFIX>          S3/RustFS bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
       --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
       --log-file <LOG_FILE>            Log file location [env: LOG_FILE=pg_actions.log]
@@ -959,12 +959,12 @@ Options:
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
       --psql <PSQL>                    Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
-      --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
-      --s3-access-key <S3_ACCESS_KEY>  S3/Minio access key [env: S3_ACCESS_KEY=minio]
-      --s3-secret-key <S3_SECRET_KEY>  S3/Minio secret key [env: S3_SECRET_KEY]
-      --s3-bucket <S3_BUCKET>          S3/Minio bucket [env: S3_BUCKET=pgbackups]
-      --s3-region <S3_REGION>          S3/Minio region [env: S3_REGION=local]
-      --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
+      --s3-endpoint <S3_ENDPOINT>      S3/RustFS endpoint [env: S3_ENDPOINT=https://rustfslocal:9000]
+      --s3-access-key <S3_ACCESS_KEY>  S3/RustFS access key [env: S3_ACCESS_KEY=rustfsadmin]
+      --s3-secret-key <S3_SECRET_KEY>  S3/RustFS secret key [env: S3_SECRET_KEY]
+      --s3-bucket <S3_BUCKET>          S3/RustFS bucket [env: S3_BUCKET=pgbackups]
+      --s3-region <S3_REGION>          S3/RustFS region [env: S3_REGION=local]
+      --s3-prefix <S3_PREFIX>          S3/RustFS bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
       --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
       --log-file <LOG_FILE>            Log file location [env: LOG_FILE=pg_actions.log]
@@ -1017,12 +1017,12 @@ Options:
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
       --psql <PSQL>                    Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
-      --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
-      --s3-access-key <S3_ACCESS_KEY>  S3/Minio access key [env: S3_ACCESS_KEY=minio]
-      --s3-secret-key <S3_SECRET_KEY>  S3/Minio secret key [env: S3_SECRET_KEY]
-      --s3-bucket <S3_BUCKET>          S3/Minio bucket [env: S3_BUCKET=pgbackups]
-      --s3-region <S3_REGION>          S3/Minio region [env: S3_REGION=local]
-      --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
+      --s3-endpoint <S3_ENDPOINT>      S3/RustFS endpoint [env: S3_ENDPOINT=https://rustfslocal:9000]
+      --s3-access-key <S3_ACCESS_KEY>  S3/RustFS access key [env: S3_ACCESS_KEY=rustfsadmin]
+      --s3-secret-key <S3_SECRET_KEY>  S3/RustFS secret key [env: S3_SECRET_KEY]
+      --s3-bucket <S3_BUCKET>          S3/RustFS bucket [env: S3_BUCKET=pgbackups]
+      --s3-region <S3_REGION>          S3/RustFS region [env: S3_REGION=local]
+      --s3-prefix <S3_PREFIX>          S3/RustFS bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
       --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
       --log-file <LOG_FILE>            Log file location [env: LOG_FILE=pg_actions.log]
@@ -1056,12 +1056,12 @@ Options:
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
       --psql <PSQL>                    Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
-      --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
-      --s3-access-key <S3_ACCESS_KEY>  S3/Minio access key [env: S3_ACCESS_KEY=minio]
-      --s3-secret-key <S3_SECRET_KEY>  S3/Minio secret key [env: S3_SECRET_KEY]
-      --s3-bucket <S3_BUCKET>          S3/Minio bucket [env: S3_BUCKET=pgbackups]
-      --s3-region <S3_REGION>          S3/Minio region [env: S3_REGION=local]
-      --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
+      --s3-endpoint <S3_ENDPOINT>      S3/RustFS endpoint [env: S3_ENDPOINT=https://rustfslocal:9000]
+      --s3-access-key <S3_ACCESS_KEY>  S3/RustFS access key [env: S3_ACCESS_KEY=rustfsadmin]
+      --s3-secret-key <S3_SECRET_KEY>  S3/RustFS secret key [env: S3_SECRET_KEY]
+      --s3-bucket <S3_BUCKET>          S3/RustFS bucket [env: S3_BUCKET=pgbackups]
+      --s3-region <S3_REGION>          S3/RustFS region [env: S3_REGION=local]
+      --s3-prefix <S3_PREFIX>          S3/RustFS bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
       --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
       --log-file <LOG_FILE>            Log file location [env: LOG_FILE=pg_actions.log]
@@ -1125,12 +1125,12 @@ Options:
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
       --psql <PSQL>                    Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
-      --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
-      --s3-access-key <S3_ACCESS_KEY>  S3/Minio access key [env: S3_ACCESS_KEY=minio]
-      --s3-secret-key <S3_SECRET_KEY>  S3/Minio secret key [env: S3_SECRET_KEY]
-      --s3-bucket <S3_BUCKET>          S3/Minio bucket [env: S3_BUCKET=pgbackups]
-      --s3-region <S3_REGION>          S3/Minio region [env: S3_REGION=local]
-      --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
+      --s3-endpoint <S3_ENDPOINT>      S3/RustFS endpoint [env: S3_ENDPOINT=https://rustfslocal:9000]
+      --s3-access-key <S3_ACCESS_KEY>  S3/RustFS access key [env: S3_ACCESS_KEY=rustfsadmin]
+      --s3-secret-key <S3_SECRET_KEY>  S3/RustFS secret key [env: S3_SECRET_KEY]
+      --s3-bucket <S3_BUCKET>          S3/RustFS bucket [env: S3_BUCKET=pgbackups]
+      --s3-region <S3_REGION>          S3/RustFS region [env: S3_REGION=local]
+      --s3-prefix <S3_PREFIX>          S3/RustFS bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
       --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
       --log-file <LOG_FILE>            Log file location [env: LOG_FILE=pg_actions.log]
@@ -1173,12 +1173,12 @@ Options:
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
       --psql <PSQL>                    Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
-      --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
-      --s3-access-key <S3_ACCESS_KEY>  S3/Minio access key [env: S3_ACCESS_KEY=minio]
-      --s3-secret-key <S3_SECRET_KEY>  S3/Minio secret key [env: S3_SECRET_KEY]
-      --s3-bucket <S3_BUCKET>          S3/Minio bucket [env: S3_BUCKET=pgbackups]
-      --s3-region <S3_REGION>          S3/Minio region [env: S3_REGION=local]
-      --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
+      --s3-endpoint <S3_ENDPOINT>      S3/RustFS endpoint [env: S3_ENDPOINT=https://rustfslocal:9000]
+      --s3-access-key <S3_ACCESS_KEY>  S3/RustFS access key [env: S3_ACCESS_KEY=rustfsadmin]
+      --s3-secret-key <S3_SECRET_KEY>  S3/RustFS secret key [env: S3_SECRET_KEY]
+      --s3-bucket <S3_BUCKET>          S3/RustFS bucket [env: S3_BUCKET=pgbackups]
+      --s3-region <S3_REGION>          S3/RustFS region [env: S3_REGION=local]
+      --s3-prefix <S3_PREFIX>          S3/RustFS bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
       --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
       --log-file <LOG_FILE>            Log file location [env: LOG_FILE=pg_actions.log]
@@ -1218,12 +1218,12 @@ Options:
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
       --psql <PSQL>                    Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
-      --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
-      --s3-access-key <S3_ACCESS_KEY>  S3/Minio access key [env: S3_ACCESS_KEY=minio]
-      --s3-secret-key <S3_SECRET_KEY>  S3/Minio secret key [env: S3_SECRET_KEY]
-      --s3-bucket <S3_BUCKET>          S3/Minio bucket [env: S3_BUCKET=pgbackups]
-      --s3-region <S3_REGION>          S3/Minio region [env: S3_REGION=local]
-      --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
+      --s3-endpoint <S3_ENDPOINT>      S3/RustFS endpoint [env: S3_ENDPOINT=https://rustfslocal:9000]
+      --s3-access-key <S3_ACCESS_KEY>  S3/RustFS access key [env: S3_ACCESS_KEY=rustfsadmin]
+      --s3-secret-key <S3_SECRET_KEY>  S3/RustFS secret key [env: S3_SECRET_KEY]
+      --s3-bucket <S3_BUCKET>          S3/RustFS bucket [env: S3_BUCKET=pgbackups]
+      --s3-region <S3_REGION>          S3/RustFS region [env: S3_REGION=local]
+      --s3-prefix <S3_PREFIX>          S3/RustFS bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
       --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
       --log-file <LOG_FILE>            Log file location [env: LOG_FILE=pg_actions.log]
@@ -1277,12 +1277,12 @@ Options:
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
       --psql <PSQL>                    Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
-      --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
-      --s3-access-key <S3_ACCESS_KEY>  S3/Minio access key [env: S3_ACCESS_KEY=minio]
-      --s3-secret-key <S3_SECRET_KEY>  S3/Minio secret key [env: S3_SECRET_KEY]
-      --s3-bucket <S3_BUCKET>          S3/Minio bucket [env: S3_BUCKET=pgbackups]
-      --s3-region <S3_REGION>          S3/Minio region [env: S3_REGION=local]
-      --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
+      --s3-endpoint <S3_ENDPOINT>      S3/RustFS endpoint [env: S3_ENDPOINT=https://rustfslocal:9000]
+      --s3-access-key <S3_ACCESS_KEY>  S3/RustFS access key [env: S3_ACCESS_KEY=rustfsadmin]
+      --s3-secret-key <S3_SECRET_KEY>  S3/RustFS secret key [env: S3_SECRET_KEY]
+      --s3-bucket <S3_BUCKET>          S3/RustFS bucket [env: S3_BUCKET=pgbackups]
+      --s3-region <S3_REGION>          S3/RustFS region [env: S3_REGION=local]
+      --s3-prefix <S3_PREFIX>          S3/RustFS bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
       --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
       --log-file <LOG_FILE>            Log file location [env: LOG_FILE=pg_actions.log]
@@ -1315,12 +1315,12 @@ Options:
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
       --psql <PSQL>                    Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
-      --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
-      --s3-access-key <S3_ACCESS_KEY>  S3/Minio access key [env: S3_ACCESS_KEY=minio]
-      --s3-secret-key <S3_SECRET_KEY>  S3/Minio secret key [env: S3_SECRET_KEY]
-      --s3-bucket <S3_BUCKET>          S3/Minio bucket [env: S3_BUCKET=pgbackups]
-      --s3-region <S3_REGION>          S3/Minio region [env: S3_REGION=local]
-      --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
+      --s3-endpoint <S3_ENDPOINT>      S3/RustFS endpoint [env: S3_ENDPOINT=https://rustfslocal:9000]
+      --s3-access-key <S3_ACCESS_KEY>  S3/RustFS access key [env: S3_ACCESS_KEY=rustfsadmin]
+      --s3-secret-key <S3_SECRET_KEY>  S3/RustFS secret key [env: S3_SECRET_KEY]
+      --s3-bucket <S3_BUCKET>          S3/RustFS bucket [env: S3_BUCKET=pgbackups]
+      --s3-region <S3_REGION>          S3/RustFS region [env: S3_REGION=local]
+      --s3-prefix <S3_PREFIX>          S3/RustFS bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
       --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
       --log-file <LOG_FILE>            Log file location [env: LOG_FILE=pg_actions.log]
@@ -1373,12 +1373,12 @@ Options:
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
       --psql <PSQL>                    Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
-      --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
-      --s3-access-key <S3_ACCESS_KEY>  S3/Minio access key [env: S3_ACCESS_KEY=minio]
-      --s3-secret-key <S3_SECRET_KEY>  S3/Minio secret key [env: S3_SECRET_KEY]
-      --s3-bucket <S3_BUCKET>          S3/Minio bucket [env: S3_BUCKET=pgbackups]
-      --s3-region <S3_REGION>          S3/Minio region [env: S3_REGION=local]
-      --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
+      --s3-endpoint <S3_ENDPOINT>      S3/RustFS endpoint [env: S3_ENDPOINT=https://rustfslocal:9000]
+      --s3-access-key <S3_ACCESS_KEY>  S3/RustFS access key [env: S3_ACCESS_KEY=rustfsadmin]
+      --s3-secret-key <S3_SECRET_KEY>  S3/RustFS secret key [env: S3_SECRET_KEY]
+      --s3-bucket <S3_BUCKET>          S3/RustFS bucket [env: S3_BUCKET=pgbackups]
+      --s3-region <S3_REGION>          S3/RustFS region [env: S3_REGION=local]
+      --s3-prefix <S3_PREFIX>          S3/RustFS bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
       --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
       --log-file <LOG_FILE>            Log file location [env: LOG_FILE=pg_actions.log]
@@ -1417,12 +1417,12 @@ Options:
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
       --psql <PSQL>                    Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
-      --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
-      --s3-access-key <S3_ACCESS_KEY>  S3/Minio access key [env: S3_ACCESS_KEY=minio]
-      --s3-secret-key <S3_SECRET_KEY>  S3/Minio secret key [env: S3_SECRET_KEY]
-      --s3-bucket <S3_BUCKET>          S3/Minio bucket [env: S3_BUCKET=pgbackups]
-      --s3-region <S3_REGION>          S3/Minio region [env: S3_REGION=local]
-      --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
+      --s3-endpoint <S3_ENDPOINT>      S3/RustFS endpoint [env: S3_ENDPOINT=https://rustfslocal:9000]
+      --s3-access-key <S3_ACCESS_KEY>  S3/RustFS access key [env: S3_ACCESS_KEY=rustfsadmin]
+      --s3-secret-key <S3_SECRET_KEY>  S3/RustFS secret key [env: S3_SECRET_KEY]
+      --s3-bucket <S3_BUCKET>          S3/RustFS bucket [env: S3_BUCKET=pgbackups]
+      --s3-region <S3_REGION>          S3/RustFS region [env: S3_REGION=local]
+      --s3-prefix <S3_PREFIX>          S3/RustFS bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
       --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
       --log-file <LOG_FILE>            Log file location [env: LOG_FILE=pg_actions.log]
@@ -1461,12 +1461,12 @@ Options:
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
       --psql <PSQL>                    Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
-      --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
-      --s3-access-key <S3_ACCESS_KEY>  S3/Minio access key [env: S3_ACCESS_KEY=minio]
-      --s3-secret-key <S3_SECRET_KEY>  S3/Minio secret key [env: S3_SECRET_KEY]
-      --s3-bucket <S3_BUCKET>          S3/Minio bucket [env: S3_BUCKET=pgbackups]
-      --s3-region <S3_REGION>          S3/Minio region [env: S3_REGION=local]
-      --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
+      --s3-endpoint <S3_ENDPOINT>      S3/RustFS endpoint [env: S3_ENDPOINT=https://rustfslocal:9000]
+      --s3-access-key <S3_ACCESS_KEY>  S3/RustFS access key [env: S3_ACCESS_KEY=rustfsadmin]
+      --s3-secret-key <S3_SECRET_KEY>  S3/RustFS secret key [env: S3_SECRET_KEY]
+      --s3-bucket <S3_BUCKET>          S3/RustFS bucket [env: S3_BUCKET=pgbackups]
+      --s3-region <S3_REGION>          S3/RustFS region [env: S3_REGION=local]
+      --s3-prefix <S3_PREFIX>          S3/RustFS bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
       --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
       --log-file <LOG_FILE>            Log file location [env: LOG_FILE=pg_actions.log]
@@ -1548,12 +1548,12 @@ Options:
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
       --psql <PSQL>                    Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
-      --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
-      --s3-access-key <S3_ACCESS_KEY>  S3/Minio access key [env: S3_ACCESS_KEY=minio]
-      --s3-secret-key <S3_SECRET_KEY>  S3/Minio secret key [env: S3_SECRET_KEY]
-      --s3-bucket <S3_BUCKET>          S3/Minio bucket [env: S3_BUCKET=pgbackups]
-      --s3-region <S3_REGION>          S3/Minio region [env: S3_REGION=local]
-      --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
+      --s3-endpoint <S3_ENDPOINT>      S3/RustFS endpoint [env: S3_ENDPOINT=https://rustfslocal:9000]
+      --s3-access-key <S3_ACCESS_KEY>  S3/RustFS access key [env: S3_ACCESS_KEY=rustfsadmin]
+      --s3-secret-key <S3_SECRET_KEY>  S3/RustFS secret key [env: S3_SECRET_KEY]
+      --s3-bucket <S3_BUCKET>          S3/RustFS bucket [env: S3_BUCKET=pgbackups]
+      --s3-region <S3_REGION>          S3/RustFS region [env: S3_REGION=local]
+      --s3-prefix <S3_PREFIX>          S3/RustFS bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
       --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
       --log-file <LOG_FILE>            Log file location [env: LOG_FILE=pg_actions.log]

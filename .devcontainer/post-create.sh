@@ -48,10 +48,19 @@ sudo update-ca-certificates
 echo "Running cargo fetch"
 cargo fetch --locked
 
-# MiniO
-echo "Running minio setup"
-mc alias set locpg https://miniolocal:9000 minio minio123
-mc admin info locpg
+# RustFS
+echo "Running RustFS setup"
+until AWS_ACCESS_KEY_ID="$S3_ACCESS_KEY" AWS_SECRET_ACCESS_KEY="$S3_SECRET_KEY" \
+    aws --endpoint-url "$S3_ENDPOINT" --region "$S3_REGION" s3api list-buckets >/dev/null; do
+    echo "Waiting for RustFS to accept S3 connections"
+    sleep 2
+done
 # create bucket
-mc mb locpg/$S3_BUCKET
-echo "See minio details with \`mc admin info locpg\`"
+if ! AWS_ACCESS_KEY_ID="$S3_ACCESS_KEY" AWS_SECRET_ACCESS_KEY="$S3_SECRET_KEY" \
+    aws --endpoint-url "$S3_ENDPOINT" --region "$S3_REGION" s3api head-bucket --bucket "$S3_BUCKET" 2>/dev/null; then
+    AWS_ACCESS_KEY_ID="$S3_ACCESS_KEY" AWS_SECRET_ACCESS_KEY="$S3_SECRET_KEY" \
+        aws --endpoint-url "$S3_ENDPOINT" --region "$S3_REGION" s3api create-bucket --bucket "$S3_BUCKET"
+fi
+AWS_ACCESS_KEY_ID="$S3_ACCESS_KEY" AWS_SECRET_ACCESS_KEY="$S3_SECRET_KEY" \
+    aws --endpoint-url "$S3_ENDPOINT" --region "$S3_REGION" s3api list-buckets
+echo "See RustFS buckets with \`aws --endpoint-url $S3_ENDPOINT s3api list-buckets\`"

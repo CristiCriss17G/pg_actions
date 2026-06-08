@@ -15,10 +15,6 @@
     "ghcr.io/devcontainers/features/git:1": {
       "ppa": true,
       "version": "latest"
-    },
-    "ghcr.io/christophermacgown/devcontainer-features/minio-client:1": {
-      "vendor": "linux",
-      "architecture": "amd64"
     }
   },
 
