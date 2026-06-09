@@ -11,6 +11,7 @@
 - [Usage](#usage)
 - [Command reference](#command-reference)
 - [CI/CD usage](#cicd-usage)
+- [License](#license)
 
 ## Description
 
@@ -1560,3 +1561,7 @@ clone:
 ```
 
 This assumes that the variables `PG_HOSTNAME`, `PG_PORT` (optional), `PG_SUPERUSER`, and `PG_PASS` are set in the environment.
+
+## License
+
+`pg_actions` is licensed under the GNU Affero General Public License v3.0 only. See [LICENSE](LICENSE) for the full license text.

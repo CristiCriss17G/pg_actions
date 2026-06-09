@@ -36,6 +36,7 @@ LABEL org.opencontainers.image.maintainer="Cristian Iordachescu <53430981+Cristi
 LABEL org.opencontainers.image.version="1.5.1"
 LABEL org.opencontainers.image.title="Postgres actions cli"
 LABEL org.opencontainers.image.description="This is a Dockerfile for running postgres-db-actions. For more information visit run with --help."
+LABEL org.opencontainers.image.licenses="AGPL-3.0-only"
 
 RUN apk update && apk upgrade --no-cache && apk add --no-cache bash ca-certificates postgresql${POSTGRES_VERSION}-client \
     && rm -rf /var/cache/apk/*
@@ -60,6 +61,7 @@ WORKDIR /pghome
 
 # Copy the executable from the "build" stage.
 COPY --from=build /bin/${APP_NAME} /bin/
+COPY LICENSE /usr/share/licenses/pg_actions/LICENSE
 
 ENV PG_HOSTNAME="localhost"
 ENV PG_SUPERUSER="postgres"

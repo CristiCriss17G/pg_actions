@@ -130,7 +130,12 @@ jobs:
           rm -f debian/dynamic/usr/local/bin/.gitkeep
           cp "${APP_NAME}-static" "debian/static/usr/local/bin/${APP_NAME}"
           rm -f debian/static/usr/local/bin/.gitkeep
-          chmod -R 755 debian/
+          install -Dm644 LICENSE debian/dynamic/usr/share/doc/pg-actions/LICENSE
+          install -Dm644 LICENSE debian/static/usr/share/doc/pg-actions/LICENSE
+          find debian -type d -exec chmod 755 {} +
+          find debian -type f -exec chmod 644 {} +
+          chmod 755 "debian/dynamic/usr/local/bin/$APP_NAME"
+          chmod 755 "debian/static/usr/local/bin/$APP_NAME"
           dpkg-deb --build debian/dynamic "${APP_NAME}_${RELEASE_VERSION}_amd64.deb"
           dpkg-deb --build debian/static "${APP_NAME}-static_${RELEASE_VERSION}_amd64.deb"
 

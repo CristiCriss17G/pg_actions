@@ -5,6 +5,7 @@ edition = "2021"
 authors = [
     'Cristian Iordachescu <53430981+CristiCriss17G@users.noreply.github.com>',
 ]
+license = "AGPL-3.0-only"
 rust-version = "1.96"
 
 [profile.release]
