@@ -238,7 +238,7 @@ async fn get_file_location<P: AsRef<Path>>(
             input_location
         };
         // get the last part of the input location as the file name
-        let temp_file_name = PathBuf::from(input_location.split('/').last().unwrap());
+        let temp_file_name = PathBuf::from(input_location.split('/').next_back().unwrap());
         let temp_dir = PathBuf::from(r"/tmp/psql_backup/");
         let temp_file = temp_dir.join(&temp_file_name);
 

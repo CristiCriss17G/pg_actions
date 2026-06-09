@@ -18,17 +18,20 @@ services:
 
     # Use "forwardPorts" in **devcontainer.json** to forward an app port locally.
     # (Adding the "ports" property to this file will not forward from a Codespace.)
-  miniolocal:
-    image: quay.io/minio/minio
-    command: server /data --console-address ":9001" --certs-dir /opt/certs
+  rustfslocal:
+    image: rustfs/rustfs:latest
+    command: /data
+    user: "0:0"
     ports:
       - 9000:9000
       - 9001:9001
     networks:
       - postgres_db_actions_network
     volumes:
-      - miniolocal:/data
-      - ../certs:/opt/certs:ro
+      - rustfslocal:/data
+      - ../certs/public.crt:/opt/certs/rustfs_cert.pem:ro
+      - ../certs/private.key:/opt/certs/rustfs_key.pem:ro
+      - ../certs/CAs:/opt/certs/CAs:ro
     env_file:
       - devcontainer.env
   db:
@@ -61,7 +64,7 @@ services:
 
 volumes:
   db:
-  miniolocal:
+  rustfslocal:
 
 networks:
   postgres_db_actions_network:

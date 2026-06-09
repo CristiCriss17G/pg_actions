@@ -1,84 +1,29 @@
 # Postgres database actions
 
-[![pipeline status](https://gitlab.com/iv_future/infrastructure/docker-tools/postgres-db-actions/badges/main/pipeline.svg)](https://gitlab.com/iv_future/infrastructure/docker-tools/postgres-db-actions/-/commits/main)
+[![CI](https://github.com/CristiCriss17G/pg_actions/actions/workflows/ci.yml/badge.svg)](https://github.com/CristiCriss17G/pg_actions/actions/workflows/ci.yml)
 
-[![Latest Release](https://gitlab.com/iv_future/infrastructure/docker-tools/postgres-db-actions/-/badges/release.svg)](https://gitlab.com/iv_future/infrastructure/docker-tools/postgres-db-actions/-/releases)
+[![Latest Release](https://img.shields.io/github/v/release/CristiCriss17G/pg_actions?label=latest%20release)](https://github.com/CristiCriss17G/pg_actions/releases/latest)
 
-## 1. <a name='Tableofcontents'></a>Table of contents
-<!-- vscode-markdown-toc -->
-* 1. [Table of contents](#Tableofcontents)
-* 2. [Description](#Description)
-* 3. [Installation](#Installation)
-  * 3.1. [Requirements](#Requirements)
-  * 3.2. [Distribution](#Distribution)
-  * 3.3. [Utilization](#Utilization)
-    * 3.3.1. [Docker](#Docker)
-    * 3.3.2. [Executables](#Executables)
-    * 3.3.3. [Deb package](#Debpackage)
-* 4. [Usage](#Usage)
-  * 4.1. [Docker run](#Dockerrun)
-    * 4.1.1. [Mount .pgpass file](#Mount.pgpassfile)
-  * 4.2. [Executables run](#Executablesrun)
-  * 4.3. [Main variables](#Mainvariables)
-  * 4.4. [Authentication](#Authentication)
-    * 4.4.1. [Example](#Example)
-  * 4.5. [Mention](#Mention)
-* 5. [CLI structure and examples](#CLIstructureandexamples)
-  * 5.1. [Help command](#Helpcommand)
-  * 5.2. [Clone command](#Clonecommand)
-    * 5.2.1. [Available aliases](#Availablealiases)
-    * 5.2.2. [Help section](#Helpsection)
-    * 5.2.3. [Example](#Example-1)
-  * 5.3. [Backup command](#Backupcommand)
-    * 5.3.1. [Help section](#Helpsection-1)
-    * 5.3.2. [Example](#Example-1)
-    * 5.3.3. [Backup Command Test Cases Documentation](#BackupCommandTestCasesDocumentation)
-  * 5.4. [Restore command](#Restorecommand)
-    * 5.4.1. [Help section](#Helpsection-1)
-    * 5.4.2. [Example](#Example-1)
-  * 5.5. [User operations](#Useroperations)
-    * 5.5.1. [Help section](#Helpsection-1)
-    * 5.5.2. [List users](#Listusers)
-    * 5.5.3. [Create a user](#Createauser)
-    * 5.5.4. [Delete a user](#Deleteauser)
-    * 5.5.5. [Update a user](#Updateauser)
-    * 5.5.6. [Grant privileges to a user](#Grantprivilegestoauser)
-    * 5.5.7. [Revoke privileges from a user](#Revokeprivilegesfromauser)
-  * 5.6. [Database operations](#Databaseoperations)
-    * 5.6.1. [Help section](#Helpsection-1)
-    * 5.6.2. [List databases](#Listdatabases)
-    * 5.6.3. [Create a database](#Createadatabase)
-    * 5.6.4. [Delete a database](#Deleteadatabase)
-    * 5.6.5. [Update a database](#Updateadatabase)
-    * 5.6.6. [Extension operations](#Extensionoperations)
-    * 5.6.7. [List extensions](#Listextensions)
-    * 5.6.8. [Create an extension](#Createanextension)
-    * 5.6.9. [Delete an extension](#Deleteanextension)
-  * 5.7. [CLI completion](#CLIcompletion)
-    * 5.7.1. [Help section](#Helpsection-1)
-  * 5.8. [Tools checking](#Toolschecking)
-    * 5.8.1. [Available aliases](#Availablealiases-1)
-    * 5.8.2. [Help section](#Helpsection-1)
-* 6. [CI/CD usage](#CICDusage)
-  * 6.1. [Gitlab CI/CD](#GitlabCICD)
+## Contents
 
-<!-- vscode-markdown-toc-config
-	numbering=true
-	autoSave=true
-	/vscode-markdown-toc-config -->
-<!-- /vscode-markdown-toc -->
+- [Description](#description)
+- [Installation](#installation)
+- [Usage](#usage)
+- [Command reference](#command-reference)
+- [CI/CD usage](#cicd-usage)
+- [License](#license)
 
-## 2. <a name='Description'></a>Description
+## Description
 
-`pg_actions` is a small executable that allows various operation on a PostgreSQL database, form the administrative side. It can clone a database, backup a database, restore a database, create, delete, update a user, create, delete, update a database, and list users and databases.
+`pg_actions` is a small executable for administrative PostgreSQL database operations. It can clone a database, back up a database, restore a database, create, delete, and update users, create, delete, and update databases, and list users and databases.
 
-## 3. <a name='Installation'></a>Installation
+## Installation
 
-### 3.1. <a name='Requirements'></a>Requirements
+### Requirements
 
-* `openssl (>= 3.0.0)` - Required for the `pg_actions` executable, it is used for the encryption and decryption of the database connection and S3/Minio authentication.
+* `openssl (>= 3.0.0)` - Required for the `pg_actions` executable, it is used for the encryption and decryption of the database connection and S3/RustFS authentication.
 * `xz-utils` - Required for the `pg_actions` executable, it is used for the compression and decompression of the backup files.
-* `pg_dump`, `pg_restore` and `psql` `(>=16.0)` - Optional, but recommended, they are used for the backup and clone operations, if they are not installed, the executable will fail to perform these operations. For installation, see the [Postgres documentation](https://www.postgresql.org/download/).
+* `pg_dump`, `pg_restore`, and `psql` `(>=16.0)` - Optional, but recommended for backup and clone operations. If they are not installed, the executable will fail to perform these operations. For installation, see the [Postgres documentation](https://www.postgresql.org/download/).
   * Ubuntu/Debian:
 
   ```bash
@@ -94,11 +39,11 @@
   apk add postgresql16-client
   ```
 
-### 3.2. <a name='Distribution'></a>Distribution
+### Distribution
 
 There are 3 main ways to get the executable:
 
-* `Docker` - Recommended for CI/CD pipelines, cronjobs, or any other automated process, or unsupported platforms: `regcr.ivfuture.uk/devops-services/tools/postgres-db-actions:latest`
+* `Docker` - Recommended for CI/CD pipelines, cronjobs, or any other automated process, or unsupported platforms: `ghcr.io/cristicriss17g/pg_actions:latest`
 * `Direct executables` - For local development or testing, or local execution without installation. This is also split into 2 subcategories:
   * `pg_actions` - the main executable, smallest, and most efficient, but it relies on a linux system that has `openssl (>= 3.0.0)` and `xz-utils` installed.
   * `pg_actions-static` - the same as `pg_actions` but statically compiled, so it does not rely on the system libraries.
@@ -106,17 +51,17 @@ There are 3 main ways to get the executable:
   * `pg-actions_${RELEASE_VERSION}_amd64.deb` - the main package, it installs the executable, recommended for Ubuntu 22.04 or newer and Debian 11 or newer.
   * `pg-actions-static_${RELEASE_VERSION}_amd64.deb` - the static package, it installs the statically compiled executable, recommended for older systems or systems that do not have the required libraries.
 
-All downloads can be found in the [releases](https://gitlab.com/iv_future/infrastructure/docker-tools/postgres-db-actions/-/releases) section.
+All downloads can be found in the [releases](https://github.com/CristiCriss17G/pg_actions/releases) section.
 
-### 3.3. <a name='Utilization'></a>Utilization
+### Basic usage
 
-#### 3.3.1. <a name='Docker'></a>Docker
+#### Docker
 
 ```bash
-docker run -e PG_HOSTNAME -e PG_SUPERUSER -e PG_PASS -e PG_PORT -e S3_ENDPOINT -e S3_ACCESS_KEY -e S3_SECRET_KEY -e S3_BUCKET -e S3_PREFIX -e S3_REGION -it --rm regcr.ivfuture.uk/devops-services/tools/postgres-db-actions:latest help
+docker run -e PG_HOSTNAME -e PG_SUPERUSER -e PG_PASS -e PG_PORT -e S3_ENDPOINT -e S3_ACCESS_KEY -e S3_SECRET_KEY -e S3_BUCKET -e S3_PREFIX -e S3_REGION -it --rm ghcr.io/cristicriss17g/pg_actions:latest help
 ```
 
-#### 3.3.2. <a name='Executables'></a>Executables
+#### Executables
 
 ```bash
 ./pg_actions help
@@ -126,7 +71,7 @@ docker run -e PG_HOSTNAME -e PG_SUPERUSER -e PG_PASS -e PG_PORT -e S3_ENDPOINT -
 ./pg_actions-static help
 ```
 
-#### 3.3.3. <a name='Debpackage'></a>Deb package
+#### Deb package
 
 *Note: replace `${RELEASE_VERSION}` with the desired version.*
 
@@ -146,25 +91,25 @@ pg_actions help
 
 > Note 1: Both installers will create the same `pg_actions` executable command, but the `pg_actions-static` will be statically compiled and will not require the system libraries.
 
-> Note 2: The `apt install` method is proffered compared to `dpkg -i` because it will automatically install the dependencies.
+> Note 2: The `apt install` method is preferred compared to `dpkg -i` because it will automatically install the dependencies.
 
-## 4. <a name='Usage'></a>Usage
+## Usage
 
-### 4.1. <a name='Dockerrun'></a>Docker run
+### Docker run
 
 ```bash
-docker run -e PG_HOSTNAME -e PG_SUPERUSER -e PG_PASS -e PG_PORT -e S3_ENDPOINT -e S3_ACCESS_KEY -e S3_SECRET_KEY -e S3_BUCKET -e S3_PREFIX -e S3_REGION -it --rm regcr.ivfuture.uk/devops-services/tools/postgres-db-actions:latest help
+docker run -e PG_HOSTNAME -e PG_SUPERUSER -e PG_PASS -e PG_PORT -e S3_ENDPOINT -e S3_ACCESS_KEY -e S3_SECRET_KEY -e S3_BUCKET -e S3_PREFIX -e S3_REGION -it --rm ghcr.io/cristicriss17g/pg_actions:latest help
 ```
 
-#### 4.1.1. <a name='Mount.pgpassfile'></a>Mount .pgpass file
+#### Mount .pgpass file
 
 ```bash
-docker run -v $HOME/.pgpass:/pghome/.pgpass -e PG_HOSTNAME -e PG_SUPERUSER -e PG_PASS -e PG_PORT -e S3_ENDPOINT -e S3_ACCESS_KEY -e S3_SECRET_KEY -e S3_BUCKET -e S3_PREFIX -e S3_REGION -it --rm regcr.ivfuture.uk/devops-services/tools/postgres-db-actions:latest help
+docker run -v $HOME/.pgpass:/pghome/.pgpass -e PG_HOSTNAME -e PG_SUPERUSER -e PG_PASS -e PG_PORT -e S3_ENDPOINT -e S3_ACCESS_KEY -e S3_SECRET_KEY -e S3_BUCKET -e S3_PREFIX -e S3_REGION -it --rm ghcr.io/cristicriss17g/pg_actions:latest help
 ```
 
 > The flags with `-e` are optional and can be passed as arguments to the command.
 
-### 4.2. <a name='Executablesrun'></a>Executables run
+### Executables run
 
 ```bash
 pg_actions help
@@ -178,7 +123,7 @@ pg_actions help
 
 > For the rest of the documentation, the `pg_actions` command will be used, but it can be replaced with `./pg_actions-static` if the static executable is used; or the docker command.
 
-### 4.3. <a name='Mainvariables'></a>Main variables
+### Main variables
 
 They can be either set as environment variables or passed as arguments.
 
@@ -191,14 +136,14 @@ Main variables for database connection:
 
 These variables can be simplified by using a `.pgpass` file in the user's home directory. For more information about the `.pgpass` file, see the [Postgres documentation](https://www.postgresql.org/docs/current/libpq-pgpass.html).
 
-Main variables for S3/Minio, these are required just for the backup operation, but they can be used for all operations that require S3/Minio storage:
+Main variables for S3/RustFS, these are required just for the backup operation, but they can be used for all operations that require S3/RustFS storage:
 
-* `S3_ENDPOINT` - `--s3-endpoint` - S3/Minio endpoint
-* `S3_ACCESS_KEY` - `--s3-access-key` - S3/Minio access key
-* `S3_SECRET_KEY` - `--s3-secret-key` - S3/Minio secret key
-* `S3_BUCKET` - `--s3-bucket` - S3/Minio bucket
-* `S3_REGION` - `--s3-region` - S3/Minio region
-* `S3_PREFIX` - `--s3-prefix` - S3/Minio bucket prefix/folder
+* `S3_ENDPOINT` - `--s3-endpoint` - S3/RustFS endpoint
+* `S3_ACCESS_KEY` - `--s3-access-key` - S3/RustFS access key
+* `S3_SECRET_KEY` - `--s3-secret-key` - S3/RustFS secret key
+* `S3_BUCKET` - `--s3-bucket` - S3/RustFS bucket
+* `S3_REGION` - `--s3-region` - S3/RustFS region
+* `S3_PREFIX` - `--s3-prefix` - S3/RustFS bucket prefix/folder
 
 Optional variables:
 
@@ -206,12 +151,12 @@ Optional variables:
 * `PG_RESTORE` - `--pg-restore` - Path to the `pg_restore` executable, defaults to `pg_restore` from the system path
 * `USE_JSON_LOGGING` - `--use-json-logging` - Use JSON logging, defaults to false
 
-### 4.4. <a name='Authentication'></a>Authentication
+### Authentication
 
 As mentioned previously, the executable can read the `.pgpass` file, but it can also read the `PG_HOSTNAME`, `PG_SUPERUSER`, `PG_PASS`, and `PG_PORT` environment variables, or they can be passed as arguments.
-But in th case that a `.pgpass` file is read, the environment variable `PG_HOSTNAME` or the equivalent argument are still needed to be passed, as the `.pgpass` file does not contain just one hostname, but multiple, so the executable needs to know which one to use.
+When a `.pgpass` file is read, the environment variable `PG_HOSTNAME` or the equivalent argument still needs to be passed. The `.pgpass` file can contain multiple hostnames, so the executable needs to know which one to use.
 
-#### 4.4.1. <a name='Example'></a>Example
+#### Example
 
 ```bash
 # .pgpass file
@@ -223,17 +168,17 @@ my_host2:5432:*my_db*:my_user:my_password
 pg_actions -H my_host help
 ```
 
-### 4.5. <a name='Mention'></a>Mention
+### Logging and verbosity
 
-The cli has a verbose mode, it can be used multiple times to increase the verbosity of the output, at most 2 times, but the default level is `info` so some information will always be printed.
+The CLI has a verbose mode. It can be used multiple times to increase the verbosity of the output, at most 2 times, but the default level is `info` so some information will always be printed.
 The logging information is always printed to stderr, so it can be redirected to a file or to `/dev/null`, while the output is always printed to stdout.
 Docker is the exception, as both the logging and the output are printed to stdout, this is a docker limitation.
 
-## 5. <a name='CLIstructureandexamples'></a>CLI structure and examples
+## Command reference
 
 > The examples assume you are using a `.pgpass` file in the user's home directory, so the commands do not include details about the password or port, but they can be added as arguments.
 
-### 5.1. <a name='Helpcommand'></a>Help command
+### Help command
 
 It prints the help message for the main command or for a specific subcommand. Along with arguments and options, it also prints the environment variables that can be used to set the options.
 
@@ -264,12 +209,12 @@ Options:
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
       --psql <PSQL>                    Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
-      --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
-      --s3-access-key <S3_ACCESS_KEY>  S3/Minio access key [env: S3_ACCESS_KEY=minio]
-      --s3-secret-key <S3_SECRET_KEY>  S3/Minio secret key [env: S3_SECRET_KEY]
-      --s3-bucket <S3_BUCKET>          S3/Minio bucket [env: S3_BUCKET=pgbackups]
-      --s3-region <S3_REGION>          S3/Minio region [env: S3_REGION=local]
-      --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
+      --s3-endpoint <S3_ENDPOINT>      S3/RustFS endpoint [env: S3_ENDPOINT=https://rustfslocal:9000]
+      --s3-access-key <S3_ACCESS_KEY>  S3/RustFS access key [env: S3_ACCESS_KEY=rustfsadmin]
+      --s3-secret-key <S3_SECRET_KEY>  S3/RustFS secret key [env: S3_SECRET_KEY]
+      --s3-bucket <S3_BUCKET>          S3/RustFS bucket [env: S3_BUCKET=pgbackups]
+      --s3-region <S3_REGION>          S3/RustFS region [env: S3_REGION=local]
+      --s3-prefix <S3_PREFIX>          S3/RustFS bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
       --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
       --log-file <LOG_FILE>            Log file location [env: LOG_FILE=pg_actions.log]
@@ -277,16 +222,16 @@ Options:
   -V, --version                        Print version
 ```
 
-### 5.2. <a name='Clonecommand'></a>Clone command
+### Clone command
 
 It clones a database within the same server, or between servers. It can also create the owner user if it does not exist.
 
-#### 5.2.1. <a name='Availablealiases'></a>Available aliases
+#### Available aliases
 
 * `clone` - Clone command
 * `cl` - Clone command alias
 
-#### 5.2.2. <a name='Helpsection'></a>Help section
+#### Help section
 
 ```bash
 pg_actions help clone
@@ -313,15 +258,15 @@ Options:
   -k, --keep-dump                      keep the dump file defaults to false [env: KEEP_DUMP=]
       --psql <PSQL>                    Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
       --pg-hostname2 <PG_HOSTNAME2>    Optional new host [env: PG_HOSTNAME2=]
-      --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
+      --s3-endpoint <S3_ENDPOINT>      S3/RustFS endpoint [env: S3_ENDPOINT=https://rustfslocal:9000]
       --pg-port2 <PG_PORT2>            Optional new port [env: PG_PORT2=] [default: 5432]
-      --s3-access-key <S3_ACCESS_KEY>  S3/Minio access key [env: S3_ACCESS_KEY=minio]
+      --s3-access-key <S3_ACCESS_KEY>  S3/RustFS access key [env: S3_ACCESS_KEY=rustfsadmin]
       --pg-superuser2 <PG_SUPERUSER2>  Optional user for new host [env: PG_SUPERUSER2=]
-      --s3-secret-key <S3_SECRET_KEY>  S3/Minio secret key [env: S3_SECRET_KEY]
+      --s3-secret-key <S3_SECRET_KEY>  S3/RustFS secret key [env: S3_SECRET_KEY]
       --pg-password2 <PG_PASSWORD2>    Optional password for new host [env: PG_PASSWORD2]
-      --s3-bucket <S3_BUCKET>          S3/Minio bucket [env: S3_BUCKET=pgbackups]
-      --s3-region <S3_REGION>          S3/Minio region [env: S3_REGION=local]
-      --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
+      --s3-bucket <S3_BUCKET>          S3/RustFS bucket [env: S3_BUCKET=pgbackups]
+      --s3-region <S3_REGION>          S3/RustFS region [env: S3_REGION=local]
+      --s3-prefix <S3_PREFIX>          S3/RustFS bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
       --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
       --log-file <LOG_FILE>            Log file location [env: LOG_FILE=pg_actions.log]
@@ -339,7 +284,7 @@ Options:
 * `-k, --keep-dump` - Keep the dump file, defaults to false
 * `--overwrite` - Overwrite new database if it exists
 
-#### 5.2.3. <a name='Example-1'></a>Example
+#### Example
 
 * In the same server
 
@@ -355,11 +300,11 @@ pg_actions -H my_host clone -d old_db -n new_db -o new_owner --pg-hostname new_h
 
 *Note: The credentials for the second host are presumed to be in the `.pgpass` file, or they can be passed as arguments.*
 
-### 5.3. <a name='Backupcommand'></a>Backup command
+### Backup command
 
-It backs up a database to a file or to S3/Minio storage.
+It backs up a database to a file or to S3/RustFS storage.
 
-#### 5.3.1. <a name='Helpsection-1'></a>Help section
+#### Help section
 
 ```bash
 pg_actions help backup
@@ -388,12 +333,12 @@ Options:
       --pg-dump <PG_DUMP>                  Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>            Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
       --psql <PSQL>                        Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
-      --s3-endpoint <S3_ENDPOINT>          S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
-      --s3-access-key <S3_ACCESS_KEY>      S3/Minio access key [env: S3_ACCESS_KEY=minio]
-      --s3-secret-key <S3_SECRET_KEY>      S3/Minio secret key [env: S3_SECRET_KEY]
-      --s3-bucket <S3_BUCKET>              S3/Minio bucket [env: S3_BUCKET=pgbackups]
-      --s3-region <S3_REGION>              S3/Minio region [env: S3_REGION=local]
-      --s3-prefix <S3_PREFIX>              S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
+      --s3-endpoint <S3_ENDPOINT>          S3/RustFS endpoint [env: S3_ENDPOINT=https://rustfslocal:9000]
+      --s3-access-key <S3_ACCESS_KEY>      S3/RustFS access key [env: S3_ACCESS_KEY=rustfsadmin]
+      --s3-secret-key <S3_SECRET_KEY>      S3/RustFS secret key [env: S3_SECRET_KEY]
+      --s3-bucket <S3_BUCKET>              S3/RustFS bucket [env: S3_BUCKET=pgbackups]
+      --s3-region <S3_REGION>              S3/RustFS region [env: S3_REGION=local]
+      --s3-prefix <S3_PREFIX>              S3/RustFS bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                         Turn debugging information on repetitive use increases verbosity, at most 2 times
       --use-json-logging                   Show logging information as json [env: USE_JSON_LOGGING=]
       --log-file <LOG_FILE>                Log file location [env: LOG_FILE=pg_actions.log]
@@ -402,14 +347,14 @@ Options:
 
 ##### Additional Variables
 
-> This commands needs the S3/Minio variables to be set, but they can be passed as arguments.
+> This commands needs the S3/RustFS variables to be set, but they can be passed as arguments.
 
 * `BACKUP_LOCATION` - `-o, --output-location` - Output location, choose between S3 or a file path, defaults to S3
 * `JOBS` - `-j, --jobs` - Parallel jobs to use, defaults to 5
 * `FORMAT` - `-f, --format` - Format of the output file, defaults to bsql
 * `NO_ARCHIVE` - `--no-archive` - Create archive or just files, has no effect on `all` backups
 
-#### 5.3.2. <a name='Example-1'></a>Example
+#### Example
 
 * Backup all databases to S3
 
@@ -423,9 +368,9 @@ pg_actions -H my_host backup all
 pg_actions -H my_host backup my_db -o /backup/my_db.tar.xz
 ```
 
-#### 5.3.3. <a name='BackupCommandTestCasesDocumentation'></a>Backup Command Test Cases Documentation
+#### More backup examples
 
-The following test cases demonstrate various uses of the backup command with the pg_actions utility. These cases cover backing up all databases or a specific database (dvdrentals) with different formats (sql and bsql) and output options.
+The following examples demonstrate common uses of the backup command with the pg_actions utility. These cases cover backing up all databases or a specific database (dvdrentals) with different formats (sql and bsql) and output options.
 
 1. Backup All Databases to Default Location with SQL Format
 
@@ -435,7 +380,7 @@ pg_actions -H my_host backup all --format sql
 
 This command backs up all databases in SQL format. The output location defaults to S3, as specified by the BACKUP_LOCATION environment variable or its default setting.
 
-2. Backup All Databases to a File with SQL Format
+1. Backup All Databases to a File with SQL Format
 
 ```bash
 pg_actions -H my_host backup all --format sql -o ./pgbk.tar.xz
@@ -443,7 +388,7 @@ pg_actions -H my_host backup all --format sql -o ./pgbk.tar.xz
 
 This command backs up all databases in SQL format to a file named pgbk.tar.xz in the current directory. The -o option overrides the default S3 output location.
 
-3. Backup All Databases to Default Location with BSQL Format
+1. Backup All Databases to Default Location with BSQL Format
 
 ```bash
 pg_actions -H my_host backup all --format bsql
@@ -451,7 +396,7 @@ pg_actions -H my_host backup all --format bsql
 
 This command backs up all databases in BSQL format. The output location defaults to S3, similar to the first command.
 
-4. Backup Specific Database (dvdrentals) to a File with SQL Format Without Creating an Archive
+1. Backup Specific Database (dvdrentals) to a File with SQL Format Without Creating an Archive
 
 ```bash
 pg_actions -H my_host backup dvdrentals --format sql -o ./pgbk.sql --no-archive
@@ -459,7 +404,7 @@ pg_actions -H my_host backup dvdrentals --format sql -o ./pgbk.sql --no-archive
 
 This command backs up the dvdrentals database in SQL format to a file named pgbk.sql in the current directory. The --no-archive option indicates that the output should not be archived, which is relevant for individual database backups.
 
-5. Backup Specific Database (dvdrentals) to a File with BSQL Format Without Creating an Archive
+1. Backup Specific Database (dvdrentals) to a File with BSQL Format Without Creating an Archive
 
 ```bash
 pg_actions -H my_host backup dvdrentals --format bsql -o ./pgbk.bsql --no-archive
@@ -467,7 +412,7 @@ pg_actions -H my_host backup dvdrentals --format bsql -o ./pgbk.bsql --no-archiv
 
 This command backs up the dvdrentals database in BSQL format to a file named pgbk.bsql in the current directory, without creating an archive.
 
-6. Backup Specific Database (dvdrentals) to a File with SQL Format
+1. Backup Specific Database (dvdrentals) to a File with SQL Format
 
 ```bash
 pg_actions -H my_host backup dvdrentals --format sql -o ./pgbk.tar.xz
@@ -475,7 +420,7 @@ pg_actions -H my_host backup dvdrentals --format sql -o ./pgbk.tar.xz
 
 This command backs up the dvdrentals database in SQL format to a file named pgbk.tar.xz in the current directory. This case does not specify the --no-archive option, so the output may be archived depending on the utility's behavior.
 
-7. Backup Specific Database (dvdrentals) to a File with BSQL Format
+1. Backup Specific Database (dvdrentals) to a File with BSQL Format
 
 ```bash
 pg_actions -H my_host backup dvdrentals --format bsql -o ./pgbk.tar.xz
@@ -483,11 +428,11 @@ pg_actions -H my_host backup dvdrentals --format bsql -o ./pgbk.tar.xz
 
 This command backs up the dvdrentals database in BSQL format to a file named pgbk.tar.xz in the current directory. Similar to the previous case, the absence of the --no-archive option means the output may be archived.
 
-### 5.4. <a name='Restorecommand'></a>Restore command
+### Restore command
 
-It restores a database from a file or from S3/Minio storage.
+It restores a database from a file or from S3/RustFS storage.
 
-#### 5.4.1. <a name='Helpsection-1'></a>Help section
+#### Help section
 
 ```bash
 pg_actions help restore
@@ -519,12 +464,12 @@ Options:
       --pg-restore <PG_RESTORE>          Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
   -k, --keep-temp                        keep the temp files defaults to false [env: KEEP_TEMP=]
       --psql <PSQL>                      Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
-      --s3-endpoint <S3_ENDPOINT>        S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
-      --s3-access-key <S3_ACCESS_KEY>    S3/Minio access key [env: S3_ACCESS_KEY=minio]
-      --s3-secret-key <S3_SECRET_KEY>    S3/Minio secret key [env: S3_SECRET_KEY]
-      --s3-bucket <S3_BUCKET>            S3/Minio bucket [env: S3_BUCKET=pgbackups]
-      --s3-region <S3_REGION>            S3/Minio region [env: S3_REGION=local]
-      --s3-prefix <S3_PREFIX>            S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
+      --s3-endpoint <S3_ENDPOINT>        S3/RustFS endpoint [env: S3_ENDPOINT=https://rustfslocal:9000]
+      --s3-access-key <S3_ACCESS_KEY>    S3/RustFS access key [env: S3_ACCESS_KEY=rustfsadmin]
+      --s3-secret-key <S3_SECRET_KEY>    S3/RustFS secret key [env: S3_SECRET_KEY]
+      --s3-bucket <S3_BUCKET>            S3/RustFS bucket [env: S3_BUCKET=pgbackups]
+      --s3-region <S3_REGION>            S3/RustFS region [env: S3_REGION=local]
+      --s3-prefix <S3_PREFIX>            S3/RustFS bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                       Turn debugging information on repetitive use increases verbosity, at most 2 times
       --use-json-logging                 Show logging information as json [env: USE_JSON_LOGGING=]
       --log-file <LOG_FILE>              Log file location [env: LOG_FILE=pg_actions.log]
@@ -541,7 +486,7 @@ Options:
 * `KEEP_TEMP` - `--keep-temp` - Keep the temp files, defaults to false
 * `OWNER` - `-o, --owner` - Owner user for db
 
-#### 5.4.2. <a name='Example-1'></a>Example
+#### Example
 
 1. Restore a database from S3
 
@@ -549,65 +494,65 @@ Options:
 pg_actions -H my_host restore my_db -i s3://bucket_name/file_path
 ```
 
-2. Restore a database from a file
+1. Restore a database from a file
 
 ```bash
 pg_actions -H my_host restore my_db -i ./my_db.tar.xz
 ```
 
-3. Restore a database from a file with a different name
+1. Restore a database from a file with a different name
 
 ```bash
 pg_actions -H my_host restore my_db -i ./my_db.tar.xz --file my_db
 ```
 
-4. Restore a database from a file with a different name and overwrite the existing database
+1. Restore a database from a file with a different name and overwrite the existing database
 
 ```bash
 pg_actions -H my_host restore my_db -i ./my_db.tar.xz --file my_db --overwrite
 ```
 
-5. Restore a database from a file with a different name, overwrite the existing database, and keep the temp files
+1. Restore a database from a file with a different name, overwrite the existing database, and keep the temp files
 
 ```bash
 pg_actions -H my_host restore my_db -i ./my_db.tar.xz --file my_db --overwrite --keep-temp
 ```
 
-6. Restore a database from a file with a different name, overwrite the existing database, keep the temp files, and change the owner
+1. Restore a database from a file with a different name, overwrite the existing database, keep the temp files, and change the owner
 
 ```bash
 pg_actions -H my_host restore my_db -i ./my_db.tar.xz --file my_db --overwrite --keep-temp --owner new_owner
 ```
 
-7. Restore a database from a file with a different name, overwrite the existing database, keep the temp files, and change the owner with a different format
+1. Restore a database from a file with a different name, overwrite the existing database, keep the temp files, and change the owner with a different format
 
 ```bash
 pg_actions -H my_host restore my_db -i ./my_db.sql --format sql --overwrite
 ```
 
-8. Restore a database from a file with a different name, overwrite the existing database, keep the temp files, and change the owner with a different format
+1. Restore a database from a file with a different name, overwrite the existing database, keep the temp files, and change the owner with a different format
 
 ```bash
 pg_actions -H my_host restore my_db -i ./my_db.bsql --format bsql --overwrite
 ```
 
-9. Restore a database from a file with a different name, overwrite the existing database, keep the temp files, and change the owner with a different format
+1. Restore a database from a file with a different name, overwrite the existing database, keep the temp files, and change the owner with a different format
 
 ```bash
 pg_actions -H my_host restore my_db -i ./my_db.sql --format sql --overwrite --keep-temp
 ```
 
-10. Restore a database from a file with a different name, overwrite the existing database, keep the temp files, and change the owner with a different format
+1. Restore a database from a file with a different name, overwrite the existing database, keep the temp files, and change the owner with a different format
 
 ```bash
 pg_actions -H my_host restore my_db -i ./my_db.bsql --format bsql --overwrite --keep-temp
 ```
 
-### 5.5. <a name='Useroperations'></a>User operations
+### User operations
 
 This command allows the user to list, create, delete, and update a user, and to grant and revoke privileges from a user.
 
-#### 5.5.1. <a name='Helpsection-1'></a>Help section
+#### Help section
 
 ```bash
 pg_actions help user
@@ -635,19 +580,19 @@ Options:
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
       --psql <PSQL>                    Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
-      --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
-      --s3-access-key <S3_ACCESS_KEY>  S3/Minio access key [env: S3_ACCESS_KEY=minio]
-      --s3-secret-key <S3_SECRET_KEY>  S3/Minio secret key [env: S3_SECRET_KEY]
-      --s3-bucket <S3_BUCKET>          S3/Minio bucket [env: S3_BUCKET=pgbackups]
-      --s3-region <S3_REGION>          S3/Minio region [env: S3_REGION=local]
-      --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
+      --s3-endpoint <S3_ENDPOINT>      S3/RustFS endpoint [env: S3_ENDPOINT=https://rustfslocal:9000]
+      --s3-access-key <S3_ACCESS_KEY>  S3/RustFS access key [env: S3_ACCESS_KEY=rustfsadmin]
+      --s3-secret-key <S3_SECRET_KEY>  S3/RustFS secret key [env: S3_SECRET_KEY]
+      --s3-bucket <S3_BUCKET>          S3/RustFS bucket [env: S3_BUCKET=pgbackups]
+      --s3-region <S3_REGION>          S3/RustFS region [env: S3_REGION=local]
+      --s3-prefix <S3_PREFIX>          S3/RustFS bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
       --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
       --log-file <LOG_FILE>            Log file location [env: LOG_FILE=pg_actions.log]
   -h, --help                           Print help
 ```
 
-#### 5.5.2. <a name='Listusers'></a>List users
+#### List users
 
 Prints a list of user names as a table
 
@@ -665,7 +610,7 @@ Usage: pg_actions user list [OPTIONS]
 Options:
   -H, --pg-hostname <PG_HOSTNAME>      Sets Postgres connection URL [env: PG_HOSTNAME=db] [default: localhost]
       --sort <SORT>                    sort by username [possible values: asc, desc]
-  -o, --output <OUTPUT>                quite mode [default: table] [possible values: json, json-compact, json-lines, csv, table, simple]
+  -o, --output <OUTPUT>                quiet mode [default: table] [possible values: json, json-compact, json-lines, csv, table, simple]
   -U, --pg-superuser <PG_SUPERUSER>    Sets Postgres username [env: PG_SUPERUSER=postgres] [default: postgres]
   -e, --extra                          extra details
   -P, --pg-password <PG_PASSWORD>      Sets Postgres password [env: PG_PASS]
@@ -674,12 +619,12 @@ Options:
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
       --psql <PSQL>                    Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
-      --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
-      --s3-access-key <S3_ACCESS_KEY>  S3/Minio access key [env: S3_ACCESS_KEY=minio]
-      --s3-secret-key <S3_SECRET_KEY>  S3/Minio secret key [env: S3_SECRET_KEY]
-      --s3-bucket <S3_BUCKET>          S3/Minio bucket [env: S3_BUCKET=pgbackups]
-      --s3-region <S3_REGION>          S3/Minio region [env: S3_REGION=local]
-      --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
+      --s3-endpoint <S3_ENDPOINT>      S3/RustFS endpoint [env: S3_ENDPOINT=https://rustfslocal:9000]
+      --s3-access-key <S3_ACCESS_KEY>  S3/RustFS access key [env: S3_ACCESS_KEY=rustfsadmin]
+      --s3-secret-key <S3_SECRET_KEY>  S3/RustFS secret key [env: S3_SECRET_KEY]
+      --s3-bucket <S3_BUCKET>          S3/RustFS bucket [env: S3_BUCKET=pgbackups]
+      --s3-region <S3_REGION>          S3/RustFS region [env: S3_REGION=local]
+      --s3-prefix <S3_PREFIX>          S3/RustFS bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
       --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
       --log-file <LOG_FILE>            Log file location [env: LOG_FILE=pg_actions.log]
@@ -716,7 +661,7 @@ pg_actions -H my_host user list --sort desc -o json
 pg_actions -H my_host user list --sort desc -o csv
 ```
 
-#### 5.5.3. <a name='Createauser'></a>Create a user
+#### Create a user
 
 Create a user with the specified options
 
@@ -746,12 +691,12 @@ Options:
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
       --psql <PSQL>                    Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
-      --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
-      --s3-access-key <S3_ACCESS_KEY>  S3/Minio access key [env: S3_ACCESS_KEY=minio]
-      --s3-secret-key <S3_SECRET_KEY>  S3/Minio secret key [env: S3_SECRET_KEY]
-      --s3-bucket <S3_BUCKET>          S3/Minio bucket [env: S3_BUCKET=pgbackups]
-      --s3-region <S3_REGION>          S3/Minio region [env: S3_REGION=local]
-      --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
+      --s3-endpoint <S3_ENDPOINT>      S3/RustFS endpoint [env: S3_ENDPOINT=https://rustfslocal:9000]
+      --s3-access-key <S3_ACCESS_KEY>  S3/RustFS access key [env: S3_ACCESS_KEY=rustfsadmin]
+      --s3-secret-key <S3_SECRET_KEY>  S3/RustFS secret key [env: S3_SECRET_KEY]
+      --s3-bucket <S3_BUCKET>          S3/RustFS bucket [env: S3_BUCKET=pgbackups]
+      --s3-region <S3_REGION>          S3/RustFS region [env: S3_REGION=local]
+      --s3-prefix <S3_PREFIX>          S3/RustFS bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
       --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
       --log-file <LOG_FILE>            Log file location [env: LOG_FILE=pg_actions.log]
@@ -775,7 +720,7 @@ pg_actions -H my_host user create -s my_password my_user
 pg_actions -H my_host user create --superuser my_user
 ```
 
-#### 5.5.4. <a name='Deleteauser'></a>Delete a user
+#### Delete a user
 
 Delete a user with the specified username
 
@@ -801,12 +746,12 @@ Options:
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
       --psql <PSQL>                    Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
-      --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
-      --s3-access-key <S3_ACCESS_KEY>  S3/Minio access key [env: S3_ACCESS_KEY=minio]
-      --s3-secret-key <S3_SECRET_KEY>  S3/Minio secret key [env: S3_SECRET_KEY]
-      --s3-bucket <S3_BUCKET>          S3/Minio bucket [env: S3_BUCKET=pgbackups]
-      --s3-region <S3_REGION>          S3/Minio region [env: S3_REGION=local]
-      --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
+      --s3-endpoint <S3_ENDPOINT>      S3/RustFS endpoint [env: S3_ENDPOINT=https://rustfslocal:9000]
+      --s3-access-key <S3_ACCESS_KEY>  S3/RustFS access key [env: S3_ACCESS_KEY=rustfsadmin]
+      --s3-secret-key <S3_SECRET_KEY>  S3/RustFS secret key [env: S3_SECRET_KEY]
+      --s3-bucket <S3_BUCKET>          S3/RustFS bucket [env: S3_BUCKET=pgbackups]
+      --s3-region <S3_REGION>          S3/RustFS region [env: S3_REGION=local]
+      --s3-prefix <S3_PREFIX>          S3/RustFS bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
       --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
       --log-file <LOG_FILE>            Log file location [env: LOG_FILE=pg_actions.log]
@@ -819,7 +764,7 @@ Options:
 pg_actions -H my_host user delete my_user
 ```
 
-#### 5.5.5. <a name='Updateauser'></a>Update a user
+#### Update a user
 
 Update a user with the specified options
 
@@ -849,12 +794,12 @@ Options:
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
       --psql <PSQL>                    Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
-      --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
-      --s3-access-key <S3_ACCESS_KEY>  S3/Minio access key [env: S3_ACCESS_KEY=minio]
-      --s3-secret-key <S3_SECRET_KEY>  S3/Minio secret key [env: S3_SECRET_KEY]
-      --s3-bucket <S3_BUCKET>          S3/Minio bucket [env: S3_BUCKET=pgbackups]
-      --s3-region <S3_REGION>          S3/Minio region [env: S3_REGION=local]
-      --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
+      --s3-endpoint <S3_ENDPOINT>      S3/RustFS endpoint [env: S3_ENDPOINT=https://rustfslocal:9000]
+      --s3-access-key <S3_ACCESS_KEY>  S3/RustFS access key [env: S3_ACCESS_KEY=rustfsadmin]
+      --s3-secret-key <S3_SECRET_KEY>  S3/RustFS secret key [env: S3_SECRET_KEY]
+      --s3-bucket <S3_BUCKET>          S3/RustFS bucket [env: S3_BUCKET=pgbackups]
+      --s3-region <S3_REGION>          S3/RustFS region [env: S3_REGION=local]
+      --s3-prefix <S3_PREFIX>          S3/RustFS bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
       --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
       --log-file <LOG_FILE>            Log file location [env: LOG_FILE=pg_actions.log]
@@ -874,7 +819,7 @@ Options:
 pg_actions -H my_host user update -s my_password my_user
 ```
 
-#### 5.5.6. <a name='Grantprivilegestoauser'></a>Grant privileges to a user
+#### Grant privileges to a user
 
 Grant privileges to a user on a database, currently supported, read-only or full access.
 
@@ -903,12 +848,12 @@ Options:
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
       --psql <PSQL>                    Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
-      --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
-      --s3-access-key <S3_ACCESS_KEY>  S3/Minio access key [env: S3_ACCESS_KEY=minio]
-      --s3-secret-key <S3_SECRET_KEY>  S3/Minio secret key [env: S3_SECRET_KEY]
-      --s3-bucket <S3_BUCKET>          S3/Minio bucket [env: S3_BUCKET=pgbackups]
-      --s3-region <S3_REGION>          S3/Minio region [env: S3_REGION=local]
-      --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
+      --s3-endpoint <S3_ENDPOINT>      S3/RustFS endpoint [env: S3_ENDPOINT=https://rustfslocal:9000]
+      --s3-access-key <S3_ACCESS_KEY>  S3/RustFS access key [env: S3_ACCESS_KEY=rustfsadmin]
+      --s3-secret-key <S3_SECRET_KEY>  S3/RustFS secret key [env: S3_SECRET_KEY]
+      --s3-bucket <S3_BUCKET>          S3/RustFS bucket [env: S3_BUCKET=pgbackups]
+      --s3-region <S3_REGION>          S3/RustFS region [env: S3_REGION=local]
+      --s3-prefix <S3_PREFIX>          S3/RustFS bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
       --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
       --log-file <LOG_FILE>            Log file location [env: LOG_FILE=pg_actions.log]
@@ -930,7 +875,7 @@ pg_actions -H my_host user grant -d my_db -g full my_user
 pg_actions -H my_host user grant -d my_db -g read-only my_user
 ```
 
-#### 5.5.7. <a name='Revokeprivilegesfromauser'></a>Revoke privileges from a user
+#### Revoke privileges from a user
 
 Revoke privileges from a user on a database, currently supported, read-only or full access, the reverse of the grant command.
 
@@ -959,12 +904,12 @@ Options:
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
       --psql <PSQL>                    Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
-      --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
-      --s3-access-key <S3_ACCESS_KEY>  S3/Minio access key [env: S3_ACCESS_KEY=minio]
-      --s3-secret-key <S3_SECRET_KEY>  S3/Minio secret key [env: S3_SECRET_KEY]
-      --s3-bucket <S3_BUCKET>          S3/Minio bucket [env: S3_BUCKET=pgbackups]
-      --s3-region <S3_REGION>          S3/Minio region [env: S3_REGION=local]
-      --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
+      --s3-endpoint <S3_ENDPOINT>      S3/RustFS endpoint [env: S3_ENDPOINT=https://rustfslocal:9000]
+      --s3-access-key <S3_ACCESS_KEY>  S3/RustFS access key [env: S3_ACCESS_KEY=rustfsadmin]
+      --s3-secret-key <S3_SECRET_KEY>  S3/RustFS secret key [env: S3_SECRET_KEY]
+      --s3-bucket <S3_BUCKET>          S3/RustFS bucket [env: S3_BUCKET=pgbackups]
+      --s3-region <S3_REGION>          S3/RustFS region [env: S3_REGION=local]
+      --s3-prefix <S3_PREFIX>          S3/RustFS bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
       --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
       --log-file <LOG_FILE>            Log file location [env: LOG_FILE=pg_actions.log]
@@ -986,11 +931,11 @@ pg_actions -H my_host user revoke -d my_db -g full my_user
 pg_actions -H my_host user revoke -d my_db -g read-only my_user
 ```
 
-### 5.6. <a name='Databaseoperations'></a>Database operations
+### Database operations
 
 This command allows the user to list, create, delete, and update a database.
 
-#### 5.6.1. <a name='Helpsection-1'></a>Help section
+#### Help section
 
 ```bash
 pg_actions help database
@@ -1017,19 +962,19 @@ Options:
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
       --psql <PSQL>                    Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
-      --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
-      --s3-access-key <S3_ACCESS_KEY>  S3/Minio access key [env: S3_ACCESS_KEY=minio]
-      --s3-secret-key <S3_SECRET_KEY>  S3/Minio secret key [env: S3_SECRET_KEY]
-      --s3-bucket <S3_BUCKET>          S3/Minio bucket [env: S3_BUCKET=pgbackups]
-      --s3-region <S3_REGION>          S3/Minio region [env: S3_REGION=local]
-      --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
+      --s3-endpoint <S3_ENDPOINT>      S3/RustFS endpoint [env: S3_ENDPOINT=https://rustfslocal:9000]
+      --s3-access-key <S3_ACCESS_KEY>  S3/RustFS access key [env: S3_ACCESS_KEY=rustfsadmin]
+      --s3-secret-key <S3_SECRET_KEY>  S3/RustFS secret key [env: S3_SECRET_KEY]
+      --s3-bucket <S3_BUCKET>          S3/RustFS bucket [env: S3_BUCKET=pgbackups]
+      --s3-region <S3_REGION>          S3/RustFS region [env: S3_REGION=local]
+      --s3-prefix <S3_PREFIX>          S3/RustFS bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
       --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
       --log-file <LOG_FILE>            Log file location [env: LOG_FILE=pg_actions.log]
   -h, --help                           Print help
 ```
 
-#### 5.6.2. <a name='Listdatabases'></a>List databases
+#### List databases
 
 Prints a list of databases as a table
 
@@ -1047,7 +992,7 @@ Usage: pg_actions database list [OPTIONS]
 Options:
   -H, --pg-hostname <PG_HOSTNAME>      Sets Postgres connection URL [env: PG_HOSTNAME=db] [default: localhost]
       --sort <SORT>                    sort by database name [possible values: asc, desc]
-  -o, --output <OUTPUT>                quite mode [default: table] [possible values: json, json-compact, json-lines, csv, table, simple]
+  -o, --output <OUTPUT>                quiet mode [default: table] [possible values: json, json-compact, json-lines, csv, table, simple]
   -U, --pg-superuser <PG_SUPERUSER>    Sets Postgres username [env: PG_SUPERUSER=postgres] [default: postgres]
   -e, --extra                          extra details
   -P, --pg-password <PG_PASSWORD>      Sets Postgres password [env: PG_PASS]
@@ -1056,12 +1001,12 @@ Options:
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
       --psql <PSQL>                    Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
-      --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
-      --s3-access-key <S3_ACCESS_KEY>  S3/Minio access key [env: S3_ACCESS_KEY=minio]
-      --s3-secret-key <S3_SECRET_KEY>  S3/Minio secret key [env: S3_SECRET_KEY]
-      --s3-bucket <S3_BUCKET>          S3/Minio bucket [env: S3_BUCKET=pgbackups]
-      --s3-region <S3_REGION>          S3/Minio region [env: S3_REGION=local]
-      --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
+      --s3-endpoint <S3_ENDPOINT>      S3/RustFS endpoint [env: S3_ENDPOINT=https://rustfslocal:9000]
+      --s3-access-key <S3_ACCESS_KEY>  S3/RustFS access key [env: S3_ACCESS_KEY=rustfsadmin]
+      --s3-secret-key <S3_SECRET_KEY>  S3/RustFS secret key [env: S3_SECRET_KEY]
+      --s3-bucket <S3_BUCKET>          S3/RustFS bucket [env: S3_BUCKET=pgbackups]
+      --s3-region <S3_REGION>          S3/RustFS region [env: S3_REGION=local]
+      --s3-prefix <S3_PREFIX>          S3/RustFS bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
       --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
       --log-file <LOG_FILE>            Log file location [env: LOG_FILE=pg_actions.log]
@@ -1098,7 +1043,7 @@ pg_actions -H my_host database list --sort desc -o json
 pg_actions -H my_host database list --sort desc -o csv
 ```
 
-#### 5.6.3. <a name='Createadatabase'></a>Create a database
+#### Create a database
 
 Create a database with the specified options
 
@@ -1125,12 +1070,12 @@ Options:
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
       --psql <PSQL>                    Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
-      --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
-      --s3-access-key <S3_ACCESS_KEY>  S3/Minio access key [env: S3_ACCESS_KEY=minio]
-      --s3-secret-key <S3_SECRET_KEY>  S3/Minio secret key [env: S3_SECRET_KEY]
-      --s3-bucket <S3_BUCKET>          S3/Minio bucket [env: S3_BUCKET=pgbackups]
-      --s3-region <S3_REGION>          S3/Minio region [env: S3_REGION=local]
-      --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
+      --s3-endpoint <S3_ENDPOINT>      S3/RustFS endpoint [env: S3_ENDPOINT=https://rustfslocal:9000]
+      --s3-access-key <S3_ACCESS_KEY>  S3/RustFS access key [env: S3_ACCESS_KEY=rustfsadmin]
+      --s3-secret-key <S3_SECRET_KEY>  S3/RustFS secret key [env: S3_SECRET_KEY]
+      --s3-bucket <S3_BUCKET>          S3/RustFS bucket [env: S3_BUCKET=pgbackups]
+      --s3-region <S3_REGION>          S3/RustFS region [env: S3_REGION=local]
+      --s3-prefix <S3_PREFIX>          S3/RustFS bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
       --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
       --log-file <LOG_FILE>            Log file location [env: LOG_FILE=pg_actions.log]
@@ -1147,7 +1092,7 @@ Options:
 pg_actions -H my_host database create my_db
 ```
 
-#### 5.6.4. <a name='Deleteadatabase'></a>Delete a database
+#### Delete a database
 
 Delete a database with the specified name
 
@@ -1173,12 +1118,12 @@ Options:
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
       --psql <PSQL>                    Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
-      --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
-      --s3-access-key <S3_ACCESS_KEY>  S3/Minio access key [env: S3_ACCESS_KEY=minio]
-      --s3-secret-key <S3_SECRET_KEY>  S3/Minio secret key [env: S3_SECRET_KEY]
-      --s3-bucket <S3_BUCKET>          S3/Minio bucket [env: S3_BUCKET=pgbackups]
-      --s3-region <S3_REGION>          S3/Minio region [env: S3_REGION=local]
-      --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
+      --s3-endpoint <S3_ENDPOINT>      S3/RustFS endpoint [env: S3_ENDPOINT=https://rustfslocal:9000]
+      --s3-access-key <S3_ACCESS_KEY>  S3/RustFS access key [env: S3_ACCESS_KEY=rustfsadmin]
+      --s3-secret-key <S3_SECRET_KEY>  S3/RustFS secret key [env: S3_SECRET_KEY]
+      --s3-bucket <S3_BUCKET>          S3/RustFS bucket [env: S3_BUCKET=pgbackups]
+      --s3-region <S3_REGION>          S3/RustFS region [env: S3_REGION=local]
+      --s3-prefix <S3_PREFIX>          S3/RustFS bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
       --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
       --log-file <LOG_FILE>            Log file location [env: LOG_FILE=pg_actions.log]
@@ -1191,7 +1136,7 @@ Options:
 pg_actions -H my_host database delete my_db
 ```
 
-#### 5.6.5. <a name='Updateadatabase'></a>Update a database
+#### Update a database
 
 Update a database with the specified options
 
@@ -1218,12 +1163,12 @@ Options:
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
       --psql <PSQL>                    Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
-      --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
-      --s3-access-key <S3_ACCESS_KEY>  S3/Minio access key [env: S3_ACCESS_KEY=minio]
-      --s3-secret-key <S3_SECRET_KEY>  S3/Minio secret key [env: S3_SECRET_KEY]
-      --s3-bucket <S3_BUCKET>          S3/Minio bucket [env: S3_BUCKET=pgbackups]
-      --s3-region <S3_REGION>          S3/Minio region [env: S3_REGION=local]
-      --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
+      --s3-endpoint <S3_ENDPOINT>      S3/RustFS endpoint [env: S3_ENDPOINT=https://rustfslocal:9000]
+      --s3-access-key <S3_ACCESS_KEY>  S3/RustFS access key [env: S3_ACCESS_KEY=rustfsadmin]
+      --s3-secret-key <S3_SECRET_KEY>  S3/RustFS secret key [env: S3_SECRET_KEY]
+      --s3-bucket <S3_BUCKET>          S3/RustFS bucket [env: S3_BUCKET=pgbackups]
+      --s3-region <S3_REGION>          S3/RustFS region [env: S3_REGION=local]
+      --s3-prefix <S3_PREFIX>          S3/RustFS bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
       --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
       --log-file <LOG_FILE>            Log file location [env: LOG_FILE=pg_actions.log]
@@ -1240,7 +1185,7 @@ Options:
 pg_actions -H my_host database update -o my_new_owner my_db
 ```
 
-#### 5.6.6. <a name='Extensionoperations'></a>Extension operations
+#### Extension operations
 
 This command allows the user to list, create, delete, and update an extension on a database.
 
@@ -1277,19 +1222,19 @@ Options:
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
       --psql <PSQL>                    Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
-      --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
-      --s3-access-key <S3_ACCESS_KEY>  S3/Minio access key [env: S3_ACCESS_KEY=minio]
-      --s3-secret-key <S3_SECRET_KEY>  S3/Minio secret key [env: S3_SECRET_KEY]
-      --s3-bucket <S3_BUCKET>          S3/Minio bucket [env: S3_BUCKET=pgbackups]
-      --s3-region <S3_REGION>          S3/Minio region [env: S3_REGION=local]
-      --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
+      --s3-endpoint <S3_ENDPOINT>      S3/RustFS endpoint [env: S3_ENDPOINT=https://rustfslocal:9000]
+      --s3-access-key <S3_ACCESS_KEY>  S3/RustFS access key [env: S3_ACCESS_KEY=rustfsadmin]
+      --s3-secret-key <S3_SECRET_KEY>  S3/RustFS secret key [env: S3_SECRET_KEY]
+      --s3-bucket <S3_BUCKET>          S3/RustFS bucket [env: S3_BUCKET=pgbackups]
+      --s3-region <S3_REGION>          S3/RustFS region [env: S3_REGION=local]
+      --s3-prefix <S3_PREFIX>          S3/RustFS bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
       --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
       --log-file <LOG_FILE>            Log file location [env: LOG_FILE=pg_actions.log]
   -h, --help                           Print help
 ```
 
-#### 5.6.7. <a name='Listextensions'></a>List extensions
+#### List extensions
 
 Prints a list of extensions on a database as a table
 
@@ -1307,7 +1252,7 @@ Usage: pg_actions database extension <DATABASE> list [OPTIONS]
 Options:
   -H, --pg-hostname <PG_HOSTNAME>      Sets Postgres connection URL [env: PG_HOSTNAME=db] [default: localhost]
       --sort <SORT>                    sort by extension name [possible values: asc, desc]
-  -o, --output <OUTPUT>                quite mode [default: table] [possible values: json, json-compact, json-lines, csv, table, simple]
+  -o, --output <OUTPUT>                quiet mode [default: table] [possible values: json, json-compact, json-lines, csv, table, simple]
   -U, --pg-superuser <PG_SUPERUSER>    Sets Postgres username [env: PG_SUPERUSER=postgres] [default: postgres]
   -e, --extra                          extra details
   -P, --pg-password <PG_PASSWORD>      Sets Postgres password [env: PG_PASS]
@@ -1315,12 +1260,12 @@ Options:
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
       --psql <PSQL>                    Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
-      --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
-      --s3-access-key <S3_ACCESS_KEY>  S3/Minio access key [env: S3_ACCESS_KEY=minio]
-      --s3-secret-key <S3_SECRET_KEY>  S3/Minio secret key [env: S3_SECRET_KEY]
-      --s3-bucket <S3_BUCKET>          S3/Minio bucket [env: S3_BUCKET=pgbackups]
-      --s3-region <S3_REGION>          S3/Minio region [env: S3_REGION=local]
-      --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
+      --s3-endpoint <S3_ENDPOINT>      S3/RustFS endpoint [env: S3_ENDPOINT=https://rustfslocal:9000]
+      --s3-access-key <S3_ACCESS_KEY>  S3/RustFS access key [env: S3_ACCESS_KEY=rustfsadmin]
+      --s3-secret-key <S3_SECRET_KEY>  S3/RustFS secret key [env: S3_SECRET_KEY]
+      --s3-bucket <S3_BUCKET>          S3/RustFS bucket [env: S3_BUCKET=pgbackups]
+      --s3-region <S3_REGION>          S3/RustFS region [env: S3_REGION=local]
+      --s3-prefix <S3_PREFIX>          S3/RustFS bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
       --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
       --log-file <LOG_FILE>            Log file location [env: LOG_FILE=pg_actions.log]
@@ -1347,7 +1292,7 @@ pg_actions -H my_host database extension my_db list --sort desc -o json
 pg_actions -H my_host database extension my_db list --sort desc -o csv
 ```
 
-#### 5.6.8. <a name='Createanextension'></a>Create an extension
+#### Create an extension
 
 Create an extension on a database
 
@@ -1373,12 +1318,12 @@ Options:
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
       --psql <PSQL>                    Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
-      --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
-      --s3-access-key <S3_ACCESS_KEY>  S3/Minio access key [env: S3_ACCESS_KEY=minio]
-      --s3-secret-key <S3_SECRET_KEY>  S3/Minio secret key [env: S3_SECRET_KEY]
-      --s3-bucket <S3_BUCKET>          S3/Minio bucket [env: S3_BUCKET=pgbackups]
-      --s3-region <S3_REGION>          S3/Minio region [env: S3_REGION=local]
-      --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
+      --s3-endpoint <S3_ENDPOINT>      S3/RustFS endpoint [env: S3_ENDPOINT=https://rustfslocal:9000]
+      --s3-access-key <S3_ACCESS_KEY>  S3/RustFS access key [env: S3_ACCESS_KEY=rustfsadmin]
+      --s3-secret-key <S3_SECRET_KEY>  S3/RustFS secret key [env: S3_SECRET_KEY]
+      --s3-bucket <S3_BUCKET>          S3/RustFS bucket [env: S3_BUCKET=pgbackups]
+      --s3-region <S3_REGION>          S3/RustFS region [env: S3_REGION=local]
+      --s3-prefix <S3_PREFIX>          S3/RustFS bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
       --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
       --log-file <LOG_FILE>            Log file location [env: LOG_FILE=pg_actions.log]
@@ -1391,7 +1336,7 @@ Options:
 pg_actions -H my_host database extension my_db create my_extension
 ```
 
-#### 5.6.9. <a name='Deleteanextension'></a>Delete an extension
+#### Delete an extension
 
 Delete an extension from a database
 
@@ -1417,12 +1362,12 @@ Options:
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
       --psql <PSQL>                    Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
-      --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
-      --s3-access-key <S3_ACCESS_KEY>  S3/Minio access key [env: S3_ACCESS_KEY=minio]
-      --s3-secret-key <S3_SECRET_KEY>  S3/Minio secret key [env: S3_SECRET_KEY]
-      --s3-bucket <S3_BUCKET>          S3/Minio bucket [env: S3_BUCKET=pgbackups]
-      --s3-region <S3_REGION>          S3/Minio region [env: S3_REGION=local]
-      --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
+      --s3-endpoint <S3_ENDPOINT>      S3/RustFS endpoint [env: S3_ENDPOINT=https://rustfslocal:9000]
+      --s3-access-key <S3_ACCESS_KEY>  S3/RustFS access key [env: S3_ACCESS_KEY=rustfsadmin]
+      --s3-secret-key <S3_SECRET_KEY>  S3/RustFS secret key [env: S3_SECRET_KEY]
+      --s3-bucket <S3_BUCKET>          S3/RustFS bucket [env: S3_BUCKET=pgbackups]
+      --s3-region <S3_REGION>          S3/RustFS region [env: S3_REGION=local]
+      --s3-prefix <S3_PREFIX>          S3/RustFS bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
       --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
       --log-file <LOG_FILE>            Log file location [env: LOG_FILE=pg_actions.log]
@@ -1435,11 +1380,11 @@ Options:
 pg_actions -H my_host database extension my_db delete my_extension
 ```
 
-### 5.7. <a name='CLIcompletion'></a>CLI completion
+### CLI completion
 
 The CLI completion is available for bash, elvish, fish, powershell and zsh.
 
-#### 5.7.1. <a name='Helpsection-1'></a>Help section
+#### Help section
 
 ```bash
 pg_actions help completions
@@ -1461,12 +1406,12 @@ Options:
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
       --psql <PSQL>                    Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
-      --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
-      --s3-access-key <S3_ACCESS_KEY>  S3/Minio access key [env: S3_ACCESS_KEY=minio]
-      --s3-secret-key <S3_SECRET_KEY>  S3/Minio secret key [env: S3_SECRET_KEY]
-      --s3-bucket <S3_BUCKET>          S3/Minio bucket [env: S3_BUCKET=pgbackups]
-      --s3-region <S3_REGION>          S3/Minio region [env: S3_REGION=local]
-      --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
+      --s3-endpoint <S3_ENDPOINT>      S3/RustFS endpoint [env: S3_ENDPOINT=https://rustfslocal:9000]
+      --s3-access-key <S3_ACCESS_KEY>  S3/RustFS access key [env: S3_ACCESS_KEY=rustfsadmin]
+      --s3-secret-key <S3_SECRET_KEY>  S3/RustFS secret key [env: S3_SECRET_KEY]
+      --s3-bucket <S3_BUCKET>          S3/RustFS bucket [env: S3_BUCKET=pgbackups]
+      --s3-region <S3_REGION>          S3/RustFS region [env: S3_REGION=local]
+      --s3-prefix <S3_PREFIX>          S3/RustFS bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
       --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
       --log-file <LOG_FILE>            Log file location [env: LOG_FILE=pg_actions.log]
@@ -1520,16 +1465,16 @@ Options:
   source <(pg_actions completions zsh)
   ```
 
-### 5.8. <a name='Toolschecking'></a>Tools checking
+### Tools checking
 
 This command checks the tools needed for the CLI to work, such as `pg_dump` and `pg_restore`.
 
-#### 5.8.1. <a name='Availablealiases-1'></a>Available aliases
+#### Available aliases
 
 * `check-tools` - Alias for `check tools`
 * `ct` - Alias for `check tools`
 
-#### 5.8.2. <a name='Helpsection-1'></a>Help section
+#### Help section
 
 ```bash
 pg_actions help check-tools
@@ -1548,12 +1493,12 @@ Options:
       --pg-dump <PG_DUMP>              Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
       --pg-restore <PG_RESTORE>        Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
       --psql <PSQL>                    Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
-      --s3-endpoint <S3_ENDPOINT>      S3/Minio endpoint [env: S3_ENDPOINT=https://miniolocal:9000]
-      --s3-access-key <S3_ACCESS_KEY>  S3/Minio access key [env: S3_ACCESS_KEY=minio]
-      --s3-secret-key <S3_SECRET_KEY>  S3/Minio secret key [env: S3_SECRET_KEY]
-      --s3-bucket <S3_BUCKET>          S3/Minio bucket [env: S3_BUCKET=pgbackups]
-      --s3-region <S3_REGION>          S3/Minio region [env: S3_REGION=local]
-      --s3-prefix <S3_PREFIX>          S3/Minio bucket prefix/folder [env: S3_PREFIX=pgbackups]
+      --s3-endpoint <S3_ENDPOINT>      S3/RustFS endpoint [env: S3_ENDPOINT=https://rustfslocal:9000]
+      --s3-access-key <S3_ACCESS_KEY>  S3/RustFS access key [env: S3_ACCESS_KEY=rustfsadmin]
+      --s3-secret-key <S3_SECRET_KEY>  S3/RustFS secret key [env: S3_SECRET_KEY]
+      --s3-bucket <S3_BUCKET>          S3/RustFS bucket [env: S3_BUCKET=pgbackups]
+      --s3-region <S3_REGION>          S3/RustFS region [env: S3_REGION=local]
+      --s3-prefix <S3_PREFIX>          S3/RustFS bucket prefix/folder [env: S3_PREFIX=pgbackups]
   -v, --verbose...                     Turn debugging information on repetitive use increases verbosity, at most 2 times
       --use-json-logging               Show logging information as json [env: USE_JSON_LOGGING=]
       --log-file <LOG_FILE>            Log file location [env: LOG_FILE=pg_actions.log]
@@ -1566,11 +1511,41 @@ Options:
 pg_actions check-tools
 ```
 
-## 6. <a name='CICDusage'></a>CI/CD usage
+## CI/CD usage
 
-The CLI can be used in CI/CD pipelines to automate database operations, such as creating a database, cloning, user, and granting privileges.
+The CLI can be used in CI/CD pipelines to automate database operations, such as creating databases, cloning databases, managing users, and granting privileges.
 
-### 6.1. <a name='GitlabCICD'></a>Gitlab CI/CD
+### GitHub Actions
+
+```yaml
+name: Clone database
+
+on:
+  workflow_dispatch:
+
+jobs:
+  clone:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone database
+        env:
+          PG_HOSTNAME: ${{ secrets.PG_HOSTNAME }}
+          PG_PORT: ${{ secrets.PG_PORT }}
+          PG_SUPERUSER: ${{ secrets.PG_SUPERUSER }}
+          PG_PASS: ${{ secrets.PG_PASS }}
+        run: |
+          docker run --rm \
+            -e PG_HOSTNAME \
+            -e PG_PORT \
+            -e PG_SUPERUSER \
+            -e PG_PASS \
+            ghcr.io/cristicriss17g/pg_actions:latest \
+            clone -d my_db -n my_new_db -o my_user
+```
+
+This assumes that the variables `PG_HOSTNAME`, `PG_PORT` (optional), `PG_SUPERUSER`, and `PG_PASS` are set as repository or organization secrets.
+
+### GitLab CI/CD
 
 ```yaml
 stages:
@@ -1579,11 +1554,14 @@ stages:
 clone:
   stage: clone
   image: 
-    name: regcr.ivfuture.uk/devops-services/tools/postgres-db-actions:latest
+    name: ghcr.io/cristicriss17g/pg_actions:latest
     entrypoint: [""]
   script:
-    - pg_actions -H my_host clone my_db my_new_db -o my_user
+    - pg_actions -H my_host clone -d my_db -n my_new_db -o my_user
 ```
 
-This assumes that the variables `PG_HOSTNAME`, `PG_PORT`(optional), `PG_SUPERUSER`, and `PG_PASS` are set in the environment.
-*Note: The image is hosted in a private registry, replace the image with the public one., or check this [Gitlab Documentation](https://docs.gitlab.com/ee/ci/docker/using_docker_images.html#use-statically-defined-credentials)*
+This assumes that the variables `PG_HOSTNAME`, `PG_PORT` (optional), `PG_SUPERUSER`, and `PG_PASS` are set in the environment.
+
+## License
+
+`pg_actions` is licensed under the GNU Affero General Public License v3.0 only. See [LICENSE](LICENSE) for the full license text.

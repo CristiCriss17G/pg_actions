@@ -15,10 +15,6 @@
     "ghcr.io/devcontainers/features/git:1": {
       "ppa": true,
       "version": "latest"
-    },
-    "ghcr.io/christophermacgown/devcontainer-features/minio-client:1": {
-      "vendor": "linux",
-      "architecture": "amd64"
     }
   },
 
@@ -47,7 +43,6 @@
         "ms-azuretools.vscode-docker",
         "cschlosser.doxdocgen",
         "tamasfe.even-better-toml",
-        "GitHub.copilot",
         "GitHub.copilot-chat",
         "GitLab.gitlab-workflow",
         "eamodio.gitlens",

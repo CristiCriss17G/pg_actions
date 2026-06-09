@@ -1,18 +1,20 @@
 # syntax=docker/dockerfile:1
 
-ARG RUST_VERSION=1.85
-ARG ALPINE_VERSION=3.21
+ARG RUST_VERSION=1.96
+ARG ALPINE_VERSION=3.23
 ARG APP_NAME=pg_actions
+ARG POSTGRES_VERSION=18
 
 ################################################################################
 # Create a stage for building the application.
 FROM rust:${RUST_VERSION}-alpine${ALPINE_VERSION} AS build
 ARG APP_NAME
+ARG POSTGRES_VERSION
 WORKDIR /app
 
 # Install host build dependencies.
 RUN apk update && apk upgrade --no-cache && apk add --no-cache build-base clang file git \
-    libcrypto3 libssl3 lld musl-dev openssl-dev openssl-libs-static pkgconfig postgresql16-client \
+    libcrypto3 libssl3 lld musl-dev openssl-dev openssl-libs-static pkgconfig postgresql${POSTGRES_VERSION}-client \
     && rm -rf /var/cache/apk/*
 
 # Copy Cargo.toml and Cargo.lock to cache dependencies.
@@ -27,14 +29,16 @@ RUN cargo build --locked --release --target-dir ./target && cp ./target/release/
 
 FROM alpine:${ALPINE_VERSION} AS final
 ARG APP_NAME
+ARG POSTGRES_VERSION
 ENV APP_NAME=${APP_NAME}
 
-LABEL org.opencontainers.image.maintainer="Cristian Iordachescu <cristian.iordachescu@ivfuture.uk>"
-LABEL org.opencontainers.image.version="1.5.0"
+LABEL org.opencontainers.image.maintainer="Cristian Iordachescu <53430981+CristiCriss17G@users.noreply.github.com>"
+LABEL org.opencontainers.image.version="1.5.1"
 LABEL org.opencontainers.image.title="Postgres actions cli"
 LABEL org.opencontainers.image.description="This is a Dockerfile for running postgres-db-actions. For more information visit run with --help."
+LABEL org.opencontainers.image.licenses="AGPL-3.0-only"
 
-RUN apk update && apk upgrade --no-cache && apk add --no-cache bash ca-certificates postgresql16-client \
+RUN apk update && apk upgrade --no-cache && apk add --no-cache bash ca-certificates postgresql${POSTGRES_VERSION}-client \
     && rm -rf /var/cache/apk/*
 SHELL [ "/bin/bash", "-c" ]
 
@@ -57,14 +61,15 @@ WORKDIR /pghome
 
 # Copy the executable from the "build" stage.
 COPY --from=build /bin/${APP_NAME} /bin/
+COPY LICENSE /usr/share/licenses/pg_actions/LICENSE
 
 ENV PG_HOSTNAME="localhost"
 ENV PG_SUPERUSER="postgres"
 ENV PG_PASS="postgres"
 ENV PG_PORT="5432"
 ENV S3_ENDPOINT="http://localhost:9000"
-ENV S3_ACCESS_KEY="minioadmin"
-ENV S3_SECRET_KEY="minioadmin"
+ENV S3_ACCESS_KEY="rustfsadmin"
+ENV S3_SECRET_KEY="rustfsadmin"
 ENV S3_BUCKET="postgres-backups"
 ENV S3_REGION="eu-east-1"
 ENV S3_PREFIX="backups"

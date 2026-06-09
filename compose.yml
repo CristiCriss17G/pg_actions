@@ -8,9 +8,10 @@
 # database or a cache. For examples, see the Awesome Compose repository:
 # https://github.com/docker/awesome-compose
 services:
-  miniolocal:
-    image: quay.io/minio/minio
-    command: server /data --console-address ":9001" --certs-dir /opt/certs
+  rustfslocal:
+    image: rustfs/rustfs:latest
+    command: /data
+    user: "0:0"
     ports:
       - 9000:9000
       - 9001:9001
@@ -18,12 +19,15 @@ services:
       - postgres_db_actions_network
     volumes:
       - ./data:/data
-      - ./certs:/opt/certs
+      - ./certs/public.crt:/opt/certs/rustfs_cert.pem:ro
+      - ./certs/private.key:/opt/certs/rustfs_key.pem:ro
+      - ./certs/CAs:/opt/certs/CAs:ro
     environment:
-      MINIO_ROOT_USER: minio
-      MINIO_ROOT_PASSWORD: minio123
-      MINIO_BROWSER_REDIRECT_URL: https://miniolocal:9001
-      MINIO_SERVER_URL: https://miniolocal:9000
+      RUSTFS_ACCESS_KEY: rustfsadmin
+      RUSTFS_SECRET_KEY: rustfsadmin
+      RUSTFS_ADDRESS: ":9000"
+      RUSTFS_CONSOLE_ENABLE: "true"
+      RUSTFS_TLS_PATH: /opt/certs
   # server:
   #   build:
   #     context: .

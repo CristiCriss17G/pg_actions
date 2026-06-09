@@ -72,27 +72,27 @@ struct Cli {
     #[arg(long, env, global = true)]
     psql: Option<String>,
 
-    /// S3/Minio endpoint
+    /// S3/RustFS endpoint
     #[arg(long, env, global = true)]
     s3_endpoint: Option<String>,
 
-    /// S3/Minio access key
+    /// S3/RustFS access key
     #[arg(long, env, global = true)]
     s3_access_key: Option<String>,
 
-    /// S3/Minio secret key
+    /// S3/RustFS secret key
     #[arg(long, env, global = true, hide_env_values = true)]
     s3_secret_key: Option<String>,
 
-    /// S3/Minio bucket
+    /// S3/RustFS bucket
     #[arg(long, env, global = true)]
     s3_bucket: Option<String>,
 
-    /// S3/Minio region
+    /// S3/RustFS region
     #[arg(long, env, global = true)]
     s3_region: Option<String>,
 
-    /// S3/Minio bucket prefix/folder
+    /// S3/RustFS bucket prefix/folder
     #[arg(long, env, global = true)]
     s3_prefix: Option<String>,
 

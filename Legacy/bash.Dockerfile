@@ -1,6 +1,6 @@
 FROM postgres:16-alpine
 
-LABEL maintainer="devops@ivfuture.ro"
+LABEL maintainer="53430981+CristiCriss17G@users.noreply.github.com"
 LABEL version="1.0"
 LABEL title="Clone PostgreSQL database"
 LABEL description="This is a Dockerfile for cloning a PostgreSQL database. For more information visit run with -h."

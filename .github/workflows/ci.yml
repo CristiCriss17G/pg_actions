@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - "**"
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+  pull-requests: read
+  id-token: write
+  attestations: write
+  artifact-metadata: write
+
+jobs:
+  prepare:
+    name: Prepare
+    uses: ./.github/workflows/prepare.yml
+    with:
+      tags_file: tags.txt
+
+  docker:
+    name: Docker
+    needs: prepare
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || github.ref_name == 'main' || github.ref_name == 'dev'
+    uses: ./.github/workflows/docker-build.yml
+    with:
+      app_name: pg_actions
+      rust_version: "1.96"
+      alpine_version: "3.23"
+      image: ${{ needs.prepare.outputs.image }}
+      major_tag: ${{ needs.prepare.outputs.major_tag }}
+      minor_tag: ${{ needs.prepare.outputs.minor_tag }}
+      long_tag: ${{ needs.prepare.outputs.long_tag }}
+      short_tag: ${{ needs.prepare.outputs.short_tag }}
+      version: ${{ needs.prepare.outputs.version }}
+    secrets: inherit
+
+  standalone:
+    name: Standalone And Release
+    needs: prepare
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || github.ref_name == 'main' || github.ref_name == 'dev'
+    uses: ./.github/workflows/standalone-release.yml
+    with:
+      app_name: pg_actions
+      rust_version: "1.96"
+      alpine_version: "3.23"
+      version: ${{ needs.prepare.outputs.version }}
+      latest_mr_desc: ${{ needs.prepare.outputs.latest_mr_desc }}
+    secrets: inherit
