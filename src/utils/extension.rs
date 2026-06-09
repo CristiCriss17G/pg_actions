@@ -24,7 +24,7 @@ pub enum ExtensionSubCommands {
         /// sort by extension name
         #[arg(long, value_enum)]
         sort: Option<SortingOrder>,
-        /// quite mode
+        /// quiet mode
         #[arg(short, long, value_enum, default_value = "table")]
         output: OutputFormat,
         /// extra details
