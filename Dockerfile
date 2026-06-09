@@ -32,7 +32,7 @@ ARG APP_NAME
 ARG POSTGRES_VERSION
 ENV APP_NAME=${APP_NAME}
 
-LABEL org.opencontainers.image.maintainer="Cristian Iordachescu <iordachescu1996@outlook.com>"
+LABEL org.opencontainers.image.maintainer="Cristian Iordachescu <53430981+CristiCriss17G@users.noreply.github.com>"
 LABEL org.opencontainers.image.version="1.5.1"
 LABEL org.opencontainers.image.title="Postgres actions cli"
 LABEL org.opencontainers.image.description="This is a Dockerfile for running postgres-db-actions. For more information visit run with --help."

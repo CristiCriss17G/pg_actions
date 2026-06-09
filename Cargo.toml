@@ -2,7 +2,9 @@
 name = "postgres-db-actions"
 version = "1.5.1"
 edition = "2021"
-authors = ['Cristian Iordachescu <iordachescu1996@outlook.com>']
+authors = [
+    'Cristian Iordachescu <53430981+CristiCriss17G@users.noreply.github.com>',
+]
 rust-version = "1.96"
 
 [profile.release]
