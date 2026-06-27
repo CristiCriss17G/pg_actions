@@ -31,7 +31,7 @@ jobs:
           components: clippy, rustfmt
 
       - name: Cache cargo registry
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/.cargo/registry
           key: ${{ runner.os }}-${{ matrix.version }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
@@ -39,7 +39,7 @@ jobs:
             ${{ runner.os }}-${{ matrix.version }}-cargo-registry-
 
       - name: Cache cargo build
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: target
           key: ${{ runner.os }}-${{ matrix.version }}-x86_64-unknown-linux-gnu-cargo-build-tests-${{ hashFiles('**/Cargo.lock') }}
