@@ -29,7 +29,7 @@ jobs:
       RUST_VERSION: ${{ inputs.rust_version }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Install Rust
         shell: bash
@@ -70,7 +70,7 @@ jobs:
       ALPINE_VERSION: ${{ inputs.alpine_version }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Build static binary
         shell: bash
@@ -99,7 +99,7 @@ jobs:
       APP_NAME: ${{ inputs.app_name }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Download dynamic binary
         uses: actions/download-artifact@v8
@@ -160,7 +160,7 @@ jobs:
       APP_NAME: ${{ inputs.app_name }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         
       - name: Download dynamic binary
         uses: actions/download-artifact@v8
