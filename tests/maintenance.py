@@ -2,7 +2,8 @@
 """Run maintenance regressions against an isolated Docker PostgreSQL fixture.
 
 The fixture is created/removed by this script. No existing DB, container,
-passfile or user credentials are used. Requires Docker, psql and OpenSSL.
+passfile or user credentials are used. Requires Docker, PostgreSQL 18 clients
+(pg_dump, pg_restore, psql) matching the fixture, and OpenSSL.
 """
 
 import argparse

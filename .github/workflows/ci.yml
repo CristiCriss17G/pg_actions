@@ -35,7 +35,18 @@ jobs:
           components: clippy, rustfmt
 
       - name: Install build dependencies
-        run: sudo apt-get update && sudo apt-get install -y build-essential pkg-config libssl-dev liblzma-dev postgresql-client openssl
+        run: sudo apt-get update && sudo apt-get install -y build-essential pkg-config libssl-dev liblzma-dev openssl
+
+      - name: Install PostgreSQL test clients
+        # Match the PostgreSQL 18 fixture in tests/maintenance.py.
+        run: |
+          sudo apt-get install -y postgresql-common ca-certificates curl
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y postgresql-client-18
+          echo '/usr/lib/postgresql/18/bin' >> "$GITHUB_PATH"
+          /usr/lib/postgresql/18/bin/pg_dump --version
+          /usr/lib/postgresql/18/bin/pg_restore --version
+          /usr/lib/postgresql/18/bin/psql --version
 
       - name: Format
         run: cargo fmt --all --check

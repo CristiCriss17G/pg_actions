@@ -261,7 +261,9 @@ python3 tests/maintenance.py --docker
 
 The maintenance suite creates/removes its own PostgreSQL container, local CA and
 mock S3 service; it does not use existing databases or passfiles. It requires
-Docker, PostgreSQL clients and OpenSSL. Tests cover credential logging/precedence,
+Docker, PostgreSQL 18 clients (matching the fixture) and OpenSSL. GitHub CI
+installs `postgresql-client-18` from PGDG and selects its binary directory
+explicitly. Tests cover credential logging/precedence,
 quoted SQL names, staging safety, ownership, TLS and S3 upload failures.
 
 The existing [archive/Compose suite](tests/archive-compose.py) remains available
