@@ -1,10 +1,6 @@
 # Changelog
 
-## Release 2.0.0 (Unreleased)
-
-Prepared on `dev` for validation before merging into `main`. The merge into
-`main` is intended to publish the `v2.0.0` release; the release date remains
-unset until that happens.
+## Release 2.0.0
 
 ### Features
 
