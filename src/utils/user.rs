@@ -2,24 +2,18 @@ use super::db::general::postgres_connect;
 use super::db::user::{
     alter_role, create_role, delete_role, grant_privileges, list_roles, revoke_privileges,
 };
-use super::structs::{
-    OutputFormat, PostgresCredentials, Result, SortingOrder, UserDetails, UserPrivileges,
-};
+use super::structs::{OutputFormat, PostgresCredentials, Result, SortingOrder, UserPrivileges};
 use clap::{Args, Subcommand};
-use csv::Writer;
-use log::{debug, info, trace};
-use prettytable::{row, Table};
-use serde_json;
-use std::collections::HashMap;
+use log::{debug, info};
 
-#[derive(Args, Debug, PartialEq)]
+#[derive(Args, PartialEq)]
 pub struct UserArgs {
     /// action subcommand
     #[command(subcommand)]
     subcommand: UserSubCommands,
 }
 
-#[derive(Subcommand, Debug, PartialEq)]
+#[derive(Subcommand, PartialEq)]
 pub enum UserSubCommands {
     /// List users
     List {
@@ -107,12 +101,7 @@ pub enum UserSubCommands {
     },
 }
 
-pub async fn user(
-    data: &UserArgs,
-    credentials: &HashMap<String, PostgresCredentials>,
-    pg_main_hostname: &String,
-) -> Result<()> {
-    let main_credentials = credentials.get(pg_main_hostname).unwrap();
+pub async fn user(data: &UserArgs, main_credentials: &PostgresCredentials) -> Result<()> {
     let client = postgres_connect(main_credentials, None).await?;
     match &data.subcommand {
         UserSubCommands::List {
@@ -135,14 +124,14 @@ pub async fn user(
                 "Create user: username: {}, superuser: {}, createdb: {}, no_login: {}",
                 username, superuser, createdb, no_login
             );
-            debug!(
-                "Create user: username: {}, password: {:?}, superuser: {}, createdb: {}, no_login: {}",
-                username, password, superuser, createdb, no_login
-            );
-            create_role(
+            if let Some(generated) = create_role(
                 &client, username, password, *superuser, *createdb, *no_login,
             )
-            .await?;
+            .await?
+            {
+                // Deliberate one-time credential output, never a log record.
+                super::output::generated_password(username, &generated)?;
+            }
             info!("User created successfully")
         }
         UserSubCommands::Delete { username } => {
@@ -161,7 +150,6 @@ pub async fn user(
                 "Update user: username: {}, superuser: {:?}, createdb: {:?}, no_login: {:?}",
                 username, superuser, createdb, no_login
             );
-            debug!("Update user: username: {}, password: {:?}, superuser: {:?}, createdb: {:?}, no_login: {:?}", username, password, superuser, createdb, no_login);
             alter_role(&client, username, password, superuser, createdb, no_login).await?;
             info!("User updated successfully")
         }
@@ -228,108 +216,5 @@ async fn user_list(
     query: &Option<String>,
 ) -> Result<()> {
     let roles = list_roles(client, sort, extra, query).await?;
-    trace!("Roles: {:?}", roles);
-    match output_format {
-        OutputFormat::Simple => {
-            for user in roles {
-                match user {
-                    UserDetails::Extra {
-                        username,
-                        createdb,
-                        superuser,
-                        login,
-                        oid,
-                    } => {
-                        println!(
-                            "{}\t{}\t{}\t{}\t{}",
-                            username, createdb, superuser, login, oid
-                        );
-                    }
-                    UserDetails::Username(username) => {
-                        println!("{}", username);
-                    }
-                }
-            }
-        }
-        OutputFormat::Table => {
-            let mut table = Table::new();
-            match extra {
-                true => table.add_row(row![b =>
-                    "IDX",
-                    "Username",
-                    "Createdb",
-                    "Superuser",
-                    "Login",
-                    "OID"
-                ]),
-                false => table.add_row(row![b => "IDX", "Username"]),
-            };
-            for (i, user) in roles.iter().enumerate() {
-                match user {
-                    UserDetails::Extra {
-                        username,
-                        createdb,
-                        superuser,
-                        login,
-                        oid,
-                    } => {
-                        table.add_row(row![i, username, createdb, superuser, login, oid]);
-                    }
-                    UserDetails::Username(username) => {
-                        table.add_row(row![i, username]);
-                    }
-                }
-            }
-            table.printstd();
-        }
-        OutputFormat::Json => {
-            let json = serde_json::to_string_pretty(&roles)?;
-            println!("{}", json);
-        }
-        OutputFormat::JsonCompact => {
-            let json = serde_json::to_string(&roles)?;
-            println!("{}", json);
-        }
-        OutputFormat::JsonLines => {
-            for user in roles {
-                let json = serde_json::to_string(&user)?;
-                println!("{}", json);
-            }
-        }
-        OutputFormat::Csv => {
-            let mut wtr = Writer::from_writer(vec![]);
-            match extra {
-                true => {
-                    wtr.write_record(["IDX", "Username", "Createdb", "Superuser", "Login", "OID"])?
-                }
-                false => wtr.write_record(["IDX", "Username"])?,
-            }
-            for (i, user) in roles.iter().enumerate() {
-                match user {
-                    UserDetails::Extra {
-                        username,
-                        createdb,
-                        superuser,
-                        login,
-                        oid,
-                    } => {
-                        wtr.write_record([
-                            &i.to_string(),
-                            &username.to_string(),
-                            &createdb.to_string(),
-                            &superuser.to_string(),
-                            &login.to_string(),
-                            &oid.to_string(),
-                        ])?;
-                    }
-                    UserDetails::Username(username) => {
-                        wtr.write_record([&i.to_string(), &username.to_string()])?;
-                    }
-                }
-            }
-            let data = String::from_utf8(wtr.into_inner().map_err(Box::new)?)?;
-            println!("{}", data);
-        }
-    }
-    Ok(())
+    super::output::render(&roles, output_format, extra, std::io::stdout().lock())
 }

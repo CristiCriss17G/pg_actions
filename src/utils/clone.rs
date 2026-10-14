@@ -1,17 +1,15 @@
-use super::db::database::{
-    change_owner_of_objects_in_db, change_owner_of_tables_in_db, check_database_exists, create_db,
-    delete_db, kill_connections_to_db,
-};
-use super::db::general::{db_dump, db_restore, init_pgpass, postgres_connect};
+use super::credentials::PostgresCredentials;
+use super::db::database::check_database_exists;
+use super::db::general::{db_dump, postgres_connect};
+use super::db::staging::{preflight, staged_restore};
 use super::db::user::{check_user_exists, create_user};
-use super::misc::{delete_file, generate_random_string};
-use super::structs::{PGCliError, PGTools, PostgresCredentials, Result, SqlFileFormat};
+use super::files::{finish_workspace, workspace};
+use super::sql::validate_identifier;
+use super::structs::{PGCliError, PGTools, Result, SqlFileFormat};
 use clap::Args;
-use log::{debug, error, info};
-use std::collections::HashMap;
-use std::path::PathBuf;
+use log::info;
 
-#[derive(Args, Debug, PartialEq)]
+#[derive(Args, PartialEq)]
 pub struct CloneArgs {
     /// database to clone
     #[arg(short, long)]
@@ -40,7 +38,7 @@ pub struct CloneArgs {
     #[arg(long, env)]
     pg_hostname2: Option<String>,
     /// Optional new port
-    #[arg(long, env, default_value = "5432")]
+    #[arg(long, env)]
     pg_port2: Option<u16>,
     /// Optional user for new host
     #[arg(long, env)]
@@ -50,221 +48,164 @@ pub struct CloneArgs {
     pg_password2: Option<String>,
 }
 
+impl CloneArgs {
+    pub fn source_database(&self) -> &str {
+        &self.database
+    }
+    pub fn destination_credentials(&self, source: &PostgresCredentials) -> PostgresCredentials {
+        if self.pg_hostname2.is_none()
+            && self.pg_port2.is_none()
+            && self.pg_superuser2.is_none()
+            && self.pg_password2.is_none()
+        {
+            return source.clone();
+        }
+        let mut destination = source.passfile.resolve(
+            self.pg_hostname2
+                .clone()
+                .unwrap_or_else(|| source.pg_hostname.clone()),
+            self.pg_superuser2.clone(),
+            self.pg_port2,
+            self.pg_password2.clone(),
+            "postgres",
+        );
+        destination.ssl_mode = source.ssl_mode;
+        destination.ssl_root_cert = source.ssl_root_cert.clone();
+        destination
+    }
+}
+
 pub async fn clone_db(
     data: &CloneArgs,
-    credentials: &mut HashMap<String, PostgresCredentials>,
-    pg_main_hostname: &String,
-    pg_tools: &PGTools,
+    source: &PostgresCredentials,
+    tools: &PGTools,
 ) -> Result<()> {
-    info!(
-        "Cloning database {} to {}",
-        data.database, data.new_database
-    );
-
-    let source_credentials = credentials.get(pg_main_hostname).unwrap().clone();
-    let mut destination_credentials = source_credentials.clone();
-
-    let mut all_credentials = credentials
-        .values()
-        .cloned()
-        .collect::<Vec<PostgresCredentials>>();
-
-    if let Some(pg_hostname2) = &data.pg_hostname2 {
-        // check if the new host is in the credentials
-        if !credentials.contains_key(pg_hostname2) {
-            debug!("New host not found in pgpass credentials");
-            // if any other value is not provided, give error
-            if data.pg_port2.is_none() {
-                error!("New port not provided");
-                return Err(PGCliError::Other("New port not provided".to_string()));
-            }
-            if data.pg_superuser2.is_none() {
-                error!("New superuser not provided");
-                return Err(PGCliError::Other("New superuser not provided".to_string()));
-            }
-            if data.pg_password2.is_none() {
-                error!("New password not provided");
-                return Err(PGCliError::Other("New password not provided".to_string()));
-            }
-
-            let new_credentials = PostgresCredentials::new(
-                pg_hostname2.to_string(),
-                data.pg_superuser2.clone().unwrap(),
-                data.pg_password2.clone().unwrap(),
-                data.pg_port2.unwrap(),
-            );
-            all_credentials.push(new_credentials.clone());
-            credentials.insert(pg_hostname2.to_string(), new_credentials);
-        }
-        destination_credentials = credentials.get(pg_hostname2).unwrap().clone();
-        info!(
-            "Cloning from {} to {}",
-            &source_credentials.pg_hostname, &destination_credentials.pg_hostname
-        );
-    }
-
-    init_pgpass(&all_credentials).await?;
-
-    let source_client = postgres_connect(&source_credentials, None).await?;
-    if !check_database_exists(&source_client, &data.database).await? {
-        error!("Database {} does not exist", &data.database);
-        return Err(PGCliError::Other(format!(
-            "Database {} does not exist",
-            &data.database
-        )));
-    }
-
-    let dump_file = PathBuf::from(r"/tmp/psql_backup/").join(format!(
-        "{}-{}.bsql",
-        data.new_database,
-        generate_random_string(6, true)
-    ));
-
-    match db_dump(
-        source_credentials.clone(),
-        &data.database,
-        &dump_file,
-        pg_tools,
-        SqlFileFormat::Bsql,
-    )
-    .await
-    {
-        Ok(_) => info!("Database dumped successfully"),
-        Err(e) => {
-            error!("Failed to dump database: {}", e);
-            return Err(e);
-        }
-    }
-
-    let destination_client = postgres_connect(&destination_credentials, None).await?;
-
-    // check if data.new_owner exists
+    validate_identifier(&data.database)?;
+    validate_identifier(&data.new_database)?;
     if let Some(owner) = &data.new_owner {
-        let new_owner_exists = check_user_exists(&destination_client, owner).await?;
-        if !new_owner_exists && data.create_owner {
-            info!("Creating new owner {}", owner);
-            match create_user(&destination_client, owner, &data.new_password).await {
-                Ok(_) => info!("New owner created successfully"),
-                Err(e) => {
-                    error!("Failed to create new owner: {}", e);
-                    return Err(e);
-                }
-            }
-        } else if !new_owner_exists && !data.create_owner {
-            error!("New owner does not exist and create_owner is not set");
-            return Err(PGCliError::Other(
-                "New owner does not exist and create_owner is not set".to_string(),
-            ));
-        }
+        validate_identifier(owner)?;
     }
-
-    // check if data.new_database exists
-    let new_database_exists =
-        check_database_exists(&destination_client, &data.new_database).await?;
-
-    if new_database_exists && !data.overwrite {
-        error!("New database already exists and overwrite is not set");
+    let destination = data.destination_credentials(source);
+    let source_client = postgres_connect(source, None).await?;
+    let destination_client = postgres_connect(&destination, None).await?;
+    if data.database == data.new_database
+        && same_server(source, &destination, &source_client, &destination_client).await
+    {
         return Err(PGCliError::Other(
-            "New database already exists and overwrite is not set".to_string(),
+            "Source and destination identify the same database".into(),
         ));
-    } else if new_database_exists && data.overwrite {
-        info!("Dropping database {}", &data.new_database);
-        info!("Killing connections to database {}", &data.new_database);
-        match kill_connections_to_db(&destination_client, &data.new_database).await {
-            Ok(_) => info!("Connections killed successfully"),
-            Err(e) => {
-                error!("Failed to kill connections: {}", e);
-                return Err(e);
+    }
+    if !check_database_exists(&source_client, &data.database).await? {
+        return Err(PGCliError::Other("Source database does not exist".into()));
+    }
+    tools.check_dump_server(&source_client).await?;
+    // Check destination existence/permissions before creating a requested role.
+    preflight(
+        &destination_client,
+        &data.new_database,
+        None,
+        data.overwrite,
+    )
+    .await?;
+    if let Some(owner) = &data.new_owner {
+        if !check_user_exists(&destination_client, owner).await? {
+            if !data.create_owner {
+                return Err(PGCliError::Other(
+                    "Owner does not exist; use --create-owner".into(),
+                ));
             }
-        }
-        match delete_db(&destination_client, &data.new_database).await {
-            Ok(_) => info!("Database dropped successfully"),
-            Err(e) => {
-                error!("Failed to drop database: {}", e);
-                return Err(e);
+            // Validate the password before any role or database mutation.
+            if let Some(password) = &data.new_password {
+                super::sql::literal(password)?;
+            }
+            if let Some(password) =
+                create_user(&destination_client, owner, &data.new_password).await?
+            {
+                super::output::generated_password(owner, &password)?;
             }
         }
     }
-
-    info!("Creating database {}", &data.new_database);
-    match create_db(
+    preflight(
         &destination_client,
         &data.new_database,
         data.new_owner.as_deref(),
+        data.overwrite,
     )
-    .await
-    {
-        Ok(_) => info!("Database created successfully"),
-        Err(e) => {
-            error!("Failed to create database: {}", e);
-            return Err(e);
-        }
+    .await?;
+    let directory = workspace("postgresql-clone-")?;
+    let dump = directory.path().join("clone.bsql");
+    let result = async {
+        db_dump(
+            source.clone(),
+            &data.database,
+            &dump,
+            tools,
+            SqlFileFormat::Bsql,
+            super::structs::PgDumpCompression::Default,
+        )
+        .await?;
+        staged_restore(
+            &destination,
+            &data.new_database,
+            &dump,
+            tools,
+            SqlFileFormat::Bsql,
+            data.new_owner.as_deref(),
+            data.overwrite,
+        )
+        .await?;
+        info!("Database {} cloned to {}", data.database, data.new_database);
+        Ok(())
     }
+    .await;
+    finish_workspace(directory, data.keep_dump, result)
+}
 
-    info!("Restoring database {}", &data.new_database);
-    match db_restore(
-        destination_credentials.clone(),
-        &data.new_database,
-        &dump_file,
-        pg_tools,
-        SqlFileFormat::Bsql,
-    )
-    .await
-    {
-        Ok(_) => info!("Database restored successfully"),
-        Err(e) => {
-            error!("Failed to restore database: {}", e);
-            return Err(e);
-        }
+// Backend IPs can coincide across separate VPCs/containers. Compare a cluster
+// identifier and instance start time when permitted; otherwise compare the
+// resolved client endpoints rather than private backend addresses.
+async fn same_server(
+    source: &PostgresCredentials,
+    destination: &PostgresCredentials,
+    source_client: &deadpool_postgres::Client,
+    destination_client: &deadpool_postgres::Client,
+) -> bool {
+    if source.pg_hostname == destination.pg_hostname && source.pg_port == destination.pg_port {
+        return true;
     }
-
-    if let Some(owner) = &data.new_owner {
-        info!(
-            "Changing owner of tables in database {}",
-            &data.new_database
-        );
-        match change_owner_of_tables_in_db(&destination_credentials, &data.new_database, owner)
-            .await
-        {
-            Ok(_) => info!("Owner of tables changed successfully"),
-            Err(e) => {
-                error!("Failed to change owner of tables: {}", e);
-                return Err(e);
-            }
-        }
-
-        info!(
-            "Changing owner of objects in database {}",
-            &data.new_database
-        );
-        match change_owner_of_objects_in_db(&destination_credentials, &data.new_database, owner)
-            .await
-        {
-            Ok(_) => info!("Owner of objects changed successfully"),
-            Err(e) => {
-                error!("Failed to change owner of objects: {}", e);
-                return Err(e);
-            }
-        }
+    let query = "SELECT system_identifier::text, extract(epoch FROM pg_catalog.pg_postmaster_start_time())::text FROM pg_catalog.pg_control_system()";
+    let source_identity = source_client
+        .query_one(query, &[])
+        .await
+        .ok()
+        .and_then(|row| {
+            Some((
+                row.try_get::<_, String>(0).ok()?,
+                row.try_get::<_, String>(1).ok()?,
+            ))
+        });
+    let destination_identity = destination_client
+        .query_one(query, &[])
+        .await
+        .ok()
+        .and_then(|row| {
+            Some((
+                row.try_get::<_, String>(0).ok()?,
+                row.try_get::<_, String>(1).ok()?,
+            ))
+        });
+    if let (Some(source), Some(destination)) = (source_identity, destination_identity) {
+        return source == destination;
     }
-
-    if !data.keep_dump {
-        debug!("Deleting dump file {}", &dump_file.display());
-        match delete_file(&dump_file).await {
-            Ok(_) => info!("Dump file deleted successfully"),
-            Err(e) => {
-                error!("Failed to delete dump file: {}", e);
-                return Err(PGCliError::from(e));
-            }
-        }
-    } else {
-        info!("Dump file kept at {}", &dump_file.display());
+    let source_addresses =
+        tokio::net::lookup_host((source.pg_hostname.as_str(), source.pg_port)).await;
+    let destination_addresses =
+        tokio::net::lookup_host((destination.pg_hostname.as_str(), destination.pg_port)).await;
+    if let (Ok(source), Ok(destination)) = (source_addresses, destination_addresses) {
+        let source: Vec<_> = source.collect();
+        return destination
+            .into_iter()
+            .any(|address| source.contains(&address));
     }
-
-    info!(
-        "Database {} cloned to {}",
-        &data.database, &data.new_database
-    );
-
-    Ok(())
+    false
 }

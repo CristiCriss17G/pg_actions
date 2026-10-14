@@ -23,7 +23,7 @@ on:
 jobs:
   compile_dynamic:
     name: Compile Dynamic
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     env:
       APP_NAME: ${{ inputs.app_name }}
       RUST_VERSION: ${{ inputs.rust_version }}
@@ -41,11 +41,7 @@ jobs:
         shell: bash
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang lld build-essential gpg sudo wget lsb-release ca-certificates
-          wget -qO - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /usr/share/keyrings/postgresql-archive-keyring.gpg
-          echo "deb [signed-by=/usr/share/keyrings/postgresql-archive-keyring.gpg] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
-          sudo apt-get update
-          sudo apt-get install -y postgresql-client-16
+          sudo apt-get install -y clang lld build-essential pkg-config libssl-dev liblzma-dev ca-certificates binutils
 
       - name: Build
         shell: bash
@@ -53,6 +49,9 @@ jobs:
           cargo fetch --locked
           cargo build --locked --release --target-dir ./target
           cp "target/release/${APP_NAME}" "$APP_NAME"
+          file "$APP_NAME"
+          readelf -l "$APP_NAME" | grep INTERP
+          ldd "$APP_NAME"
 
       - name: Upload dynamic binary
         uses: actions/upload-artifact@v7
@@ -80,7 +79,7 @@ jobs:
             -v "$PWD:/workspace" \
             -w /workspace \
             "rust:${RUST_VERSION}-alpine${ALPINE_VERSION}" \
-            sh -c 'cargo --version && apk update && apk upgrade --no-cache && apk add --no-cache build-base clang lld musl-dev git file pkgconfig openssl-dev libcrypto3 libssl3 openssl-libs-static postgresql16-client && cargo fetch --locked && cargo build --locked --release --target-dir ./target && cp "target/release/${APP_NAME}" "${APP_NAME}-static"'
+            sh -c 'cargo --version && apk update && apk upgrade --no-cache && apk add --no-cache build-base clang lld musl-dev git file binutils pkgconfig openssl-dev libcrypto3 libssl3 openssl-libs-static postgresql16-client && OPENSSL_STATIC=1 LZMA_API_STATIC=1 cargo build --locked --release --target-dir ./target && cp "target/release/${APP_NAME}" "${APP_NAME}-static" && ! readelf -l "${APP_NAME}-static" | grep -q INTERP'
 
       - name: Upload static binary
         uses: actions/upload-artifact@v7
@@ -91,7 +90,7 @@ jobs:
 
   make_deb_files:
     name: Debian Packages
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     needs:
       - compile_dynamic
       - compile_static
@@ -117,27 +116,14 @@ jobs:
         shell: bash
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential devscripts curl
+          sudo apt-get install -y build-essential devscripts curl binutils libssl-dev liblzma-dev
 
       - name: Build Debian packages
         env:
           RELEASE_VERSION: ${{ inputs.version }}
         shell: bash
         run: |
-          sed -i "s/\(Version: \)[0-9]\+\.[0-9]\+\.[0-9]\+\(-static\.[0-9]\+\)/\1${RELEASE_VERSION}\2/" debian/static/DEBIAN/control
-          sed -i "s/\(Version: \)[0-9]\+\.[0-9]\+\.[0-9]\+\(-[0-9]\+\)/\1${RELEASE_VERSION}\2/" debian/dynamic/DEBIAN/control
-          cp "$APP_NAME" "debian/dynamic/usr/local/bin/$APP_NAME"
-          rm -f debian/dynamic/usr/local/bin/.gitkeep
-          cp "${APP_NAME}-static" "debian/static/usr/local/bin/${APP_NAME}"
-          rm -f debian/static/usr/local/bin/.gitkeep
-          install -Dm644 LICENSE debian/dynamic/usr/share/doc/pg-actions/LICENSE
-          install -Dm644 LICENSE debian/static/usr/share/doc/pg-actions/LICENSE
-          find debian -type d -exec chmod 755 {} +
-          find debian -type f -exec chmod 644 {} +
-          chmod 755 "debian/dynamic/usr/local/bin/$APP_NAME"
-          chmod 755 "debian/static/usr/local/bin/$APP_NAME"
-          dpkg-deb --build debian/dynamic "${APP_NAME}_${RELEASE_VERSION}_amd64.deb"
-          dpkg-deb --build debian/static "${APP_NAME}-static_${RELEASE_VERSION}_amd64.deb"
+          bash devops/package-deb.sh "$APP_NAME" "${APP_NAME}-static" "$RELEASE_VERSION"
 
       - name: Upload Debian packages
         uses: actions/upload-artifact@v7
@@ -187,6 +173,9 @@ jobs:
           LATEST_MR_DESC: ${{ inputs.latest_mr_desc }}
         shell: bash
         run: |
+          cd dist
+          sha256sum ./* > SHA256SUMS
+          cd ..
           tag="v${RELEASE_VERSION}"
           notes="Release created using GitHub Actions. Release '${tag}': ${LATEST_MR_DESC}"
 

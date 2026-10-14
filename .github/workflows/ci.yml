@@ -6,6 +6,11 @@ on:
       - "**"
   pull_request:
   workflow_dispatch:
+    inputs:
+      checks_only:
+        description: Run checks without packaging or publishing (used after autofix)
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -16,20 +21,66 @@ permissions:
   artifact-metadata: write
 
 jobs:
+  tests:
+    name: Rust Checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.99.0"
+          components: clippy, rustfmt
+
+      - name: Install build dependencies
+        run: sudo apt-get update && sudo apt-get install -y build-essential pkg-config libssl-dev liblzma-dev openssl
+
+      - name: Install PostgreSQL test clients
+        # Match the PostgreSQL 18 fixture in tests/maintenance.py.
+        run: |
+          sudo apt-get install -y postgresql-common ca-certificates curl
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y postgresql-client-18
+          echo '/usr/lib/postgresql/18/bin' >> "$GITHUB_PATH"
+          /usr/lib/postgresql/18/bin/pg_dump --version
+          /usr/lib/postgresql/18/bin/pg_restore --version
+          /usr/lib/postgresql/18/bin/psql --version
+
+      - name: Format
+        run: cargo fmt --all --check
+
+      - name: Clippy
+        run: cargo clippy --locked --all-targets --all-features -- -D warnings
+
+      - name: Test
+        run: cargo test --locked --all-features
+
+      - name: Build test binary
+        run: cargo build --locked
+
+      - name: Maintenance regression tests
+        run: python3 tests/maintenance.py --docker
+
+
   prepare:
     name: Prepare
+    if: github.event_name != 'workflow_dispatch' || !inputs.checks_only
     uses: ./.github/workflows/prepare.yml
     with:
       tags_file: tags.txt
 
   docker:
     name: Docker
-    needs: prepare
-    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || github.ref_name == 'main' || github.ref_name == 'dev'
+    needs: [prepare, tests]
+    if: >-
+      !(github.event_name == 'workflow_dispatch' && inputs.checks_only) &&
+      (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || github.ref_name == 'main' || github.ref_name == 'dev')
     uses: ./.github/workflows/docker-build.yml
     with:
       app_name: pg_actions
-      rust_version: "1.96"
+      rust_version: "1.99.0"
       alpine_version: "3.23"
       image: ${{ needs.prepare.outputs.image }}
       major_tag: ${{ needs.prepare.outputs.major_tag }}
@@ -41,12 +92,14 @@ jobs:
 
   standalone:
     name: Standalone And Release
-    needs: prepare
-    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || github.ref_name == 'main' || github.ref_name == 'dev'
+    needs: [prepare, tests]
+    if: >-
+      !(github.event_name == 'workflow_dispatch' && inputs.checks_only) &&
+      (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || github.ref_name == 'main' || github.ref_name == 'dev')
     uses: ./.github/workflows/standalone-release.yml
     with:
       app_name: pg_actions
-      rust_version: "1.96"
+      rust_version: "1.99.0"
       alpine_version: "3.23"
       version: ${{ needs.prepare.outputs.version }}
       latest_mr_desc: ${{ needs.prepare.outputs.latest_mr_desc }}

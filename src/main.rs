@@ -1,19 +1,17 @@
 mod utils;
 
-use clap::{Command, CommandFactory, Parser, Subcommand};
+use clap::{parser::ValueSource, Command, CommandFactory, FromArgMatches, Parser, Subcommand};
 use clap_complete::{generate, Generator, Shell};
-use log::{debug, error, info, trace, LevelFilter};
-use rpassword::prompt_password;
-use std::collections::HashMap;
-use std::io;
+use log::{info, warn, LevelFilter};
+use std::io::{self, IsTerminal};
 use std::path::PathBuf;
-use utils::db::general::try_read_pgpass;
-use utils::structs::{PostgresCredentials, Result, S3Credentials};
-use utils::{
-    backup, clone, database, logging::log_init, misc::check_pg_tools_version, restore, user,
-};
+use std::sync::Arc;
+use utils::credentials::{Passfile, SslMode};
+use utils::pg_tools::{PGTools, ToolKind, ToolPaths};
+use utils::structs::{Result, S3Credentials, SqlFileFormat};
+use utils::{backup, clone, database, logging::log_init, restore, user};
 
-#[derive(Parser, Debug, PartialEq)]
+#[derive(Parser, PartialEq)]
 #[command(name = "pg_actions", author, version, about, long_about = None)]
 /// A simple CLI tool for managing Postgres databases
 struct Cli {
@@ -28,13 +26,7 @@ struct Cli {
     pg_hostname: String,
 
     /// Sets Postgres username
-    #[arg(
-        short = 'U',
-        long,
-        env = "PG_SUPERUSER",
-        global = true,
-        default_value = "postgres"
-    )]
+    #[arg(short = 'U', long, env = "PG_SUPERUSER", global = true)]
     pg_superuser: Option<String>,
 
     /// Sets Postgres password
@@ -48,36 +40,48 @@ struct Cli {
     pg_password: Option<String>,
 
     /// Sets Postgres port
-    #[arg(
-        short = 'p',
-        long,
-        env = "PG_PORT",
-        global = true,
-        default_value = "5432"
-    )]
+    #[arg(short = 'p', long, env = "PG_PORT", global = true)]
     pg_port: Option<u16>,
 
     /// Optional custom pg_dump path
     /// If not set, the default from PATH will be used
     #[arg(long, env, global = true)]
-    pg_dump: Option<String>,
+    pg_dump: Option<PathBuf>,
 
     /// Optional custom pg_restore path
     /// If not set, the default from PATH will be used
     #[arg(long, env, global = true)]
-    pg_restore: Option<String>,
+    pg_restore: Option<PathBuf>,
 
     /// Optional custom psql path
     /// If not set, the default from PATH will be used
     #[arg(long, env, global = true)]
-    psql: Option<String>,
+    psql: Option<PathBuf>,
+
+    /// PostgreSQL TLS policy; defaults to unverified opportunistic TLS in v2, verify-full in v3
+    #[arg(
+        long,
+        env = "PG_SSL_MODE",
+        global = true,
+        value_enum,
+        default_value = "prefer"
+    )]
+    pg_ssl_mode: SslMode,
+
+    /// PEM CA certificate bundle for PostgreSQL TLS
+    #[arg(long, env = "PG_SSL_ROOT_CERT", global = true)]
+    pg_ssl_root_cert: Option<PathBuf>,
+
+    /// Optional S3 session token for temporary credentials
+    #[arg(long, env, global = true, hide_env_values = true)]
+    s3_session_token: Option<String>,
 
     /// S3/RustFS endpoint
     #[arg(long, env, global = true)]
     s3_endpoint: Option<String>,
 
     /// S3/RustFS access key
-    #[arg(long, env, global = true)]
+    #[arg(long, env, global = true, hide_env_values = true)]
     s3_access_key: Option<String>,
 
     /// S3/RustFS secret key
@@ -114,7 +118,7 @@ struct Cli {
     command: Commands,
 }
 
-#[derive(Subcommand, Debug, PartialEq)]
+#[derive(Subcommand, PartialEq)]
 enum Commands {
     /// Clone a database
     #[clap(visible_alias("cl"))]
@@ -139,65 +143,74 @@ enum Commands {
     CheckTools,
 }
 
-fn print_completions<G: Generator>(gen: G, cmd: &mut Command) {
-    generate(gen, cmd, cmd.get_name().to_string(), &mut io::stdout());
+fn print_completions<G: Generator>(generator: G, command: &mut Command) {
+    generate(
+        generator,
+        command,
+        command.get_name().to_string(),
+        &mut io::stdout(),
+    );
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let cli = Cli::parse();
-
-    // Initialize the logger
-    let log_level = match cli.debug {
+    let matches = Cli::command().get_matches();
+    let implicit_ssl_mode = matches.value_source("pg_ssl_mode") == Some(ValueSource::DefaultValue);
+    let cli = Cli::from_arg_matches(&matches).unwrap_or_else(|error| error.exit());
+    if let Commands::Completions { shell } = &cli.command {
+        print_completions(*shell, &mut Cli::command());
+        return Ok(());
+    }
+    let level = match cli.debug {
         0 => LevelFilter::Info,
         1 => LevelFilter::Debug,
         _ => LevelFilter::Trace,
     };
-
-    log_init(log_level, cli.use_json_logging, cli.log_file.as_deref())?;
-
-    info!("Starting up...");
-    if log_level > LevelFilter::Info {
-        info!("Debugging enabled to level {}", log_level);
-    }
-
-    let pg_main_hostname = cli.pg_hostname.clone();
-
-    let mut pgpass = {
-        let pgpass = try_read_pgpass().await;
-        if !pgpass.is_empty() && pgpass.contains_key(&pg_main_hostname) {
-            pgpass
-        } else {
-            let mut pgpassword = cli.pg_password.as_deref().unwrap_or("").to_string();
-            if pgpassword.is_empty() {
-                match prompt_password("Postgres password: ") {
-                    Ok(password) => pgpassword = password,
-                    Err(e) => {
-                        error!("Failed to read password: {}", e);
-                        return Err(e.into());
-                    }
-                }
-            }
-            let mut new_pgpass = HashMap::from([(
-                cli.pg_hostname.clone(),
-                PostgresCredentials::new(
-                    cli.pg_hostname.to_string(),
-                    cli.pg_superuser
-                        .as_deref()
-                        .unwrap_or("postgres")
-                        .to_string(),
-                    pgpassword,
-                    cli.pg_port.unwrap_or(5432),
-                ),
-            )]);
-            if !pgpass.is_empty() {
-                new_pgpass.extend(pgpass);
-            }
-            new_pgpass
-        }
+    log_init(level, cli.use_json_logging, cli.log_file.as_deref())?;
+    let paths = ToolPaths {
+        dump: cli.pg_dump.clone().unwrap_or_else(|| "pg_dump".into()),
+        restore: cli
+            .pg_restore
+            .clone()
+            .unwrap_or_else(|| "pg_restore".into()),
+        psql: cli.psql.clone().unwrap_or_else(|| "psql".into()),
     };
-
-    let s3_credentials = S3Credentials::new(
+    let required: &[ToolKind] = match &cli.command {
+        Commands::CheckTools => &[ToolKind::Dump, ToolKind::Restore, ToolKind::Psql],
+        Commands::Backup(_) => &[ToolKind::Dump],
+        Commands::Clone(_) => &[ToolKind::Dump, ToolKind::Restore],
+        Commands::Restore(data) if data.format() == SqlFileFormat::Sql => &[ToolKind::Psql],
+        Commands::Restore(_) => &[ToolKind::Restore],
+        _ => &[],
+    };
+    let tools = PGTools::check(&paths, required).await?;
+    if matches!(cli.command, Commands::CheckTools) {
+        info!("All requested tools are available");
+        return Ok(());
+    }
+    if implicit_ssl_mode {
+        warn!("PostgreSQL TLS defaults to prefer (no certificate/hostname verification; non-TLS fallback). In v3.0 the default will change to verify-full. Set --pg-ssl-mode or PG_SSL_MODE explicitly to select your policy.");
+    }
+    let passfile = Arc::new(Passfile::read().await?);
+    let auth_database = match &cli.command {
+        Commands::Clone(data) => data.source_database(),
+        _ => "postgres",
+    };
+    let mut credentials = passfile.resolve(
+        cli.pg_hostname.clone(),
+        cli.pg_superuser.clone(),
+        cli.pg_port,
+        cli.pg_password
+            .clone()
+            .or_else(|| std::env::var("PGPASSWORD").ok()),
+        auth_database,
+    );
+    credentials.ssl_mode = cli.pg_ssl_mode;
+    credentials.ssl_root_cert = cli.pg_ssl_root_cert.clone();
+    if credentials.password_for(auth_database).is_none() && io::stdin().is_terminal() {
+        credentials.password = Some(rpassword::prompt_password("Postgres password: ")?);
+    }
+    let mut s3 = S3Credentials::new(
         cli.s3_endpoint,
         cli.s3_access_key,
         cli.s3_secret_key,
@@ -205,119 +218,15 @@ async fn main() -> Result<()> {
         cli.s3_region,
         cli.s3_prefix,
     );
-
-    let pg_tools_paths = HashMap::from([
-        (
-            "pg_dump".to_string(),
-            cli.pg_dump.unwrap_or("pg_dump".to_string()),
-        ),
-        (
-            "pg_restore".to_string(),
-            cli.pg_restore.unwrap_or("pg_restore".to_string()),
-        ),
-        ("psql".to_string(), cli.psql.unwrap_or("psql".to_string())),
-    ]);
-    let pg_tools_min_version: u32 = 16;
-
-    trace!("Using pgpass: {:?}", pgpass);
-
-    // You can check for the existence of subcommands, and if found use their
-    // matches just as you would the top level cmd
+    s3.s3_session_token = cli.s3_session_token;
     match &cli.command {
-        Commands::Clone(clone_data) => {
-            let pg_tools = check_pg_tools_version(&pg_tools_paths, pg_tools_min_version, false)
-                .map_err(|e| {
-                    error!("Failed to check tools: {}", e);
-                    e
-                })?;
-            match clone::clone_db(clone_data, &mut pgpass, &pg_main_hostname, &pg_tools).await {
-                Ok(_) => info!("Database cloned successfully"),
-                Err(e) => {
-                    error!("Failed to clone database: {}", e);
-                    return Err(e);
-                }
-            }
-        }
-        Commands::Backup(backup_data) => {
-            let pg_tools = check_pg_tools_version(&pg_tools_paths, pg_tools_min_version, false)
-                .map_err(|e| {
-                    error!("Failed to check tools: {}", e);
-                    e
-                })?;
-            match backup::backup_db(
-                backup_data,
-                &pgpass,
-                &pg_main_hostname,
-                &s3_credentials,
-                &pg_tools,
-            )
-            .await
-            {
-                Ok(_) => info!("Database backed up successfully"),
-                Err(e) => {
-                    error!("Failed to backup database: {}", e);
-                    return Err(e);
-                }
-            }
-        }
-        Commands::Restore(restore_data) => {
-            let pg_tools = check_pg_tools_version(&pg_tools_paths, pg_tools_min_version, false)
-                .map_err(|e| {
-                    error!("Failed to check tools: {}", e);
-                    e
-                })?;
-            match restore::restore_db(
-                restore_data,
-                &pgpass,
-                &pg_main_hostname,
-                &s3_credentials,
-                &pg_tools,
-            )
-            .await
-            {
-                Ok(_) => info!("Database restored successfully"),
-                Err(e) => {
-                    error!("Failed to restore database: {}", e);
-                    return Err(e);
-                }
-            }
-        }
-        Commands::User(user_data) => {
-            // Check if pg_dump and pg_restore are available but ignore the error as they are not needed, just a warning
-            check_pg_tools_version(&pg_tools_paths, pg_tools_min_version, true).unwrap_or_default();
-            match user::user(user_data, &pgpass, &pg_main_hostname).await {
-                Ok(_) => info!("User operation completed successfully"),
-                Err(e) => {
-                    error!("Failed to perform user operation: {}", e);
-                    return Err(e);
-                }
-            }
-        }
-        Commands::Database(database_data) => {
-            // Check if pg_dump and pg_restore are available but ignore the error as they are not needed, just a warning
-            check_pg_tools_version(&pg_tools_paths, pg_tools_min_version, true).unwrap_or_default();
-            match database::database(database_data, &pgpass, &pg_main_hostname).await {
-                Ok(_) => info!("Database operation completed successfully"),
-                Err(e) => {
-                    error!("Failed to perform database operation: {}", e);
-                    return Err(e);
-                }
-            }
-        }
-        Commands::Completions { shell } => {
-            debug!("Generating completions for {:?}", shell);
-            print_completions(*shell, &mut Cli::command());
-        }
-        Commands::CheckTools => {
-            match check_pg_tools_version(&pg_tools_paths, pg_tools_min_version, false) {
-                Ok(_) => info!("All tools are available"),
-                Err(e) => {
-                    error!("Failed to check tools: {}", e);
-                    return Err(e);
-                }
-            }
-        }
+        Commands::Clone(data) => clone::clone_db(data, &credentials, &tools).await?,
+        Commands::Backup(data) => backup::backup_db(data, &credentials, &s3, &tools).await?,
+        Commands::Restore(data) => restore::restore_db(data, &credentials, &s3, &tools).await?,
+        Commands::User(data) => user::user(data, &credentials).await?,
+        Commands::Database(data) => database::database(data, &credentials).await?,
+        Commands::CheckTools | Commands::Completions { .. } => {}
     }
-
+    info!("Operation completed successfully");
     Ok(())
 }

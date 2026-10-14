@@ -35,7 +35,7 @@ services:
     env_file:
       - devcontainer.env
   db:
-    image: postgres:16-alpine
+    image: postgres:18-alpine
     env_file:
       - devcontainer.env
     ports:
@@ -48,7 +48,7 @@ services:
       timeout: 5s
       retries: 5
     volumes:
-      - db:/var/lib/postgresql/data
+      - db:/var/lib/postgresql
 
   adminer:
     image: adminer

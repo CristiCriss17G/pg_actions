@@ -1,71 +1,68 @@
-name: autofix.ci # needed to securely identify the workflow
+name: Autofix
 
 on:
   pull_request:
   push:
-    branches: ['main', 'dev']
+    branches: [main, dev]
+  workflow_dispatch:
+
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: autofix-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: false
 
 jobs:
   autofix:
-    strategy:
-      matrix:
-        version:
-          - stable
-
+    # Fork/Dependabot PR tokens cannot write back to the source branch.
+    if: >-
+      (github.event_name != 'pull_request' ||
+       github.event.pull_request.head.repo.full_name == github.repository) &&
+      github.actor != 'dependabot[bot]' &&
+      (github.event_name == 'pull_request' || github.ref_type == 'branch')
     runs-on: ubuntu-latest
-
+    permissions:
+      contents: write
+      actions: write
+    env:
+      AUTOFIX_BRANCH: ${{ github.head_ref || github.ref_name }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v7
-
-      - name: Set up system
-        run: sudo apt update && sudo apt upgrade -y && sudo apt install -y build-essential gcc-multilib clang lld
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@v7
         with:
-          toolchain: ${{ matrix.version }}
-          targets: x86_64-unknown-linux-gnu
+          # Use the real branch rather than the synthetic PR merge commit.
+          ref: ${{ env.AUTOFIX_BRANCH }}
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.99.0"
           components: clippy, rustfmt
-
-      - name: Cache cargo registry
-        uses: actions/cache@v6
-        with:
-          path: ~/.cargo/registry
-          key: ${{ runner.os }}-${{ matrix.version }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ matrix.version }}-cargo-registry-
-
-      - name: Cache cargo build
-        uses: actions/cache@v6
-        with:
-          path: target
-          key: ${{ runner.os }}-${{ matrix.version }}-x86_64-unknown-linux-gnu-cargo-build-tests-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ matrix.version }}-x86_64-unknown-linux-gnu-cargo-build-tests-
-
-      - name: lint
+      - name: Install build dependencies
+        run: sudo apt-get update && sudo apt-get install -y build-essential pkg-config libssl-dev liblzma-dev
+      - name: Apply automatic fixes
         run: |
-          cargo fmt -v --all
-          cargo clippy --locked --all-targets --all-features --fix -- -D warnings
-
-      - name: Commit and push changes
-        shell: bash
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          cargo clippy --locked --all-targets --all-features --fix --allow-dirty
+          cargo fmt --all
+      - name: Test fixes
+        run: cargo test --locked --all-features
+      - name: Commit and push fixes
+        id: commit
         run: |
-          set -xeuo pipefail
-
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          if [[ -n "$(git status --porcelain)" ]]; then
-            git add .
-            git commit -m "chore: apply autofixes [skip ci]"
-            git push origin HEAD:${{ github.head_ref }}
-          else
-            echo "No changes to commit."
+          git add -- '*.rs'
+          if git diff --cached --quiet; then
+            echo 'changed=false' >> "$GITHUB_OUTPUT"
+            exit 0
           fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'style: apply rustfmt and Clippy fixes'
+          git push origin "HEAD:refs/heads/$AUTOFIX_BRANCH"
+          echo 'changed=true' >> "$GITHUB_OUTPUT"
+      - name: Check the updated commit
+        if: steps.commit.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        # GITHUB_TOKEN pushes do not trigger push workflows. Dispatch checks
+        # explicitly, without starting another packaging/publication run.
+        run: gh workflow run ci.yml --ref "$AUTOFIX_BRANCH" -f checks_only=true
+      - name: Check remaining lints
+        run: cargo clippy --locked --all-targets --all-features -- -D warnings

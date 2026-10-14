@@ -1,5 +1,8 @@
 FROM mcr.microsoft.com/devcontainers/rust:1-1-bookworm
 
+RUN rustup toolchain install 1.99.0 --profile minimal --component clippy --component rustfmt \
+    && rustup default 1.99.0
+
 # Include lld linker to improve build times either by using environment variable
 # RUSTFLAGS="-C link-arg=-fuse-ld=lld" or with Cargo's configuration file (i.e see .cargo/config.toml).
 RUN apt update && export DEBIAN_FRONTEND=noninteractive \

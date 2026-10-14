@@ -1,7 +1,7 @@
 use super::structs::Result;
 use chrono::Local;
 use fern::colors::{Color, ColoredLevelConfig};
-use fern::{log_file, Dispatch, FormatCallback};
+use fern::{Dispatch, FormatCallback};
 use log::{LevelFilter, Record};
 use serde::Serialize;
 use std::fmt::Arguments;
@@ -130,15 +130,19 @@ pub fn log_init(
 ) -> Result<()> {
     let stderr_dispatcher = Dispatch::new()
         .format(make_formatter(true, use_json))
-        .level(log_level)
+        // Dependency trace/debug output can contain full SQL statements and
+        // signed requests. Verbosity applies only to our redacted application logs.
+        .level(LevelFilter::Warn)
+        .level_for("pg_actions", log_level)
         .chain(std::io::stderr());
 
     match log_file_location {
         Some(lfl) => {
             let file_dispatcher = Dispatch::new()
                 .format(make_formatter(false, use_json))
-                .level(log_level)
-                .chain(log_file(lfl)?);
+                .level(LevelFilter::Warn)
+                .level_for("pg_actions", log_level)
+                .chain(super::files::private_open(lfl, true)?);
 
             fern::Dispatch::new()
                 .chain(stderr_dispatcher)
