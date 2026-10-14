@@ -11,6 +11,14 @@ use std::str::FromStr;
 use thiserror::Error;
 use tokio::task::JoinError;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum PgDumpCompression {
+    /// Let pg_dump use its normal compression settings.
+    Default,
+    /// Disable pg_dump compression; the outer archive handles compression.
+    None,
+}
+
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct PostgresCredentials {
     pub pg_hostname: String,

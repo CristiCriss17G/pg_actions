@@ -9,19 +9,14 @@ use rusoto_s3::{
     CreateMultipartUploadRequest, GetObjectError, S3Client, UploadPartRequest, S3,
 };
 use std::collections::HashMap;
-use std::fs::File;
 use std::fs::Permissions;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 use std::str::FromStr;
-use tar::{Archive, Builder};
 use tokio::fs::{self, File as AFile, OpenOptions};
 use tokio::io::AsyncReadExt;
 use tokio::{io, task};
-use xz2::read::XzDecoder;
-use xz2::stream::{Check, Stream};
-use xz2::write::XzEncoder;
 
 fn bytes_to_human_readable(size: u64) -> String {
     let units = ["bytes", "KB", "MB", "GB", "TB", "PB"];
@@ -136,102 +131,6 @@ pub async fn search_file_in_directory(
             }
         }
         Ok(None) // Return None if the file is not found
-    })
-    .await?
-}
-
-pub async fn create_compressed_archive(
-    input_dir: &str,
-    output_file: &str,
-) -> Result<(), PGCliError> {
-    debug!("Creating compressed archive");
-    // clone the input_dir and output_file to move into the blocking task
-    let input_dir = input_dir.to_string();
-    let mut output_file = output_file.to_string();
-
-    if !check_file_directory_path_exists(&input_dir) {
-        return Err(PGCliError::Other(
-            "Input directory does not exist".to_string(),
-        ));
-    }
-
-    // if the output file does not end with .tar.xz, append it
-    if !output_file.ends_with(".tar.xz") {
-        output_file.push_str(".tar.xz");
-    }
-
-    //if the output file exists, delete it
-    if check_file_path_exists(&output_file) {
-        delete_file(&output_file).await?;
-        trace!("Deleted existing file {:?}", output_file);
-    }
-
-    // spawn a blocking task to create the compressed archive
-    task::spawn_blocking(move || {
-        // Create a file for the output
-        let file = File::create(&output_file)?;
-        let stream = Stream::new_easy_encoder(9, Check::Crc64)?;
-        let xz_encoder = XzEncoder::new_stream(file, stream);
-
-        let mut archive = Builder::new(xz_encoder);
-
-        debug!("Adding files to the archive");
-        // Recursively add files from input_dir to the archive.
-        // This part is simplified; you might want to add error handling and async file reads.
-        for entry in walkdir::WalkDir::new(&input_dir) {
-            let entry = entry?;
-            let path = entry.path();
-            debug!("Adding {:?}", path);
-            if path.is_file() {
-                trace!("Adding file {:?}", path);
-                archive.append_path_with_name(
-                    path,
-                    path.strip_prefix(&input_dir)?.to_str().unwrap(),
-                )?;
-            }
-        }
-
-        // Ensure all data is flushed and the archive is finished
-        archive.finish()?;
-
-        Ok(())
-    })
-    .await?
-}
-
-pub async fn extract_compressed_archive(
-    input_file: &Path,
-    output_dir: &Path,
-) -> Result<(), PGCliError> {
-    debug!("Extracting compressed archive");
-
-    // clone the input_file and output_dir to move into the blocking task
-    let input_file = input_file.to_path_buf();
-    let output_dir = output_dir.to_path_buf();
-
-    if !check_file_path_exists(&input_file) {
-        return Err(PGCliError::Other("Input file does not exist".to_string()));
-    }
-
-    // if the output directory does not exist, create it
-    if !check_file_directory_path_exists(&output_dir) {
-        ensure_file_directory_path_exists(&output_dir).await?;
-        trace!("Created output directory {:?}", output_dir);
-    }
-
-    // spawn a blocking task to extract the compressed archive
-    task::spawn_blocking(move || {
-        // Open the compressed file
-        let file = File::open(&input_file)?;
-        let decoder = XzDecoder::new(file);
-
-        let mut archive = Archive::new(decoder);
-
-        debug!("Extracting files from the archive");
-        // Extract all files from the archive to the output directory
-        archive.unpack(&output_dir)?;
-
-        Ok(())
     })
     .await?
 }

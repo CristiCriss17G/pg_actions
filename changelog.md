@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Default new backup archives to zstd (`.tar.zst`), retaining explicit xz output and automatic restoration of both codecs.
+- Add codec-specific compression levels, separate compression thread control, and PostgreSQL dump compression selection.
+- Disable inner pg_dump compression for archived backups by default; preserve it for raw backups and cloning.
+- Finish and validate compression streams explicitly, publish completed archives atomically, and propagate dump failures.
+- Resolve archive paths consistently, fix `all --no-archive` archive naming, and check archive integrity before overwriting a database.
+- Add unit tests and a Compose-backed round-trip/compression comparison script.
+
 ## Release 1.5.0 (2025-03-29)
 
 ### Miscellaneous

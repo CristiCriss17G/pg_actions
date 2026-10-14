@@ -1,11 +1,12 @@
+use super::archive::{create_compressed_archive, Compression, CompressionOptions};
 use super::db::database::list_databases;
 use super::db::general::{db_dump, init_pgpass, postgres_connect};
 use super::misc::{
-    check_file_directory_path_exists, create_compressed_archive, delete_directory, delete_file,
-    ensure_file_directory_path_exists,
+    check_file_directory_path_exists, delete_file, ensure_file_directory_path_exists,
 };
 use super::structs::{
-    DatabaseDetails, PGCliError, PGTools, PostgresCredentials, Result, S3Credentials, SqlFileFormat,
+    DatabaseDetails, PGCliError, PGTools, PgDumpCompression, PostgresCredentials, Result,
+    S3Credentials, SqlFileFormat,
 };
 use clap::Args;
 use log::{debug, error, info};
@@ -20,16 +21,13 @@ pub struct BackupArgs {
     /// database to backup
     /// defaults to all
     database: String,
-    /// output location
-    /// chose between s3 or a file path, defaults to s3;
-    /// when s3 is chosen, the output location is in the bucket specified by the S3_* environment variables with the name of postgresql-backup-<timestamp>.tar.xz;
-    /// when a file path is chosen, the output location is the file path specified, but the extension is .tar.xz
+    /// Output file path; defaults to S3 with a timestamped name.
+    /// Archive suffixes are .tar.zst or .tar.xz according to --compression.
     #[arg(short, long, env = "BACKUP_LOCATION")]
     output_location: Option<PathBuf>,
-    /// Parallel jobs to use
-    /// defaults to 5
-    #[arg(short, long, env, default_value = "5")]
-    jobs: usize,
+    /// Concurrent database dumps (independent of compression threads)
+    #[arg(short, long, env, default_value = "5", value_parser = clap::value_parser!(u32).range(1..))]
+    jobs: u32,
     /// Format of the output file
     /// defaults to bsql
     #[arg(short, long, env, value_enum, default_value = "bsql")]
@@ -38,9 +36,46 @@ pub struct BackupArgs {
     /// has no effect on `all` backups
     #[arg(long, env)]
     no_archive: bool,
-    // owner password for db
-    // #[arg(short = 's', long)]
-    // password: Option<String>,
+    /// Archive compression codec
+    #[arg(long, env, value_enum, default_value = "zstd")]
+    compression: Compression,
+    /// Archive compression level: zstd 1-22 (default 3), xz 0-9 (default 9)
+    #[arg(long, env)]
+    compression_level: Option<u32>,
+    /// Compression worker threads; 1 disables parallel compression.
+    /// Parallel xz at high levels can require substantial memory.
+    #[arg(long, env, default_value = "1", value_parser = clap::value_parser!(u32).range(1..))]
+    compression_threads: u32,
+    /// pg_dump compression: defaults to none for archives, default for raw files
+    #[arg(long, env, value_enum)]
+    pg_dump_compression: Option<PgDumpCompression>,
+}
+
+impl BackupArgs {
+    fn creates_archive(&self) -> bool {
+        !self.no_archive || self.database == "all"
+    }
+
+    fn dump_compression(&self) -> PgDumpCompression {
+        self.pg_dump_compression
+            .unwrap_or(if self.creates_archive() {
+                PgDumpCompression::None
+            } else {
+                PgDumpCompression::Default
+            })
+    }
+
+    fn output_path(&self, generated_name: &str) -> Result<PathBuf> {
+        let path = self
+            .output_location
+            .clone()
+            .unwrap_or_else(|| PathBuf::from("/tmp/psql_backup").join(generated_name));
+        if self.creates_archive() {
+            self.compression.output_path(&path)
+        } else {
+            Ok(path)
+        }
+    }
 }
 
 pub async fn backup_db(
@@ -50,13 +85,39 @@ pub async fn backup_db(
     s3_credentials: &S3Credentials,
     pg_tools: &PGTools,
 ) -> Result<()> {
+    let compression_options = if data.creates_archive() {
+        Some(CompressionOptions::new(
+            data.compression,
+            data.compression_level,
+            data.compression_threads,
+        )?)
+    } else {
+        None
+    };
+    let database_name = if data.database == "all" {
+        "postgresql-backup"
+    } else {
+        &data.database
+    };
+    let suffix = if data.creates_archive() {
+        data.compression.extension()
+    } else {
+        data.format.file_extension()
+    };
+    let output_file_name = format!(
+        "{}-{}.{}",
+        database_name,
+        chrono::Utc::now().format("%Y-%m-%d-%H-%M-%S"),
+        suffix
+    );
+    let output_file = data.output_path(&output_file_name)?;
     if let Some(output_location) = &data.output_location {
         if !check_file_directory_path_exists(output_location) {
             return Err(PGCliError::Other(
                 "Output location does not exist".to_string(),
             ));
         }
-        info!("Backing up to file: {}", output_location.to_str().unwrap());
+        info!("Backing up to file: {}", output_file.display());
     } else {
         info!("Backing up to S3");
         s3_credentials.validate_s3_credentials()?;
@@ -88,17 +149,18 @@ pub async fn backup_db(
     info!("Databases to backup: {:?}", databases);
 
     debug!("Using {} parallel jobs", data.jobs);
-    let semaphore = Arc::new(Semaphore::new(data.jobs)); // Limit to 5 concurrent tasks
+    let semaphore = Arc::new(Semaphore::new(data.jobs as usize));
 
-    let temp_folder = format!(
-        "/tmp/psql_backup/postgresql-backup-{}",
-        chrono::Utc::now().format("%Y-%m-%d-%H-%M-%S")
-    );
-
-    ensure_file_directory_path_exists(&temp_folder).await?;
+    ensure_file_directory_path_exists("/tmp/psql_backup").await?;
+    let temp_directory = tempfile::Builder::new()
+        .prefix("postgresql-backup-")
+        .tempdir_in("/tmp/psql_backup")?;
+    let temp_folder = temp_directory.path().to_path_buf();
 
     let pg_tools = Arc::new(pg_tools.clone()); // Wrap pg_tools in an Arc
     let backup_format = Arc::new(data.format);
+    let dump_compression = data.dump_compression();
+    debug!("pg_dump compression: {:?}", dump_compression);
 
     let tasks: Vec<_> = databases
         .into_iter()
@@ -114,90 +176,66 @@ pub async fn backup_db(
                     .acquire()
                     .await
                     .expect("Failed to acquire semaphore permit");
-                let output_file = format!(
-                    "{}/{}.{}",
-                    temp_folder,
-                    database,
-                    match *backup_format {
-                        SqlFileFormat::Bsql => "bsql",
-                        SqlFileFormat::Sql => "sql",
-                    }
-                );
-                match db_dump(
+                let output_file =
+                    temp_folder.join(format!("{}.{}", database, backup_format.file_extension()));
+                db_dump(
                     credentials,
                     &database,
                     &output_file,
                     &pg_tools,
                     *backup_format,
+                    dump_compression,
                 )
                 .await
-                {
-                    Ok(_) => info!("Database {} dumped successfully", database),
-                    Err(e) => error!("Failed to dump database {}: {}", database, e),
-                }
+                .map_err(|error| {
+                    PGCliError::Other(format!("Failed to dump database {}: {}", database, error))
+                })?;
+                info!("Database {} dumped successfully", database);
+                Ok::<(), PGCliError>(())
             })
         })
         .collect();
 
-    // Await all tasks to complete
+    // Wait for every dump before returning an error or removing temporary files.
+    let mut first_error = None;
     for task in tasks {
-        let _ = task.await;
+        let result = match task.await {
+            Ok(result) => result,
+            Err(error) => Err(PGCliError::TaskJoin(error)),
+        };
+        if let Err(error) = result {
+            error!("{}", error);
+            first_error.get_or_insert(error);
+        }
+    }
+    if let Some(error) = first_error {
+        return Err(error);
     }
 
     info!("All databases dumped successfully");
 
-    let output_file_name = {
-        let database_name = match data.database.as_str() {
-            "all" => "postgresql-backup",
-            _ => &data.database,
-        };
-        let file_suffix = if data.no_archive {
-            match *backup_format {
-                SqlFileFormat::Bsql => "bsql",
-                SqlFileFormat::Sql => "sql",
-            }
-        } else {
-            "tar.xz"
-        };
-        format!(
-            "{}-{}.{}",
-            database_name,
-            chrono::Utc::now().format("%Y-%m-%d-%H-%M-%S"),
-            file_suffix
-        )
-    };
-
-    let output_file = match &data.output_location {
-        None => {
-            format!("/tmp/psql_backup/{}", output_file_name)
-        }
-        Some(output_location) => output_location.to_str().unwrap().to_string(),
-    };
-
-    if !data.no_archive || data.database == "all" {
-        info!("Creating compressed archive");
-        create_compressed_archive(&temp_folder, &output_file).await?;
+    if let Some(options) = compression_options {
+        info!(
+            "Creating {:?} archive at level {} with {} compression thread(s)",
+            options.codec, options.level, options.threads
+        );
+        create_compressed_archive(&temp_folder, &output_file, options).await?;
         info!("Compressed archive created successfully");
     }
 
-    if data.database != "all" && data.no_archive {
-        let output_location_str = format!(
-            "{}/{}.{}",
-            temp_folder,
+    if !data.creates_archive() {
+        let output_location = temp_folder.join(format!(
+            "{}.{}",
             data.database,
-            match *backup_format {
-                SqlFileFormat::Bsql => "bsql",
-                SqlFileFormat::Sql => "sql",
-            }
-        );
+            data.format.file_extension()
+        ));
         info!(
-            "Moving file from {} to {}",
-            output_location_str, output_file
+            "Copying file from {} to {}",
+            output_location.display(),
+            output_file.display()
         );
-        match fs::copy(output_location_str, &output_file).await {
-            Ok(_) => info!("File moved successfully"),
-            Err(e) => error!("Failed to move file: {}", e),
-        }
+        fs::copy(output_location, &output_file).await?;
+        info!("File copied successfully");
     }
 
     if data.output_location.is_none() {
@@ -211,9 +249,60 @@ pub async fn backup_db(
     }
 
     debug!("Deleting temp folder");
-    delete_directory(&temp_folder).await?;
+    temp_directory.close()?;
 
     debug!("Backup completed successfully");
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::Parser;
+
+    #[derive(Parser)]
+    struct BackupCli {
+        #[command(flatten)]
+        args: BackupArgs,
+    }
+
+    fn args(arguments: &[&str]) -> BackupArgs {
+        BackupCli::try_parse_from(std::iter::once("backup").chain(arguments.iter().copied()))
+            .unwrap()
+            .args
+    }
+
+    #[test]
+    fn compression_defaults_follow_archive_behavior() {
+        let archived = args(&["example"]);
+        assert_eq!(archived.compression, Compression::Zstd);
+        assert_eq!(archived.compression_threads, 1);
+        assert_eq!(archived.dump_compression(), PgDumpCompression::None);
+        let raw = args(&["example", "--no-archive"]);
+        assert!(!raw.creates_archive());
+        assert_eq!(raw.dump_compression(), PgDumpCompression::Default);
+        let all = args(&["all", "--no-archive"]);
+        assert!(all.creates_archive());
+        assert_eq!(all.dump_compression(), PgDumpCompression::None);
+        assert_eq!(
+            all.output_path("all.tar.zst").unwrap(),
+            PathBuf::from("/tmp/psql_backup/all.tar.zst")
+        );
+        assert_eq!(
+            args(&["example", "--pg-dump-compression", "default"]).dump_compression(),
+            PgDumpCompression::Default
+        );
+        assert_eq!(
+            args(&["example", "--no-archive", "--pg-dump-compression", "none"]).dump_compression(),
+            PgDumpCompression::None
+        );
+    }
+
+    #[test]
+    fn rejects_zero_jobs_and_compression_threads() {
+        for option in ["--jobs", "--compression-threads"] {
+            assert!(BackupCli::try_parse_from(["backup", "example", option, "0"]).is_err());
+        }
+    }
 }

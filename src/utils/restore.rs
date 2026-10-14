@@ -1,3 +1,4 @@
+use super::archive::{detect_compression, extract_compressed_archive};
 use super::db::database::{
     change_owner_of_objects_in_db, change_owner_of_tables_in_db, check_database_exists, create_db,
     delete_db, get_database_owner, kill_connections_to_db,
@@ -5,7 +6,7 @@ use super::db::database::{
 use super::db::general::{db_restore, init_pgpass, postgres_connect};
 use super::misc::{
     check_file_path_exists, delete_directory, delete_file, ensure_file_directory_path_exists,
-    extract_compressed_archive, search_file_in_directory,
+    search_file_in_directory,
 };
 use super::structs::{
     PGCliError, PGTools, PostgresCredentials, Result, S3Credentials, SqlFileFormat,
@@ -100,23 +101,6 @@ pub async fn restore_db(
         return Err(PGCliError::Other(
             "Database already exists and overwrite is not set".to_string(),
         ));
-    } else if database_exists && data.overwrite {
-        info!("Dropping database {}", &data.database);
-        info!("Killing connections to database {}", &data.database);
-        match kill_connections_to_db(&client, &data.database).await {
-            Ok(_) => info!("Connections killed successfully"),
-            Err(e) => {
-                error!("Failed to kill connections: {}", e);
-                return Err(e);
-            }
-        }
-        match delete_db(&client, &data.database).await {
-            Ok(_) => info!("Database dropped successfully"),
-            Err(e) => {
-                error!("Failed to drop database: {}", e);
-                return Err(e);
-            }
-        }
     }
 
     let mut temp_archive: Option<PathBuf> = None;
@@ -153,16 +137,38 @@ pub async fn restore_db(
         }
     };
 
-    info!("Creating database {}", &data.database);
+    if database_exists && data.overwrite {
+        info!("Dropping database {}", data.database);
+        info!("Killing connections to database {}", data.database);
+        match kill_connections_to_db(&client, &data.database).await {
+            Ok(_) => info!("Connections killed successfully"),
+            Err(e) => {
+                error!("Failed to kill connections: {}", e);
+                cleanup(data.keep_temp, &temp_archive, &temp_folder_extracted).await?;
+                return Err(e);
+            }
+        }
+        match delete_db(&client, &data.database).await {
+            Ok(_) => info!("Database dropped successfully"),
+            Err(e) => {
+                error!("Failed to drop database: {}", e);
+                cleanup(data.keep_temp, &temp_archive, &temp_folder_extracted).await?;
+                return Err(e);
+            }
+        }
+    }
+
+    info!("Creating database {}", data.database);
     match create_db(&client, &data.database, database_owner.as_deref()).await {
         Ok(_) => info!("Database created successfully"),
         Err(e) => {
             error!("Failed to create database: {}", e);
+            cleanup(data.keep_temp, &temp_archive, &temp_folder_extracted).await?;
             return Err(e);
         }
     }
 
-    info!("Restoring database {}", &data.database);
+    info!("Restoring database {}", data.database);
     match db_restore(
         main_credentials.clone(),
         &data.database,
@@ -182,7 +188,7 @@ pub async fn restore_db(
     }
 
     if let Some(owner) = &database_owner {
-        info!("Changing owner of tables in database {}", &data.database);
+        info!("Changing owner of tables in database {}", data.database);
         match change_owner_of_tables_in_db(main_credentials, &data.database, owner).await {
             Ok(_) => info!("Owner of tables changed successfully"),
             Err(e) => {
@@ -191,7 +197,7 @@ pub async fn restore_db(
             }
         }
 
-        info!("Changing owner of objects in database {}", &data.database);
+        info!("Changing owner of objects in database {}", data.database);
         match change_owner_of_objects_in_db(main_credentials, &data.database, owner).await {
             Ok(_) => info!("Owner of objects changed successfully"),
             Err(e) => {
@@ -282,21 +288,14 @@ async fn get_restore_file_location<P: AsRef<Path>>(
     file_name: &Option<String>,
     temp_folder_extracted: &mut Option<PathBuf>,
 ) -> Result<PathBuf> {
-    if file_location
-        .as_ref()
-        .to_str()
-        .unwrap()
-        .ends_with(".tar.xz")
-    {
-        let temp_folder_name = file_location
-            .as_ref()
-            .file_stem()
-            .unwrap()
-            .to_str()
-            .unwrap()
-            .replace(".tar", "");
-        let temp_folder = PathBuf::from(r"/tmp/psql_backup/").join(temp_folder_name);
-        ensure_file_directory_path_exists(&temp_folder).await?;
+    if detect_compression(file_location.as_ref())?.is_some() {
+        ensure_file_directory_path_exists("/tmp/psql_backup").await?;
+        let temp_folder = tempfile::Builder::new()
+            .prefix("postgresql-restore-")
+            .tempdir_in("/tmp/psql_backup")?
+            .keep();
+        *temp_folder_extracted = Some(temp_folder.clone());
+        debug!("Extracting archive to {}", temp_folder.display());
         extract_compressed_archive(file_location.as_ref(), &temp_folder).await?;
         // serach for a file in the extracted folder
         // with the name of the database and extension of the format
@@ -305,7 +304,6 @@ async fn get_restore_file_location<P: AsRef<Path>>(
         } else {
             format!("{}.{}", database, format.file_extension())
         };
-        *temp_folder_extracted = Some(temp_folder.clone());
         let file_location = search_file_in_directory(&temp_folder, &file_name)
             .await?
             .ok_or_else(|| {

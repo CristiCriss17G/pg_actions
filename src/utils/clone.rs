@@ -99,7 +99,7 @@ pub async fn clone_db(
         destination_credentials = credentials.get(pg_hostname2).unwrap().clone();
         info!(
             "Cloning from {} to {}",
-            &source_credentials.pg_hostname, &destination_credentials.pg_hostname
+            source_credentials.pg_hostname, destination_credentials.pg_hostname
         );
     }
 
@@ -107,10 +107,10 @@ pub async fn clone_db(
 
     let source_client = postgres_connect(&source_credentials, None).await?;
     if !check_database_exists(&source_client, &data.database).await? {
-        error!("Database {} does not exist", &data.database);
+        error!("Database {} does not exist", data.database);
         return Err(PGCliError::Other(format!(
             "Database {} does not exist",
-            &data.database
+            data.database
         )));
     }
 
@@ -126,6 +126,7 @@ pub async fn clone_db(
         &dump_file,
         pg_tools,
         SqlFileFormat::Bsql,
+        super::structs::PgDumpCompression::Default,
     )
     .await
     {
@@ -168,8 +169,8 @@ pub async fn clone_db(
             "New database already exists and overwrite is not set".to_string(),
         ));
     } else if new_database_exists && data.overwrite {
-        info!("Dropping database {}", &data.new_database);
-        info!("Killing connections to database {}", &data.new_database);
+        info!("Dropping database {}", data.new_database);
+        info!("Killing connections to database {}", data.new_database);
         match kill_connections_to_db(&destination_client, &data.new_database).await {
             Ok(_) => info!("Connections killed successfully"),
             Err(e) => {
@@ -186,7 +187,7 @@ pub async fn clone_db(
         }
     }
 
-    info!("Creating database {}", &data.new_database);
+    info!("Creating database {}", data.new_database);
     match create_db(
         &destination_client,
         &data.new_database,
@@ -201,7 +202,7 @@ pub async fn clone_db(
         }
     }
 
-    info!("Restoring database {}", &data.new_database);
+    info!("Restoring database {}", data.new_database);
     match db_restore(
         destination_credentials.clone(),
         &data.new_database,
@@ -221,7 +222,7 @@ pub async fn clone_db(
     if let Some(owner) = &data.new_owner {
         info!(
             "Changing owner of tables in database {}",
-            &data.new_database
+            data.new_database
         );
         match change_owner_of_tables_in_db(&destination_credentials, &data.new_database, owner)
             .await
@@ -235,7 +236,7 @@ pub async fn clone_db(
 
         info!(
             "Changing owner of objects in database {}",
-            &data.new_database
+            data.new_database
         );
         match change_owner_of_objects_in_db(&destination_credentials, &data.new_database, owner)
             .await
@@ -249,7 +250,7 @@ pub async fn clone_db(
     }
 
     if !data.keep_dump {
-        debug!("Deleting dump file {}", &dump_file.display());
+        debug!("Deleting dump file {}", dump_file.display());
         match delete_file(&dump_file).await {
             Ok(_) => info!("Dump file deleted successfully"),
             Err(e) => {
@@ -258,12 +259,12 @@ pub async fn clone_db(
             }
         }
     } else {
-        info!("Dump file kept at {}", &dump_file.display());
+        info!("Dump file kept at {}", dump_file.display());
     }
 
     info!(
         "Database {} cloned to {}",
-        &data.database, &data.new_database
+        data.database, data.new_database
     );
 
     Ok(())

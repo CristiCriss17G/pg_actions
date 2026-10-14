@@ -1,5 +1,7 @@
 use crate::utils::misc::{ensure_file_path_exists, open_file_path_in_write_mode};
-use crate::utils::structs::{PGCliError, PGTools, PostgresCredentials, Result, SqlFileFormat};
+use crate::utils::structs::{
+    PGCliError, PGTools, PgDumpCompression, PostgresCredentials, Result, SqlFileFormat,
+};
 use deadpool_postgres::{
     Client, Config as DPConfig, ManagerConfig, Pool, RecyclingMethod, Runtime,
 };
@@ -225,6 +227,7 @@ pub async fn db_dump<P: AsRef<Path>>(
     dump_file: P,
     pg_tools: &PGTools,
     dump_format: SqlFileFormat,
+    compression: PgDumpCompression,
 ) -> Result<String> {
     info!("Dumping database {}", database_source);
 
@@ -257,7 +260,8 @@ pub async fn db_dump<P: AsRef<Path>>(
 
     trace!("Dumping format: {}", dump_format);
 
-    let mut child = match Command::new(&pg_tools.pg_dump)
+    let mut command = Command::new(&pg_tools.pg_dump);
+    command
         .arg("-v") // Enable verbose mode
         .arg(format!("--host={}", credentials.pg_hostname))
         .arg(format!("--username={}", credentials.pg_superuser))
@@ -267,9 +271,11 @@ pub async fn db_dump<P: AsRef<Path>>(
         .arg("--no-owner")
         .arg("--no-privileges")
         .stdout(Stdio::from(output_file)) // Redirect standard output to file
-        .stderr(Stdio::piped()) // Capture the standard error
-        .spawn()
-    {
+        .stderr(Stdio::piped()); // Capture the standard error
+    if compression == PgDumpCompression::None {
+        command.arg("--compress=0");
+    }
+    let mut child = match command.spawn() {
         Ok(child) => child,
         Err(e) => {
             return Err(PGCliError::Other(format!(

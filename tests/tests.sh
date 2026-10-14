@@ -12,17 +12,17 @@ cargo run backup all
 
 cargo run backup all -vv 2>&1 | tee log.log
 
-cargo run backup all -vv -o ./pgbk.tar.xz 
+cargo run backup all -vv --compression xz -o ./pgbk.tar.xz
 
 # cargo run backup all -j 10 -vv --retry /tmp/psql_backup/postgresql-backup-2024-02-12-21-24-55.tar.xz  2>&1 | tee log.log !!! Deprecated
 
-cargo run backup all --format sql 
-cargo run backup all --format sql -o ./pgbk.tar.xz
+cargo run backup all --format sql
+cargo run backup all --format sql --compression xz -o ./pgbk.tar.xz
 cargo run backup all --format bsql
 cargo run backup dvdrentals --format sql -o ./pgbk.sql --no-archive
 cargo run backup dvdrentals --format bsql -o ./pgbk.bsql --no-archive
-cargo run backup dvdrentals --format sql -o ./pgbk.tar.xz
-cargo run backup dvdrentals --format bsql -o ./pgbk.tar.xz
+cargo run backup dvdrentals --format sql --compression xz -o ./pgbk.tar.xz
+cargo run backup dvdrentals --format bsql --compression xz -o ./pgbk.tar.xz
 
 cargo run database -vv delete abcdd6
 

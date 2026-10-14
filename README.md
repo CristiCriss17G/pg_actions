@@ -22,7 +22,7 @@
 ### Requirements
 
 * `openssl (>= 3.0.0)` - Required for the `pg_actions` executable, it is used for the encryption and decryption of the database connection and S3/RustFS authentication.
-* `xz-utils` - Required for the `pg_actions` executable, it is used for the compression and decompression of the backup files.
+* `xz-utils` / `liblzma5` - Provide the liblzma runtime used by the dynamically linked `pg_actions` executable for xz archives. Compression runs through Rust library bindings; it does not invoke the `xz` command. Zstd is bundled by the default build and requires no additional runtime package.
 * `pg_dump`, `pg_restore`, and `psql` `(>=16.0)` - Optional, but recommended for backup and clone operations. If they are not installed, the executable will fail to perform these operations. For installation, see the [Postgres documentation](https://www.postgresql.org/download/).
   * Ubuntu/Debian:
 
@@ -310,49 +310,165 @@ It backs up a database to a file or to S3/RustFS storage.
 pg_actions help backup
 ```
 
-```bash
+```text
 Backup operations
 
 Usage: pg_actions backup [OPTIONS] <DATABASE>
 
 Arguments:
-  <DATABASE>  database to backup defaults to all
+  <DATABASE>
+          database to backup defaults to all
 
 Options:
-  -H, --pg-hostname <PG_HOSTNAME>          Sets Postgres connection URL [env: PG_HOSTNAME=db] [default: localhost]
-  -o, --output-location <OUTPUT_LOCATION>  output location chose between s3 or a file path, defaults to s3; when s3 is chosen, the output location is
-                                           in the bucket specified by the S3_* environment variables with the name of
-                                           postgresql-backup-<timestamp>.tar.xz; when a file path is chosen, the output location is the file path
-                                           specified, but the extension is .tar.xz [env: BACKUP_LOCATION=]
-  -j, --jobs <JOBS>                        Parallel jobs to use defaults to 5 [env: JOBS=] [default: 5]
-  -U, --pg-superuser <PG_SUPERUSER>        Sets Postgres username [env: PG_SUPERUSER=postgres] [default: postgres]
-  -f, --format <FORMAT>                    Format of the output file defaults to bsql [env: FORMAT=] [default: bsql] [possible values: sql, bsql]
-  -P, --pg-password <PG_PASSWORD>          Sets Postgres password [env: PG_PASS]
-      --no-archive                         Create archive or just files, has no effect on `all` backups [env: NO_ARCHIVE=]
-  -p, --pg-port <PG_PORT>                  Sets Postgres port [env: PG_PORT=5432] [default: 5432]
-      --pg-dump <PG_DUMP>                  Optional custom pg_dump path If not set, the default from PATH will be used [env: PG_DUMP=]
-      --pg-restore <PG_RESTORE>            Optional custom pg_restore path If not set, the default from PATH will be used [env: PG_RESTORE=]
-      --psql <PSQL>                        Optional custom psql path If not set, the default from PATH will be used [env: PSQL=]
-      --s3-endpoint <S3_ENDPOINT>          S3/RustFS endpoint [env: S3_ENDPOINT=https://rustfslocal:9000]
-      --s3-access-key <S3_ACCESS_KEY>      S3/RustFS access key [env: S3_ACCESS_KEY=rustfsadmin]
-      --s3-secret-key <S3_SECRET_KEY>      S3/RustFS secret key [env: S3_SECRET_KEY]
-      --s3-bucket <S3_BUCKET>              S3/RustFS bucket [env: S3_BUCKET=pgbackups]
-      --s3-region <S3_REGION>              S3/RustFS region [env: S3_REGION=local]
-      --s3-prefix <S3_PREFIX>              S3/RustFS bucket prefix/folder [env: S3_PREFIX=pgbackups]
-  -v, --verbose...                         Turn debugging information on repetitive use increases verbosity, at most 2 times
-      --use-json-logging                   Show logging information as json [env: USE_JSON_LOGGING=]
-      --log-file <LOG_FILE>                Log file location [env: LOG_FILE=pg_actions.log]
-  -h, --help                               Print help
+  -H, --pg-hostname <PG_HOSTNAME>
+          Sets Postgres connection URL
+
+          [env: PG_HOSTNAME=]
+          [default: localhost]
+
+  -o, --output-location <OUTPUT_LOCATION>
+          Output file path; defaults to S3 with a timestamped name. Archive suffixes are .tar.zst or
+          .tar.xz according to --compression
+
+          [env: BACKUP_LOCATION=]
+
+  -j, --jobs <JOBS>
+          Concurrent database dumps (independent of compression threads)
+
+          [env: JOBS=]
+          [default: 5]
+
+  -U, --pg-superuser <PG_SUPERUSER>
+          Sets Postgres username
+
+          [env: PG_SUPERUSER=]
+          [default: postgres]
+
+  -f, --format <FORMAT>
+          Format of the output file defaults to bsql
+
+          [env: FORMAT=]
+          [default: bsql]
+          [possible values: sql, bsql]
+
+  -P, --pg-password <PG_PASSWORD>
+          Sets Postgres password
+
+          [env: PG_PASS]
+
+      --no-archive
+          Create archive or just files, has no effect on `all` backups
+
+          [env: NO_ARCHIVE=]
+
+  -p, --pg-port <PG_PORT>
+          Sets Postgres port
+
+          [env: PG_PORT=]
+          [default: 5432]
+
+      --compression <COMPRESSION>
+          Archive compression codec
+
+          [env: COMPRESSION=]
+          [default: zstd]
+          [possible values: zstd, xz]
+
+      --pg-dump <PG_DUMP>
+          Optional custom pg_dump path If not set, the default from PATH will be used
+
+          [env: PG_DUMP=]
+
+      --compression-level <COMPRESSION_LEVEL>
+          Archive compression level: zstd 1-22 (default 3), xz 0-9 (default 9)
+
+          [env: COMPRESSION_LEVEL=]
+
+      --pg-restore <PG_RESTORE>
+          Optional custom pg_restore path If not set, the default from PATH will be used
+
+          [env: PG_RESTORE=]
+
+      --compression-threads <COMPRESSION_THREADS>
+          Compression worker threads; 1 disables parallel compression. Parallel xz at high levels
+          can require substantial memory
+
+          [env: COMPRESSION_THREADS=]
+          [default: 1]
+
+      --psql <PSQL>
+          Optional custom psql path If not set, the default from PATH will be used
+
+          [env: PSQL=]
+
+      --pg-dump-compression <PG_DUMP_COMPRESSION>
+          pg_dump compression: defaults to none for archives, default for raw files
+
+          Possible values:
+          - default: Let pg_dump use its normal compression settings
+          - none:    Disable pg_dump compression; the outer archive handles compression
+
+          [env: PG_DUMP_COMPRESSION=]
+
+      --s3-endpoint <S3_ENDPOINT>
+          S3/RustFS endpoint
+
+          [env: S3_ENDPOINT=]
+
+      --s3-access-key <S3_ACCESS_KEY>
+          S3/RustFS access key
+
+          [env: S3_ACCESS_KEY=]
+
+      --s3-secret-key <S3_SECRET_KEY>
+          S3/RustFS secret key
+
+          [env: S3_SECRET_KEY]
+
+      --s3-bucket <S3_BUCKET>
+          S3/RustFS bucket
+
+          [env: S3_BUCKET=]
+
+      --s3-region <S3_REGION>
+          S3/RustFS region
+
+          [env: S3_REGION=]
+
+      --s3-prefix <S3_PREFIX>
+          S3/RustFS bucket prefix/folder
+
+          [env: S3_PREFIX=]
+
+  -v, --verbose...
+          Turn debugging information on repetitive use increases verbosity, at most 2 times
+
+      --use-json-logging
+          Show logging information as json
+
+          [env: USE_JSON_LOGGING=]
+
+      --log-file <LOG_FILE>
+          Log file location
+
+          [env: LOG_FILE=]
+
+  -h, --help
+          Print help (see a summary with '-h')
 ```
 
 ##### Additional Variables
 
-> This commands needs the S3/RustFS variables to be set, but they can be passed as arguments.
+> S3/RustFS credentials are needed only when no local output path is supplied.
 
 * `BACKUP_LOCATION` - `-o, --output-location` - Output location, choose between S3 or a file path, defaults to S3
-* `JOBS` - `-j, --jobs` - Parallel jobs to use, defaults to 5
+* `JOBS` - `-j, --jobs` - Concurrent database dumps, defaults to 5; independent of compression threads
 * `FORMAT` - `-f, --format` - Format of the output file, defaults to bsql
 * `NO_ARCHIVE` - `--no-archive` - Create archive or just files, has no effect on `all` backups
+* `COMPRESSION` - `--compression zstd|xz` - Archive codec, defaults to zstd
+* `COMPRESSION_LEVEL` - `--compression-level` - zstd 1-22 (default 3), xz 0-9 (default 9)
+* `COMPRESSION_THREADS` - `--compression-threads` - Compression workers, defaults to 1 (single-threaded)
+* `PG_DUMP_COMPRESSION` - `--pg-dump-compression default|none` - Defaults to none for archives and PostgreSQL defaults for raw files
 
 #### Example
 
@@ -365,8 +481,46 @@ pg_actions -H my_host backup all
 * Backup a single database to a file, remember to mount the volume if you are using Docker
 
 ```bash
-pg_actions -H my_host backup my_db -o /backup/my_db.tar.xz
+pg_actions -H my_host backup my_db -o /backup/my_db.tar.zst
 ```
+
+#### Compression and compatibility
+
+New archives use zstd (`.tar.zst`) by default. XZ remains available explicitly:
+
+```bash
+pg_actions backup my_db --compression-threads 4 -o ./my_db.tar.zst
+pg_actions backup my_db --compression xz --compression-threads 2 -o ./my_db.tar.xz
+```
+
+The compressor streams tar data inside the application; no external `zstd` or
+`xz` command is invoked. Compression starts after all database dumps complete.
+`--jobs` controls simultaneous database dumps, while `--compression-threads`
+controls compression of the resulting archive. More compression threads can
+increase memory use, especially xz at its default level 9. Parallel xz logs an
+estimated encoder memory requirement. Compression levels are codec-specific and
+are not directly comparable.
+
+Custom (`bsql`) dumps inside archives now disable PostgreSQL compression with
+`pg_dump --compress=0`, leaving compression to the outer archive. This can avoid
+compressing already-compressed data, at the cost of larger temporary dump files.
+Use the following to retain PostgreSQL's normal inner compression:
+
+```bash
+pg_actions backup my_db --pg-dump-compression default -o ./my_db.tar.zst
+```
+
+Raw `--no-archive` backups and cloning keep PostgreSQL's normal compression
+settings. Raw backups can explicitly disable it with
+`--pg-dump-compression none`. `backup all --no-archive` still creates an archive.
+
+A missing archive suffix is added to the output name; an existing `.tar` suffix
+gets `.zst` or `.xz`. A `.tar.xz` output path requires `--compression xz`, and
+conflicting codec suffixes are rejected before dumping. S3 names use the selected
+codec's suffix. Update scripts matching `.tar.xz` when using the new default.
+Older pg_actions versions need xz output; this version restores both formats and
+also recognizes renamed archives by their compression headers. `--format`
+still selects the contained SQL/custom dump format independently.
 
 #### More backup examples
 
@@ -383,10 +537,10 @@ This command backs up all databases in SQL format. The output location defaults 
 1. Backup All Databases to a File with SQL Format
 
 ```bash
-pg_actions -H my_host backup all --format sql -o ./pgbk.tar.xz
+pg_actions -H my_host backup all --format sql -o ./pgbk.tar.zst
 ```
 
-This command backs up all databases in SQL format to a file named pgbk.tar.xz in the current directory. The -o option overrides the default S3 output location.
+This command backs up all databases in SQL format to a file named pgbk.tar.zst in the current directory. The -o option overrides the default S3 output location.
 
 1. Backup All Databases to Default Location with BSQL Format
 
@@ -415,22 +569,25 @@ This command backs up the dvdrentals database in BSQL format to a file named pgb
 1. Backup Specific Database (dvdrentals) to a File with SQL Format
 
 ```bash
-pg_actions -H my_host backup dvdrentals --format sql -o ./pgbk.tar.xz
+pg_actions -H my_host backup dvdrentals --format sql -o ./pgbk.tar.zst
 ```
 
-This command backs up the dvdrentals database in SQL format to a file named pgbk.tar.xz in the current directory. This case does not specify the --no-archive option, so the output may be archived depending on the utility's behavior.
+This command backs up the dvdrentals database in SQL format to a file named pgbk.tar.zst in the current directory. The output is a zstd-compressed tar archive containing the SQL dump.
 
 1. Backup Specific Database (dvdrentals) to a File with BSQL Format
 
 ```bash
-pg_actions -H my_host backup dvdrentals --format bsql -o ./pgbk.tar.xz
+pg_actions -H my_host backup dvdrentals --format bsql -o ./pgbk.tar.zst
 ```
 
-This command backs up the dvdrentals database in BSQL format to a file named pgbk.tar.xz in the current directory. Similar to the previous case, the absence of the --no-archive option means the output may be archived.
+This command backs up the dvdrentals database in BSQL format to a file named pgbk.tar.zst in the current directory. The output is a zstd-compressed tar archive containing the custom dump.
 
 ### Restore command
 
-It restores a database from a file or from S3/RustFS storage.
+It restores a database from a file or from S3/RustFS storage. Both `.tar.zst` and
+legacy `.tar.xz` archives are detected automatically, including renamed archives.
+Compressed streams are checked completely before an existing database is dropped
+with `--overwrite`.
 
 #### Help section
 
@@ -1553,7 +1710,7 @@ stages:
 
 clone:
   stage: clone
-  image: 
+  image:
     name: ghcr.io/cristicriss17g/pg_actions:latest
     entrypoint: [""]
   script:
@@ -1561,6 +1718,24 @@ clone:
 ```
 
 This assumes that the variables `PG_HOSTNAME`, `PG_PORT` (optional), `PG_SUPERUSER`, and `PG_PASS` are set in the environment.
+
+## Archive validation
+
+```bash
+cargo test --locked
+cargo build --locked --release
+docker compose up -d db
+python3 tests/archive-compose.py --report /tmp/pg-actions-compression.json
+```
+
+The Compose integration test requires local PostgreSQL client tools, `xz`, `zstd`,
+and `tar`. It creates uniquely named databases, checks restored data for custom
+and SQL dumps, validates both codecs with independent system tools, and removes
+only its own test databases. It also compares PostgreSQL's default inner
+compression against uncompressed custom dumps, reporting median backup times,
+archive sizes, temporary dump sizes and peak process memory (when GNU time is
+available). It uses synthetic data; measure real
+workloads before drawing general performance conclusions.
 
 ## License
 
