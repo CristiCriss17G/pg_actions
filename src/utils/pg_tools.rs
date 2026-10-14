@@ -74,7 +74,10 @@ fn resolve_path(path: &Path) -> Result<PathBuf> {
             });
         }
     }
-    Err(PGCliError::PGToolsError(format!("{} was not found in PATH; install a compatible PostgreSQL client or supply its explicit path", path.display())))
+    Err(PGCliError::PGToolsError(format!(
+        "{} was not found in PATH; install a compatible PostgreSQL client or supply its explicit path",
+        path.display()
+    )))
 }
 
 fn parse_version(kind: ToolKind, text: &str) -> Option<u32> {

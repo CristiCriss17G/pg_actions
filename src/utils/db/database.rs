@@ -120,11 +120,11 @@ pub async fn create_db(client: &Client, db: &str, owner: Option<&str>) -> Result
         error!("Invalid database name: {}", db);
         return Err(PGCliError::Other("Invalid database name".to_string()));
     }
-    if let Some(owner) = owner {
-        if validate_identifier(owner).is_err() {
-            error!("Invalid owner name: {}", owner);
-            return Err(PGCliError::Other("Invalid owner name".to_string()));
-        }
+    if let Some(owner) = owner
+        && validate_identifier(owner).is_err()
+    {
+        error!("Invalid owner name: {}", owner);
+        return Err(PGCliError::Other("Invalid owner name".to_string()));
     }
 
     if check_database_exists(client, db).await? {
@@ -184,8 +184,7 @@ pub async fn change_whole_owner_of_db(
 ) -> Result<()> {
     trace!(
         "Changing owner on the whole database {} with objects to {}",
-        db,
-        new_owner
+        db, new_owner
     );
 
     if validate_identifier(new_owner).is_err() {

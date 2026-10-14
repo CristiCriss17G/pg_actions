@@ -107,22 +107,20 @@ pub async fn clone_db(
         data.overwrite,
     )
     .await?;
-    if let Some(owner) = &data.new_owner {
-        if !check_user_exists(&destination_client, owner).await? {
-            if !data.create_owner {
-                return Err(PGCliError::Other(
-                    "Owner does not exist; use --create-owner".into(),
-                ));
-            }
-            // Validate the password before any role or database mutation.
-            if let Some(password) = &data.new_password {
-                super::sql::literal(password)?;
-            }
-            if let Some(password) =
-                create_user(&destination_client, owner, &data.new_password).await?
-            {
-                super::output::generated_password(owner, &password)?;
-            }
+    if let Some(owner) = &data.new_owner
+        && !check_user_exists(&destination_client, owner).await?
+    {
+        if !data.create_owner {
+            return Err(PGCliError::Other(
+                "Owner does not exist; use --create-owner".into(),
+            ));
+        }
+        // Validate the password before any role or database mutation.
+        if let Some(password) = &data.new_password {
+            super::sql::literal(password)?;
+        }
+        if let Some(password) = create_user(&destination_client, owner, &data.new_password).await? {
+            super::output::generated_password(owner, &password)?;
         }
     }
     preflight(

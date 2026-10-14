@@ -40,6 +40,7 @@ LABEL org.opencontainers.image.version=${APP_VERSION}
 LABEL org.opencontainers.image.title="Postgres actions cli"
 LABEL org.opencontainers.image.description="This is a Dockerfile for running postgres-db-actions. For more information visit run with --help."
 LABEL org.opencontainers.image.licenses="AGPL-3.0-only"
+LABEL org.opencontainers.image.source="https://github.com/CristiCriss17G/pg_actions"
 
 RUN apk update && apk upgrade --no-cache && apk add --no-cache bash ca-certificates postgresql${POSTGRES_VERSION}-client \
     && rm -rf /var/cache/apk/*

@@ -243,12 +243,16 @@ mod tests {
                 assert_eq!(codec.output_path(path).unwrap(), expected);
             }
         }
-        assert!(Compression::Zstd
-            .output_path(Path::new("backup.tar.xz"))
-            .is_err());
-        assert!(Compression::Xz
-            .output_path(Path::new("backup.tar.zst"))
-            .is_err());
+        assert!(
+            Compression::Zstd
+                .output_path(Path::new("backup.tar.xz"))
+                .is_err()
+        );
+        assert!(
+            Compression::Xz
+                .output_path(Path::new("backup.tar.zst"))
+                .is_err()
+        );
     }
 
     #[tokio::test]
@@ -293,16 +297,20 @@ mod tests {
                     .unwrap();
 
                 std::fs::write(&archive, &bytes[..bytes.len() - 1]).unwrap();
-                assert!(extract_compressed_archive(&archive, output.path())
-                    .await
-                    .is_err());
+                assert!(
+                    extract_compressed_archive(&archive, output.path())
+                        .await
+                        .is_err()
+                );
                 let mut corrupt = bytes;
                 let offset = corrupt.len() - 5;
                 corrupt[offset] ^= 0xff;
                 std::fs::write(&archive, corrupt).unwrap();
-                assert!(extract_compressed_archive(&archive, output.path())
-                    .await
-                    .is_err());
+                assert!(
+                    extract_compressed_archive(&archive, output.path())
+                        .await
+                        .is_err()
+                );
             }
         }
     }

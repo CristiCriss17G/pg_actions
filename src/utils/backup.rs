@@ -1,4 +1,4 @@
-use super::archive::{create_compressed_archive, Compression, CompressionOptions};
+use super::archive::{Compression, CompressionOptions, create_compressed_archive};
 use super::db::database::list_databases;
 use super::db::general::{db_dump, postgres_connect};
 use super::misc::delete_file;

@@ -92,15 +92,13 @@ jobs:
         run: |
           desc="$(
             gh api "repos/${GITHUB_REPOSITORY}/pulls?state=closed&base=main&sort=updated&direction=desc&per_page=20" \
-              --jq '[.[] | select(.merged_at != null)][0].body // ""' \
-              | tr '\n' ' ' \
-              | tr -d '`&' \
-              | sed 's/"/\\"/g'
+              --jq '[.[] | select(.merged_at != null)][0].body // ""'
           )"
+          delimiter="release_notes_$(openssl rand -hex 16)"
           {
-            echo "latest_mr_desc<<EOF"
-            echo "$desc"
-            echo "EOF"
+            printf 'latest_mr_desc<<%s\n' "$delimiter"
+            printf '%s\n' "$desc"
+            printf '%s\n' "$delimiter"
           } >> "$GITHUB_OUTPUT"
 
       - name: Upload tags

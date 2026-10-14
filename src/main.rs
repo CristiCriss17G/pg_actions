@@ -1,8 +1,8 @@
 mod utils;
 
-use clap::{parser::ValueSource, Command, CommandFactory, FromArgMatches, Parser, Subcommand};
-use clap_complete::{generate, Generator, Shell};
-use log::{info, warn, LevelFilter};
+use clap::{Command, CommandFactory, FromArgMatches, Parser, Subcommand, parser::ValueSource};
+use clap_complete::{Generator, Shell, generate};
+use log::{LevelFilter, info, warn};
 use std::io::{self, IsTerminal};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -189,7 +189,9 @@ async fn main() -> Result<()> {
         return Ok(());
     }
     if implicit_ssl_mode {
-        warn!("PostgreSQL TLS defaults to prefer (no certificate/hostname verification; non-TLS fallback). In v3.0 the default will change to verify-full. Set --pg-ssl-mode or PG_SSL_MODE explicitly to select your policy.");
+        warn!(
+            "PostgreSQL TLS defaults to prefer (no certificate/hostname verification; non-TLS fallback). In v3.0 the default will change to verify-full. Set --pg-ssl-mode or PG_SSL_MODE explicitly to select your policy."
+        );
     }
     let passfile = Arc::new(Passfile::read().await?);
     let auth_database = match &cli.command {

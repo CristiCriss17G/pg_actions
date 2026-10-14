@@ -5,8 +5,8 @@ use rusoto_core::{ByteStream, HttpClient, Region, RusotoError};
 use rusoto_credential::StaticProvider;
 use rusoto_s3::{
     AbortMultipartUploadRequest, CompleteMultipartUploadRequest, CompletedMultipartUpload,
-    CompletedPart, CreateMultipartUploadRequest, GetObjectRequest, PutObjectRequest, S3Client,
-    UploadPartRequest, S3,
+    CompletedPart, CreateMultipartUploadRequest, GetObjectRequest, PutObjectRequest, S3, S3Client,
+    UploadPartRequest,
 };
 use std::future::Future;
 use std::path::Path;
@@ -243,7 +243,9 @@ impl S3Credentials {
                 .await
                 .is_err()
             {
-                warn!("Failed to abort incomplete S3 upload; configure an incomplete-upload lifecycle rule");
+                warn!(
+                    "Failed to abort incomplete S3 upload; configure an incomplete-upload lifecycle rule"
+                );
             }
         }
         result

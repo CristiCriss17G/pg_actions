@@ -92,7 +92,7 @@ impl Passfile {
         let metadata = match tokio::fs::metadata(&path).await {
             Ok(metadata) => metadata,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound && explicit.is_none() => {
-                return Ok(Self::default())
+                return Ok(Self::default());
             }
             Err(error) => return Err(error.into()),
         };
@@ -293,7 +293,9 @@ mod tests {
 
     #[test]
     fn ordered_matching_escaping_and_explicit_precedence() {
-        let passfile = Arc::new(Passfile::parse("#comment\nhost:5433:db:other:other-pass\nhost:*:db:user:colon\\:and\\\\slash\nhost:5432:*:user:last\ninvalid-secret\nhost:broken:*:user:secret\n"));
+        let passfile = Arc::new(Passfile::parse(
+            "#comment\nhost:5433:db:other:other-pass\nhost:*:db:user:colon\\:and\\\\slash\nhost:5432:*:user:last\ninvalid-secret\nhost:broken:*:user:secret\n",
+        ));
         assert_eq!(
             passfile.password("host", 5432, "db", "user"),
             Some("colon:and\\slash")

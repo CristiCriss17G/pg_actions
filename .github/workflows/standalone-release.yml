@@ -177,12 +177,16 @@ jobs:
           sha256sum ./* > SHA256SUMS
           cd ..
           tag="v${RELEASE_VERSION}"
-          notes="Release created using GitHub Actions. Release '${tag}': ${LATEST_MR_DESC}"
+          notes_file="${RUNNER_TEMP}/release-notes.md"
+          {
+            printf 'Release created using GitHub Actions. Release %s.\n\n' "$tag"
+            printf '%s\n' "$LATEST_MR_DESC"
+          } > "$notes_file"
 
           if gh release view "$tag" >/dev/null 2>&1; then
             gh release upload "$tag" dist/* --clobber
           else
-            gh release create "$tag" dist/* --target "$GITHUB_SHA" --title "Release v${RELEASE_VERSION}" --notes "$notes"
+            gh release create "$tag" dist/* --target "$GITHUB_SHA" --title "Release v${RELEASE_VERSION}" --notes-file "$notes_file"
           fi
 
       - name: Attest build provenance

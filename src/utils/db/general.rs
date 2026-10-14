@@ -7,8 +7,8 @@ use crate::utils::structs::{
 use deadpool_postgres::{Client, Config as DPConfig, ManagerConfig, RecyclingMethod, Runtime};
 use native_tls::{Certificate, TlsConnector};
 use nucleo_matcher::{
-    pattern::{CaseMatching, Normalization, Pattern},
     Config, Matcher,
+    pattern::{CaseMatching, Normalization, Pattern},
 };
 use postgres_native_tls::MakeTlsConnector;
 use std::path::Path;

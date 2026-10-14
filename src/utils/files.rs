@@ -136,7 +136,7 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn private_output_rejects_symlinks_and_is_owner_only() {
-        use std::os::unix::fs::{symlink, PermissionsExt};
+        use std::os::unix::fs::{PermissionsExt, symlink};
         let dir = tempfile::tempdir().unwrap();
         let file = dir.path().join("file");
         private_open(&file, false).unwrap();
