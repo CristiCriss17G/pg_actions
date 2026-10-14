@@ -1,9 +1,12 @@
 Package: pg-actions
-Version: 1.0.1-1
+Version: 2.0.0-1
 Section: utils
 Priority: optional
 Architecture: amd64
 Maintainer: Cristian Iordachescu <53430981+CristiCriss17G@users.noreply.github.com>
-Depends: openssl (>= 3.0.0), xz-utils
+Depends: ${shlibs:Depends}
+Recommends: ca-certificates, postgresql-client
+Conflicts: pg-actions-static
+Replaces: pg-actions-static
 Description: pg_actions - Dynamic Version
   `pg_actions` is a small executable that allows various operation on a PostgreSQL database, form the administrative side. It can clone a database, backup a database, create, delete, update a user, create, delete, update a database, and list users and databases.

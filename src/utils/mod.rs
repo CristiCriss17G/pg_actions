@@ -1,11 +1,17 @@
 pub mod archive;
 pub mod backup;
 pub mod clone;
+pub mod credentials;
 pub mod database;
 pub mod db;
 pub mod extension;
+pub mod files;
 pub mod logging;
 pub mod misc;
+pub mod output;
+pub mod pg_tools;
 pub mod restore;
+mod s3;
+pub mod sql;
 pub mod structs;
 pub mod user;

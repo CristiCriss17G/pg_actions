@@ -1,5 +1,5 @@
 use crate::utils::{
-    db::general::validate_pg_names,
+    sql::{identifier, validate_identifier},
     structs::{ExtensionDetails, PGCliError, SortingOrder},
 };
 use deadpool_postgres::Client;
@@ -70,11 +70,11 @@ pub async fn list_extensions(
 
 pub async fn create_extension(client: &Client, extension: &str) -> Result<u64, PGCliError> {
     trace!("Creating extension {}", extension);
-    if !validate_pg_names(extension) {
+    if validate_identifier(extension).is_err() {
         error!("Invalid extension name: {}", extension);
         return Err(PGCliError::Other("Invalid extension name".to_string()));
     }
-    let statement = format!("CREATE EXTENSION IF NOT EXISTS \"{}\"", extension);
+    let statement = format!("CREATE EXTENSION IF NOT EXISTS {}", identifier(extension)?);
     match client.execute(&statement, &[]).await {
         Ok(r) => Ok(r),
         Err(e) => Err(PGCliError::from(e)),
@@ -83,11 +83,11 @@ pub async fn create_extension(client: &Client, extension: &str) -> Result<u64, P
 
 pub async fn drop_extension(client: &Client, extension: &str) -> Result<u64, PGCliError> {
     trace!("Dropping extension {}", extension);
-    if !validate_pg_names(extension) {
+    if validate_identifier(extension).is_err() {
         error!("Invalid extension name: {}", extension);
         return Err(PGCliError::Other("Invalid extension name".to_string()));
     }
-    let statement = format!("DROP EXTENSION IF EXISTS \"{}\"", extension);
+    let statement = format!("DROP EXTENSION IF EXISTS {}", identifier(extension)?);
     match client.execute(&statement, &[]).await {
         Ok(r) => Ok(r),
         Err(e) => Err(PGCliError::from(e)),

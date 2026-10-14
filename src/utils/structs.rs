@@ -3,7 +3,10 @@ use csv::{self, Writer};
 use deadpool_postgres::{CreatePoolError, PoolError};
 use log::SetLoggerError;
 use rusoto_core::RusotoError;
-use rusoto_s3::{CompleteMultipartUploadError, CreateMultipartUploadError, UploadPartError};
+use rusoto_s3::{
+    AbortMultipartUploadError, CompleteMultipartUploadError, CreateMultipartUploadError,
+    GetObjectError, PutObjectError, UploadPartError,
+};
 use serde::{Deserialize, Serialize};
 use serde_json;
 use std::fmt;
@@ -19,48 +22,11 @@ pub enum PgDumpCompression {
     None,
 }
 
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub struct PostgresCredentials {
-    pub pg_hostname: String,
-    pub pg_superuser: String,
-    pub pg_password: String,
-    pub pg_port: u16,
-}
-
-impl PostgresCredentials {
-    pub fn new(
-        pg_hostname: String,
-        pg_superuser: String,
-        pg_password: String,
-        pg_port: u16,
-    ) -> PostgresCredentials {
-        PostgresCredentials {
-            pg_hostname,
-            pg_superuser,
-            pg_password,
-            pg_port,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Hash, PartialEq, Eq, Default)]
-pub struct PGTools {
-    pub pg_dump: String,
-    pub pg_restore: String,
-    pub psql: String,
-}
-
-impl PGTools {
-    pub fn new(pg_dump: String, pg_restore: String, psql: String) -> PGTools {
-        PGTools {
-            pg_dump,
-            pg_restore,
-            psql,
-        }
-    }
-}
+pub use super::credentials::PostgresCredentials;
+pub use super::pg_tools::PGTools;
 
 pub struct S3Credentials {
+    pub s3_session_token: Option<String>,
     pub s3_endpoint: Option<String>,
     pub s3_access_key: Option<String>,
     pub s3_secret_key: Option<String>,
@@ -79,6 +45,7 @@ impl S3Credentials {
         s3_prefix: Option<String>,
     ) -> S3Credentials {
         S3Credentials {
+            s3_session_token: None,
             s3_endpoint,
             s3_access_key,
             s3_secret_key,
@@ -106,11 +73,17 @@ pub enum PGCliError {
     #[error("Rusoto TLS Error: {0}")]
     RusotoTls(#[from] rusoto_core::request::TlsError),
     #[error("Rusoto CreateMultipartUploadError Error: {0}")]
-    RusotoCreateMultipartUploadError(#[from] RusotoError<CreateMultipartUploadError>),
+    RusotoCreateMultipartUploadError(#[source] Box<RusotoError<CreateMultipartUploadError>>),
     #[error("Rusoto UploadPartError Error: {0}")]
-    RusotoUploadPartError(#[from] RusotoError<UploadPartError>),
+    RusotoUploadPartError(#[source] Box<RusotoError<UploadPartError>>),
     #[error("Rusoto CompleteMultipartUploadError Error: {0}")]
-    RusotoCompleteMultipartUploadError(#[from] RusotoError<CompleteMultipartUploadError>),
+    RusotoCompleteMultipartUploadError(#[source] Box<RusotoError<CompleteMultipartUploadError>>),
+    #[error("S3 abort error: {0}")]
+    S3Abort(#[source] Box<RusotoError<AbortMultipartUploadError>>),
+    #[error("S3 upload error: {0}")]
+    S3Put(#[source] Box<RusotoError<PutObjectError>>),
+    #[error("S3 download error: {0}")]
+    S3Get(#[source] Box<RusotoError<GetObjectError>>),
     #[error("Serde Json Error: {0}")]
     SerdeJson(#[from] serde_json::Error),
     #[error("Serde CSV Error: {0}")]
@@ -129,13 +102,44 @@ pub enum PGCliError {
     ConnectionError(String),
     #[error("PGToolsError: {0}")]
     PGToolsError(String),
-    #[error("Pool Error Tokio: {0}")]
-    PoolErrorTokio(String),
     #[error("Error: {0}")]
     Other(String),
 }
 
-/// A `Result` alias where the `Err` case is `ClodociError`.
+impl From<RusotoError<CreateMultipartUploadError>> for PGCliError {
+    fn from(error: RusotoError<CreateMultipartUploadError>) -> Self {
+        Self::RusotoCreateMultipartUploadError(Box::new(error))
+    }
+}
+impl From<RusotoError<UploadPartError>> for PGCliError {
+    fn from(error: RusotoError<UploadPartError>) -> Self {
+        Self::RusotoUploadPartError(Box::new(error))
+    }
+}
+impl From<RusotoError<CompleteMultipartUploadError>> for PGCliError {
+    fn from(error: RusotoError<CompleteMultipartUploadError>) -> Self {
+        Self::RusotoCompleteMultipartUploadError(Box::new(error))
+    }
+}
+
+impl From<RusotoError<PutObjectError>> for PGCliError {
+    fn from(error: RusotoError<PutObjectError>) -> Self {
+        Self::S3Put(Box::new(error))
+    }
+}
+impl From<RusotoError<GetObjectError>> for PGCliError {
+    fn from(error: RusotoError<GetObjectError>) -> Self {
+        Self::S3Get(Box::new(error))
+    }
+}
+
+impl From<RusotoError<AbortMultipartUploadError>> for PGCliError {
+    fn from(error: RusotoError<AbortMultipartUploadError>) -> Self {
+        Self::S3Abort(Box::new(error))
+    }
+}
+
+/// A `Result` alias where the `Err` case is `PGCliError`.
 pub type Result<T> = std::result::Result<T, PGCliError>;
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
@@ -426,5 +430,35 @@ impl ValueEnum for SqlFileFormat {
             SqlFileFormat::Sql => clap::builder::PossibleValue::new("sql"),
             SqlFileFormat::Bsql => clap::builder::PossibleValue::new("bsql"),
         })
+    }
+}
+
+#[cfg(test)]
+mod error_tests {
+    use super::*;
+    use std::error::Error;
+
+    #[test]
+    fn boxed_s3_errors_preserve_conversion_display_and_source() {
+        let errors = [
+            PGCliError::from(RusotoError::<CreateMultipartUploadError>::Validation(
+                "create failure".into(),
+            )),
+            PGCliError::from(RusotoError::<UploadPartError>::Validation(
+                "part failure".into(),
+            )),
+            PGCliError::from(RusotoError::<CompleteMultipartUploadError>::Validation(
+                "complete failure".into(),
+            )),
+        ];
+        for (error, expected) in
+            errors
+                .iter()
+                .zip(["create failure", "part failure", "complete failure"])
+        {
+            assert!(error.to_string().contains(expected));
+            assert_eq!(error.source().unwrap().to_string(), expected);
+        }
+        assert!(std::mem::size_of::<PGCliError>() <= 128);
     }
 }

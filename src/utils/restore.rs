@@ -1,24 +1,14 @@
 use super::archive::{detect_compression, extract_compressed_archive};
-use super::db::database::{
-    change_owner_of_objects_in_db, change_owner_of_tables_in_db, check_database_exists, create_db,
-    delete_db, get_database_owner, kill_connections_to_db,
-};
-use super::db::general::{db_restore, init_pgpass, postgres_connect};
-use super::misc::{
-    check_file_path_exists, delete_directory, delete_file, ensure_file_directory_path_exists,
-    search_file_in_directory,
-};
+use super::db::general::postgres_connect;
+use super::db::staging::{preflight, staged_restore};
+use super::files::{dump_filename, finish_workspace, safe_existing_file, workspace};
 use super::structs::{
     PGCliError, PGTools, PostgresCredentials, Result, S3Credentials, SqlFileFormat,
 };
 use clap::Args;
-use log::{debug, error, info, warn};
-use std::collections::HashMap;
+use log::{info, warn};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
-use tokio::time::sleep;
-
-const MAX_RETRIES: u8 = 3;
 
 #[derive(Args, Debug, PartialEq)]
 pub struct RestoreArgs {
@@ -54,288 +44,101 @@ pub struct RestoreArgs {
     keep_temp: bool,
 }
 
+impl RestoreArgs {
+    pub fn format(&self) -> SqlFileFormat {
+        self.format
+    }
+}
+
 pub async fn restore_db(
     data: &RestoreArgs,
-    credentials: &HashMap<String, PostgresCredentials>,
-    pg_main_hostname: &String,
-    s3_credentials: &S3Credentials,
-    pg_tools: &PGTools,
+    credentials: &PostgresCredentials,
+    s3: &S3Credentials,
+    tools: &PGTools,
 ) -> Result<()> {
-    // check if the input location exists and is a local file or a remote one (start with s3://)
-    if !check_file_path_exists(&data.input_location)
-        && !data
-            .input_location
-            .to_str()
-            .unwrap_or("")
-            .starts_with("s3://")
-    {
-        return Err(PGCliError::Other(
-            "Input location does not exist".to_string(),
-        ));
-    }
-
-    init_pgpass(
-        &credentials
-            .values()
-            .cloned()
-            .collect::<Vec<PostgresCredentials>>(),
+    let client = postgres_connect(credentials, None).await?;
+    preflight(
+        &client,
+        &data.database,
+        data.owner.as_deref(),
+        data.overwrite,
     )
     .await?;
+    let directory = workspace("postgresql-restore-")?;
+    let result = async {
+        let file = get_file_location(&data.input_location, s3, directory.path()).await?;
+        let restore_file = if detect_compression(&file)?.is_some() {
+            let extracted = directory.path().join("extracted");
+            tokio::fs::create_dir(&extracted).await?;
+            extract_compressed_archive(&file, &extracted).await?;
+            let source = data.file_name.as_deref().unwrap_or(&data.database);
+            let filename = dump_filename(source, data.format.file_extension());
+            // Encoded names protect new archives; plain names retain old archives.
+            let matched = safe_existing_file(&extracted, &filename)?;
+            match matched {
+                Some(path) => path,
+                None => safe_existing_file(
+                    &extracted,
+                    &format!("{source}.{}", data.format.file_extension()),
+                )?
+                .ok_or_else(|| {
+                    PGCliError::Other("Requested database dump was not found in archive".into())
+                })?,
+            }
+        } else {
+            file
+        };
+        staged_restore(
+            credentials,
+            &data.database,
+            &restore_file,
+            tools,
+            data.format,
+            data.owner.as_deref(),
+            data.overwrite,
+        )
+        .await
+    }
+    .await;
+    finish_workspace(directory, data.keep_temp, result)
+}
 
-    let main_credentials = credentials.get(pg_main_hostname).unwrap();
-
-    let client = postgres_connect(main_credentials, None).await?;
-
-    let database_exists = check_database_exists(&client, &data.database).await?;
-
-    let database_owner = if let Some(ref owner) = &data.owner {
-        Some(owner.clone())
-    } else if database_exists {
-        Some(get_database_owner(&client, &data.database).await?)
-    } else {
-        None
+async fn get_file_location(input: &Path, s3: &S3Credentials, workspace: &Path) -> Result<PathBuf> {
+    let Some(remote) = input.to_str().filter(|value| value.starts_with("s3://")) else {
+        if !input.is_file() {
+            return Err(PGCliError::Other("Input location is not a file".into()));
+        }
+        return Ok(input.to_path_buf());
     };
-
-    if database_exists && !data.overwrite {
-        error!("Database already exists and overwrite is not set");
-        return Err(PGCliError::Other(
-            "Database already exists and overwrite is not set".to_string(),
-        ));
+    // Keep existing URL/prefix semantics here; A11 is explicitly deferred.
+    s3.validate_s3_credentials()?;
+    let mut key = remote.replace("s3://", "");
+    if let Some(bucket) = &s3.s3_bucket {
+        key = key.replace(&format!("{bucket}/"), "");
     }
-
-    let mut temp_archive: Option<PathBuf> = None;
-    let mut temp_folder_extracted: Option<PathBuf> = None;
-
-    // if the input location is from s3, download the file to a temporary location
-    let file_location =
-        match get_file_location(&data.input_location, s3_credentials, &mut temp_archive).await {
-            Ok(file) => file,
-            Err(e) => {
-                error!("Failed to get file location: {}", e);
-                cleanup(data.keep_temp, &temp_archive, &temp_folder_extracted).await?;
-                return Err(e);
-            }
-        };
-
-    debug!("Restoring from file: {:?}", file_location);
-
-    // if the files are compressed, extract them
-    let restore_file = match get_restore_file_location(
-        &file_location,
-        &data.database,
-        &data.format,
-        &data.file_name,
-        &mut temp_folder_extracted,
-    )
-    .await
-    {
-        Ok(file) => file,
-        Err(e) => {
-            error!("Failed to get restore file location: {}", e);
-            cleanup(data.keep_temp, &temp_archive, &temp_folder_extracted).await?;
-            return Err(e);
-        }
+    if let Some(prefix) = &s3.s3_prefix {
+        key = key.replace(&format!("{prefix}/"), "");
+    }
+    let suffix = if key.ends_with(".tar.xz") {
+        "tar.xz"
+    } else if key.ends_with(".tar.zst") {
+        "tar.zst"
+    } else {
+        "dump"
     };
-
-    if database_exists && data.overwrite {
-        info!("Dropping database {}", data.database);
-        info!("Killing connections to database {}", data.database);
-        match kill_connections_to_db(&client, &data.database).await {
-            Ok(_) => info!("Connections killed successfully"),
-            Err(e) => {
-                error!("Failed to kill connections: {}", e);
-                cleanup(data.keep_temp, &temp_archive, &temp_folder_extracted).await?;
-                return Err(e);
+    let file = workspace.join(format!("download.{suffix}"));
+    for attempt in 1..=3 {
+        match s3.download_file(&key, &file).await {
+            Ok(()) => {
+                info!("Downloaded restore input");
+                return Ok(file);
             }
-        }
-        match delete_db(&client, &data.database).await {
-            Ok(_) => info!("Database dropped successfully"),
-            Err(e) => {
-                error!("Failed to drop database: {}", e);
-                cleanup(data.keep_temp, &temp_archive, &temp_folder_extracted).await?;
-                return Err(e);
+            Err(error) if attempt < 3 => {
+                warn!("Download attempt {attempt} failed: {error}");
+                tokio::time::sleep(Duration::from_secs(1 << (attempt - 1))).await;
             }
+            Err(error) => return Err(error),
         }
     }
-
-    info!("Creating database {}", data.database);
-    match create_db(&client, &data.database, database_owner.as_deref()).await {
-        Ok(_) => info!("Database created successfully"),
-        Err(e) => {
-            error!("Failed to create database: {}", e);
-            cleanup(data.keep_temp, &temp_archive, &temp_folder_extracted).await?;
-            return Err(e);
-        }
-    }
-
-    info!("Restoring database {}", data.database);
-    match db_restore(
-        main_credentials.clone(),
-        &data.database,
-        &restore_file,
-        pg_tools,
-        data.format,
-    )
-    .await
-    {
-        Ok(_) => info!("Database restored successfully"),
-        Err(e) => {
-            error!("Failed to restore database: {}", e);
-            // cleanup
-            cleanup(data.keep_temp, &temp_archive, &temp_folder_extracted).await?;
-            return Err(e);
-        }
-    }
-
-    if let Some(owner) = &database_owner {
-        info!("Changing owner of tables in database {}", data.database);
-        match change_owner_of_tables_in_db(main_credentials, &data.database, owner).await {
-            Ok(_) => info!("Owner of tables changed successfully"),
-            Err(e) => {
-                error!("Failed to change owner of tables: {}", e);
-                return Err(e);
-            }
-        }
-
-        info!("Changing owner of objects in database {}", data.database);
-        match change_owner_of_objects_in_db(main_credentials, &data.database, owner).await {
-            Ok(_) => info!("Owner of objects changed successfully"),
-            Err(e) => {
-                error!("Failed to change owner of objects: {}", e);
-                return Err(e);
-            }
-        }
-    }
-
-    cleanup(data.keep_temp, &temp_archive, &temp_folder_extracted).await?;
-
-    Ok(())
-}
-
-async fn get_file_location<P: AsRef<Path>>(
-    input_location: P,
-    s3_credentials: &S3Credentials,
-    temp_archive: &mut Option<PathBuf>,
-) -> Result<PathBuf> {
-    if input_location
-        .as_ref()
-        .to_str()
-        .unwrap_or("")
-        .starts_with("s3://")
-    {
-        info!("Restoring from S3");
-        s3_credentials.validate_s3_credentials()?;
-        // strip s3:// from the input location
-        let input_location = input_location
-            .as_ref()
-            .to_str()
-            .unwrap()
-            .replace("s3://", "");
-        // if the input location contains the bucket name, strip it
-        let input_location = if let Some(ref bucket) = s3_credentials.s3_bucket {
-            input_location.replace(&format!("{}/", bucket), "")
-        } else {
-            input_location
-        };
-        // if the input location contains the prefix, strip it
-        let input_location = if let Some(ref prefix) = s3_credentials.s3_prefix {
-            input_location.replace(&format!("{}/", prefix), "")
-        } else {
-            input_location
-        };
-        // get the last part of the input location as the file name
-        let temp_file_name = PathBuf::from(input_location.split('/').next_back().unwrap());
-        let temp_dir = PathBuf::from(r"/tmp/psql_backup/");
-        let temp_file = temp_dir.join(&temp_file_name);
-
-        debug!("Downloading file to: {:?}", temp_file);
-        // Attempt to download the file with retry logic
-        let mut attempt = 0;
-
-        loop {
-            attempt += 1;
-            match s3_credentials
-                .download_file(&input_location, &temp_file)
-                .await
-            {
-                Ok(_) => {
-                    info!("File downloaded successfully!");
-                    break;
-                }
-                Err(e) if attempt < MAX_RETRIES => {
-                    warn!("Attempt {} failed: {}. Retrying...", attempt, e);
-                    sleep(Duration::from_secs(3)).await;
-                }
-                Err(e) => {
-                    error!("Failed to download file: {}. Retrying...", e);
-                    return Err(e);
-                }
-            }
-        }
-        *temp_archive = Some(temp_file.clone());
-        Ok(temp_file)
-    }
-    // if the input location is a local file, use it as is
-    else {
-        Ok(input_location.as_ref().to_path_buf())
-    }
-}
-
-async fn get_restore_file_location<P: AsRef<Path>>(
-    file_location: P,
-    database: &str,
-    format: &SqlFileFormat,
-    file_name: &Option<String>,
-    temp_folder_extracted: &mut Option<PathBuf>,
-) -> Result<PathBuf> {
-    if detect_compression(file_location.as_ref())?.is_some() {
-        ensure_file_directory_path_exists("/tmp/psql_backup").await?;
-        let temp_folder = tempfile::Builder::new()
-            .prefix("postgresql-restore-")
-            .tempdir_in("/tmp/psql_backup")?
-            .keep();
-        *temp_folder_extracted = Some(temp_folder.clone());
-        debug!("Extracting archive to {}", temp_folder.display());
-        extract_compressed_archive(file_location.as_ref(), &temp_folder).await?;
-        // serach for a file in the extracted folder
-        // with the name of the database and extension of the format
-        let file_name = if let Some(file) = &file_name {
-            format!("{}.{}", file, format.file_extension())
-        } else {
-            format!("{}.{}", database, format.file_extension())
-        };
-        let file_location = search_file_in_directory(&temp_folder, &file_name)
-            .await?
-            .ok_or_else(|| {
-                PGCliError::Other(format!(
-                    "Database file `{}` not found in the extracted folder",
-                    file_name
-                ))
-            })?;
-        Ok(file_location)
-    } else {
-        Ok(file_location.as_ref().to_path_buf())
-    }
-}
-
-async fn cleanup(
-    keep: bool,
-    temp_archive: &Option<PathBuf>,
-    temp_folder_extracted: &Option<PathBuf>,
-) -> Result<()> {
-    if !keep {
-        // cleanup
-        info!("Cleaning up");
-        if let Some(temp_archive) = temp_archive {
-            debug!("Deleting temporary archive: {:?}", temp_archive);
-            delete_file(&temp_archive).await?;
-        }
-        if let Some(temp_folder_extracted) = temp_folder_extracted {
-            debug!("Deleting temporary folder: {:?}", temp_folder_extracted);
-            delete_directory(&temp_folder_extracted).await?;
-        }
-    } else {
-        info!("Temporary files kept at: /tmp/psql_backup/");
-    }
-    Ok(())
+    Err(PGCliError::Other("Download did not complete".into()))
 }

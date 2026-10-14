@@ -1187,6 +1187,8 @@ dependencies = [
  "deadpool-postgres",
  "dirs",
  "fern",
+ "futures-util",
+ "libc",
  "log",
  "native-tls",
  "nucleo-matcher",

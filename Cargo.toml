@@ -6,7 +6,7 @@ authors = [
     'Cristian Iordachescu <53430981+CristiCriss17G@users.noreply.github.com>',
 ]
 license = "AGPL-3.0-only"
-rust-version = "1.96"
+rust-version = "1.99"
 
 [profile.release]
 debug = false     # This strips the debug information
@@ -41,6 +41,8 @@ deadpool-postgres = { version = "0.14.2", features = ["serde"] }
 dirs = "7.0.0"
 fern = { version = "0.7.1", features = ["colored"] }
 log = "0.4.34"
+libc = "0.2"
+futures-util = "0.3"
 native-tls = "0.2.18"
 nucleo-matcher = "0.3.1"
 postgres-native-tls = "0.5.3"

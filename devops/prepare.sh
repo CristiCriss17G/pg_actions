@@ -15,4 +15,5 @@ done <$TAGS
     $DESTINATIONS \
     --build-arg RUST_VERSION \
     --build-arg ALPINE_VERSION \
+    --build-arg APP_VERSION="$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml)" \
     --cleanup

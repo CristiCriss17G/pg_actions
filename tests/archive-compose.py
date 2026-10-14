@@ -71,6 +71,7 @@ def main():
     env.update(
         PGHOST="127.0.0.1", PG_HOSTNAME="127.0.0.1",
         PGPORT=port, PG_PORT=port, PGUSER=user, PG_SUPERUSER=user,
+        PG_SSL_MODE="disable",
         PGPASSWORD=password, PG_PASS=password,
     )
     databases = []

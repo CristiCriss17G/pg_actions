@@ -95,6 +95,7 @@ jobs:
           labels: ${{ steps.docker_meta.outputs.labels }}
           build-args: |
             APP_NAME=${{ inputs.app_name }}
+            APP_VERSION=${{ inputs.version }}
             RUST_VERSION=${{ inputs.rust_version }}
             ALPINE_VERSION=${{ inputs.alpine_version }}
             POSTGRES_VERSION=${{ matrix.postgres_version }}

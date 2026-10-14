@@ -1,11 +1,12 @@
-use super::general::{filter_entities, validate_pg_names};
+use super::general::filter_entities;
+use crate::utils::sql::{identifier, literal, validate_identifier};
 use crate::utils::{
     db::general::postgres_connect,
     misc::generate_random_string,
     structs::{PGCliError, PostgresCredentials, SortingOrder, UserDetails, UserPrivileges},
 };
 use deadpool_postgres::Client;
-use log::{debug, error, info, trace};
+use log::{debug, error, trace};
 
 pub async fn check_user_exists(client: &Client, user: &str) -> Result<bool, PGCliError> {
     let user_exists = client
@@ -103,19 +104,12 @@ pub async fn create_user(
     client: &Client,
     user: &str,
     password: &Option<String>,
-) -> Result<u64, PGCliError> {
+) -> Result<Option<String>, PGCliError> {
     trace!("Creating user {}", user);
-    if !validate_pg_names(user) {
+    if validate_identifier(user).is_err() {
         error!("Invalid user name: {}", user);
         return Err(PGCliError::Other("Invalid user name".to_string()));
     }
-    if let Some(ref pwd) = password {
-        if !validate_pg_names(pwd) {
-            error!("Invalid password");
-            return Err(PGCliError::Other("Invalid password".to_string()));
-        }
-    }
-
     create_role(client, user, password, false, false, false).await
 }
 
@@ -126,26 +120,18 @@ pub async fn create_role(
     superuser: bool,
     createdb: bool,
     no_login: bool,
-) -> Result<u64, PGCliError> {
+) -> Result<Option<String>, PGCliError> {
     trace!("Creating role {}", role);
-    if !validate_pg_names(role) {
+    if validate_identifier(role).is_err() {
         error!("Invalid role name: {}", role);
         return Err(PGCliError::Other("Invalid role name".to_string()));
     }
-    let pass = {
-        if let Some(ref pwd) = password {
-            if !validate_pg_names(pwd) {
-                error!("Invalid password");
-                return Err(PGCliError::Other("Invalid password".to_string()));
-            }
-            pwd.clone()
-        } else {
-            let pass = generate_random_string(32, false);
-            info!("Generated password: {}", pass);
-            pass
-        }
+    let generated = if password.is_none() && !no_login {
+        Some(generate_random_string(32, false))
+    } else {
+        None
     };
-
+    let pass = password.as_ref().or(generated.as_ref());
     // check if the role already exists
     if check_user_exists(client, role).await? {
         error!("Role {} already exists", role);
@@ -159,7 +145,10 @@ pub async fn create_role(
         createdb,
         no_login
     );
-    let mut statement = format!("CREATE ROLE \"{}\" WITH PASSWORD '{}'", role, pass);
+    let mut statement = format!("CREATE ROLE {}", identifier(role)?);
+    if let Some(pass) = pass {
+        statement.push_str(&format!(" WITH PASSWORD {}", literal(pass)?));
+    }
     if superuser {
         statement.push_str(" SUPERUSER");
     }
@@ -170,15 +159,13 @@ pub async fn create_role(
         statement.push_str(" LOGIN");
     }
 
-    match client.execute(&statement, &[]).await {
-        Ok(r) => Ok(r),
-        Err(e) => Err(PGCliError::from(e)),
-    }
+    client.execute(&statement, &[]).await?;
+    Ok(generated)
 }
 
 pub async fn delete_role(client: &Client, role: &str) -> Result<u64, PGCliError> {
     trace!("Deleting role {}", role);
-    if !validate_pg_names(role) {
+    if validate_identifier(role).is_err() {
         error!("Invalid role name: {}", role);
         return Err(PGCliError::Other("Invalid role name".to_string()));
     }
@@ -188,7 +175,7 @@ pub async fn delete_role(client: &Client, role: &str) -> Result<u64, PGCliError>
         return Err(PGCliError::Other("Role does not exist".to_string()));
     }
 
-    let statement = format!("DROP ROLE \"{}\"", role);
+    let statement = format!("DROP ROLE {}", identifier(role)?);
     match client.execute(&statement, &[]).await {
         Ok(r) => Ok(r),
         Err(e) => Err(PGCliError::from(e)),
@@ -204,7 +191,7 @@ pub async fn alter_role(
     no_login: &Option<bool>,
 ) -> Result<u64, PGCliError> {
     trace!("Altering role {}", role);
-    if !validate_pg_names(role) {
+    if validate_identifier(role).is_err() {
         error!("Invalid role name: {}", role);
         return Err(PGCliError::Other("Invalid role name".to_string()));
     }
@@ -215,13 +202,9 @@ pub async fn alter_role(
     }
 
     // If the password is not provided, we don't alter it
-    let mut statement = format!("ALTER ROLE {}", role);
+    let mut statement = format!("ALTER ROLE {}", identifier(role)?);
     if let Some(password) = password {
-        if !validate_pg_names(password) {
-            error!("Invalid password");
-            return Err(PGCliError::Other("Invalid password".to_string()));
-        }
-        statement.push_str(&format!(" WITH PASSWORD '{}'", password));
+        statement.push_str(&format!(" WITH PASSWORD {}", literal(password)?));
     }
 
     if let Some(superuser_flag) = superuser {
@@ -263,7 +246,7 @@ pub async fn grant_privileges(
     privileges: &UserPrivileges,
 ) -> Result<u64, PGCliError> {
     trace!("Granting privileges to role {}", role);
-    if !validate_pg_names(role) {
+    if validate_identifier(role).is_err() {
         error!("Invalid role name: {}", role);
         return Err(PGCliError::Other("Invalid role name".to_string()));
     }
@@ -272,17 +255,23 @@ pub async fn grant_privileges(
         error!("Role {} does not exist", role);
         return Err(PGCliError::Other("Role does not exist".to_string()));
     }
+    let quoted_database = identifier(database)?;
+    let quoted_role = identifier(role)?;
+    let quoted_schema = identifier(schema)?;
     let mut res: u64 = 0;
 
     let statement = match privileges {
         UserPrivileges::Full => {
             format!(
-                "GRANT ALL PRIVILEGES ON DATABASE \"{}\" TO \"{}\"",
-                database, role
+                "GRANT ALL PRIVILEGES ON DATABASE {} TO {}",
+                quoted_database, quoted_role
             )
         }
         UserPrivileges::ReadOnly | UserPrivileges::ReadUpdateOnly => {
-            format!("GRANT CONNECT ON DATABASE \"{}\" TO \"{}\"", database, role)
+            format!(
+                "GRANT CONNECT ON DATABASE {} TO {}",
+                quoted_database, quoted_role
+            )
         }
     };
 
@@ -294,7 +283,7 @@ pub async fn grant_privileges(
     let db_client = postgres_connect(credentials, Some(database.to_string())).await?;
 
     // prepare the statements for granting privileges on tables
-    let statements = prepare_grant_privileges_tables(privileges, schema, role);
+    let statements = prepare_grant_privileges_tables(privileges, &quoted_schema, &quoted_role);
 
     let mut error_occurred = false;
     for statement in statements {
@@ -323,62 +312,56 @@ fn prepare_grant_privileges_tables(
     let mut statements = Vec::with_capacity(4); // Set initial capacity to 4
     match access_level {
         UserPrivileges::Full => {
+            statements.push(format!("GRANT ALL ON SCHEMA {} TO {}", schema, role));
             statements.push(format!(
-                "GRANT ALL ON SCHEMA \"{}\" TO \"{}\"",
+                "GRANT ALL PRIVILEGES ON SCHEMA {} TO {}",
                 schema, role
             ));
             statements.push(format!(
-                "GRANT ALL PRIVILEGES ON SCHEMA \"{}\" TO \"{}\"",
+                "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA {} TO {}",
                 schema, role
             ));
             statements.push(format!(
-                "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA \"{}\" TO \"{}\"",
+                "GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA {} TO {}",
                 schema, role
             ));
             statements.push(format!(
-                "GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA \"{}\" TO \"{}\"",
+                "GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA {} TO {}",
                 schema, role
             ));
             statements.push(format!(
-                "GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA \"{}\" TO \"{}\"",
+                "GRANT ALL PRIVILEGES ON ALL PROCEDURES IN SCHEMA {} TO {}",
                 schema, role
             ));
             statements.push(format!(
-                "GRANT ALL PRIVILEGES ON ALL PROCEDURES IN SCHEMA \"{}\" TO \"{}\"",
+                "ALTER DEFAULT PRIVILEGES IN SCHEMA {} GRANT ALL ON TABLES TO {}",
                 schema, role
             ));
             statements.push(format!(
-                "ALTER DEFAULT PRIVILEGES IN SCHEMA \"{}\" GRANT ALL ON TABLES TO \"{}\"",
+                "ALTER DEFAULT PRIVILEGES IN SCHEMA {} GRANT ALL ON SEQUENCES TO {}",
                 schema, role
             ));
             statements.push(format!(
-                "ALTER DEFAULT PRIVILEGES IN SCHEMA \"{}\" GRANT ALL ON SEQUENCES TO \"{}\"",
+                "ALTER DEFAULT PRIVILEGES IN SCHEMA {} GRANT ALL ON FUNCTIONS TO {}",
                 schema, role
             ));
             statements.push(format!(
-                "ALTER DEFAULT PRIVILEGES IN SCHEMA \"{}\" GRANT ALL ON FUNCTIONS TO \"{}\"",
-                schema, role
-            ));
-            statements.push(format!(
-                "ALTER DEFAULT PRIVILEGES IN SCHEMA \"{}\" GRANT ALL ON TYPES TO \"{}\"",
+                "ALTER DEFAULT PRIVILEGES IN SCHEMA {} GRANT ALL ON TYPES TO {}",
                 schema, role
             ));
         }
         UserPrivileges::ReadOnly => {
+            statements.push(format!("GRANT USAGE ON SCHEMA {} TO {}", schema, role));
             statements.push(format!(
-                "GRANT USAGE ON SCHEMA \"{}\" TO \"{}\"",
+                "GRANT SELECT ON ALL TABLES IN SCHEMA {} TO {}",
                 schema, role
             ));
             statements.push(format!(
-                "GRANT SELECT ON ALL TABLES IN SCHEMA \"{}\" TO \"{}\"",
+                "GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA {} TO {}",
                 schema, role
             ));
             statements.push(format!(
-                "GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA \"{}\" TO \"{}\"",
-                schema, role
-            ));
-            statements.push(format!(
-                "ALTER DEFAULT PRIVILEGES IN SCHEMA \"{}\" GRANT SELECT ON TABLES TO \"{}\"",
+                "ALTER DEFAULT PRIVILEGES IN SCHEMA {} GRANT SELECT ON TABLES TO {}",
                 schema, role
             ));
         }
@@ -388,11 +371,11 @@ fn prepare_grant_privileges_tables(
                 prepare_grant_privileges_tables(&UserPrivileges::ReadOnly, schema, role);
             statements.append(&mut read_only_statements);
             statements.push(format!(
-                "GRANT UPDATE ON ALL TABLES IN SCHEMA \"{}\" TO \"{}\"",
+                "GRANT UPDATE ON ALL TABLES IN SCHEMA {} TO {}",
                 schema, role
             ));
             statements.push(format!(
-                "ALTER DEFAULT PRIVILEGES IN SCHEMA \"{}\" GRANT UPDATE ON TABLES TO \"{}\"",
+                "ALTER DEFAULT PRIVILEGES IN SCHEMA {} GRANT UPDATE ON TABLES TO {}",
                 schema, role
             ));
         }
@@ -409,7 +392,7 @@ pub async fn revoke_privileges(
     privileges: &UserPrivileges,
 ) -> Result<u64, PGCliError> {
     trace!("Revoking privileges from role {}", role);
-    if !validate_pg_names(role) {
+    if validate_identifier(role).is_err() {
         error!("Invalid role name: {}", role);
         return Err(PGCliError::Other("Invalid role name".to_string()));
     }
@@ -418,19 +401,22 @@ pub async fn revoke_privileges(
         error!("Role {} does not exist", role);
         return Err(PGCliError::Other("Role does not exist".to_string()));
     }
+    let quoted_database = identifier(database)?;
+    let quoted_role = identifier(role)?;
+    let quoted_schema = identifier(schema)?;
     let mut res: u64 = 0;
 
     let statement = match privileges {
         UserPrivileges::Full => {
             format!(
-                "REVOKE ALL PRIVILEGES ON DATABASE \"{}\" FROM \"{}\"",
-                database, role
+                "REVOKE ALL PRIVILEGES ON DATABASE {} FROM {}",
+                quoted_database, quoted_role
             )
         }
         UserPrivileges::ReadOnly | UserPrivileges::ReadUpdateOnly => {
             format!(
-                "REVOKE CONNECT ON DATABASE \"{}\" FROM \"{}\"",
-                database, role
+                "REVOKE CONNECT ON DATABASE {} FROM {}",
+                quoted_database, quoted_role
             )
         }
     };
@@ -443,7 +429,7 @@ pub async fn revoke_privileges(
     let db_client = postgres_connect(credentials, Some(database.to_string())).await?;
 
     // prepare the statements for revoking privileges on tables
-    let statements = prepare_revoke_privileges_tables(privileges, schema, role);
+    let statements = prepare_revoke_privileges_tables(privileges, &quoted_schema, &quoted_role);
 
     let mut error_occurred = false;
     for statement in statements {
@@ -473,57 +459,54 @@ fn prepare_revoke_privileges_tables(
     match access_level {
         UserPrivileges::Full => {
             statements.push(format!(
-                "REVOKE ALL PRIVILEGES ON SCHEMA \"{}\" FROM \"{}\"",
+                "REVOKE ALL PRIVILEGES ON SCHEMA {} FROM {}",
                 schema, role
             ));
             statements.push(format!(
-                "REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA \"{}\" FROM \"{}\"",
+                "REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA {} FROM {}",
                 schema, role
             ));
             statements.push(format!(
-                "REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA \"{}\" FROM \"{}\"",
+                "REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA {} FROM {}",
                 schema, role
             ));
             statements.push(format!(
-                "REVOKE ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA \"{}\" FROM \"{}\"",
+                "REVOKE ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA {} FROM {}",
                 schema, role
             ));
             statements.push(format!(
-                "REVOKE ALL PRIVILEGES ON ALL PROCEDURES IN SCHEMA \"{}\" FROM \"{}\"",
+                "REVOKE ALL PRIVILEGES ON ALL PROCEDURES IN SCHEMA {} FROM {}",
                 schema, role
             ));
             statements.push(format!(
-                "ALTER DEFAULT PRIVILEGES IN SCHEMA \"{}\" REVOKE ALL ON TABLES FROM \"{}\"",
+                "ALTER DEFAULT PRIVILEGES IN SCHEMA {} REVOKE ALL ON TABLES FROM {}",
                 schema, role
             ));
             statements.push(format!(
-                "ALTER DEFAULT PRIVILEGES IN SCHEMA \"{}\" REVOKE ALL ON SEQUENCES FROM \"{}\"",
+                "ALTER DEFAULT PRIVILEGES IN SCHEMA {} REVOKE ALL ON SEQUENCES FROM {}",
                 schema, role
             ));
             statements.push(format!(
-                "ALTER DEFAULT PRIVILEGES IN SCHEMA \"{}\" REVOKE ALL ON FUNCTIONS FROM \"{}\"",
+                "ALTER DEFAULT PRIVILEGES IN SCHEMA {} REVOKE ALL ON FUNCTIONS FROM {}",
                 schema, role
             ));
             statements.push(format!(
-                "ALTER DEFAULT PRIVILEGES IN SCHEMA \"{}\" REVOKE ALL ON TYPES FROM \"{}\"",
+                "ALTER DEFAULT PRIVILEGES IN SCHEMA {} REVOKE ALL ON TYPES FROM {}",
                 schema, role
             ));
         }
         UserPrivileges::ReadOnly => {
+            statements.push(format!("REVOKE USAGE ON SCHEMA {} FROM {}", schema, role));
             statements.push(format!(
-                "REVOKE USAGE ON SCHEMA \"{}\" FROM \"{}\"",
+                "REVOKE SELECT ON ALL TABLES IN SCHEMA {} FROM {}",
                 schema, role
             ));
             statements.push(format!(
-                "REVOKE SELECT ON ALL TABLES IN SCHEMA \"{}\" FROM \"{}\"",
+                "REVOKE USAGE, SELECT ON ALL SEQUENCES IN SCHEMA {} FROM {}",
                 schema, role
             ));
             statements.push(format!(
-                "REVOKE USAGE, SELECT ON ALL SEQUENCES IN SCHEMA \"{}\" FROM \"{}\"",
-                schema, role
-            ));
-            statements.push(format!(
-                "ALTER DEFAULT PRIVILEGES IN SCHEMA \"{}\" REVOKE SELECT ON TABLES FROM \"{}\"",
+                "ALTER DEFAULT PRIVILEGES IN SCHEMA {} REVOKE SELECT ON TABLES FROM {}",
                 schema, role
             ));
         }
@@ -533,11 +516,11 @@ fn prepare_revoke_privileges_tables(
                 prepare_revoke_privileges_tables(&UserPrivileges::ReadOnly, schema, role);
             statements.append(&mut read_only_statements);
             statements.push(format!(
-                "REVOKE UPDATE ON ALL TABLES IN SCHEMA \"{}\" FROM \"{}\"",
+                "REVOKE UPDATE ON ALL TABLES IN SCHEMA {} FROM {}",
                 schema, role
             ));
             statements.push(format!(
-                "ALTER DEFAULT PRIVILEGES IN SCHEMA \"{}\" REVOKE UPDATE ON TABLES FROM \"{}\"",
+                "ALTER DEFAULT PRIVILEGES IN SCHEMA {} REVOKE UPDATE ON TABLES FROM {}",
                 schema, role
             ));
         }

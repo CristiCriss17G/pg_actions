@@ -1,9 +1,10 @@
 # syntax=docker/dockerfile:1
 
-ARG RUST_VERSION=1.96
+ARG RUST_VERSION=1.99.0
 ARG ALPINE_VERSION=3.23
 ARG APP_NAME=pg_actions
 ARG POSTGRES_VERSION=18
+ARG APP_VERSION=development
 
 ################################################################################
 # Create a stage for building the application.
@@ -13,27 +14,29 @@ ARG POSTGRES_VERSION
 WORKDIR /app
 
 # Install host build dependencies.
-RUN apk update && apk upgrade --no-cache && apk add --no-cache build-base clang file git \
+RUN apk update && apk upgrade --no-cache && apk add --no-cache build-base clang file binutils git \
     libcrypto3 libssl3 lld musl-dev openssl-dev openssl-libs-static pkgconfig postgresql${POSTGRES_VERSION}-client \
     && rm -rf /var/cache/apk/*
 
 # Copy Cargo.toml and Cargo.lock to cache dependencies.
-COPY Cargo.toml Cargo.lock ./
+COPY Cargo.toml Cargo.lock rust-toolchain.toml ./
 RUN mkdir src && touch src/main.rs && cargo fetch --locked
 
 # Copy the source code.
 COPY src ./src
 
-# Build the application.
-RUN cargo build --locked --release --target-dir ./target && cp ./target/release/${APP_NAME} /bin/${APP_NAME}
+# Build a genuinely static binary, including native compression/TLS libraries.
+ENV OPENSSL_STATIC=1 LZMA_API_STATIC=1
+RUN cargo build --locked --release --target-dir ./target && cp ./target/release/${APP_NAME} /bin/${APP_NAME} && ! readelf -l /bin/${APP_NAME} | grep -q INTERP
 
 FROM alpine:${ALPINE_VERSION} AS final
 ARG APP_NAME
 ARG POSTGRES_VERSION
+ARG APP_VERSION
 ENV APP_NAME=${APP_NAME}
 
 LABEL org.opencontainers.image.maintainer="Cristian Iordachescu <53430981+CristiCriss17G@users.noreply.github.com>"
-LABEL org.opencontainers.image.version="1.5.1"
+LABEL org.opencontainers.image.version=${APP_VERSION}
 LABEL org.opencontainers.image.title="Postgres actions cli"
 LABEL org.opencontainers.image.description="This is a Dockerfile for running postgres-db-actions. For more information visit run with --help."
 LABEL org.opencontainers.image.licenses="AGPL-3.0-only"
@@ -65,11 +68,8 @@ COPY LICENSE /usr/share/licenses/pg_actions/LICENSE
 
 ENV PG_HOSTNAME="localhost"
 ENV PG_SUPERUSER="postgres"
-ENV PG_PASS="postgres"
 ENV PG_PORT="5432"
 ENV S3_ENDPOINT="http://localhost:9000"
-ENV S3_ACCESS_KEY="rustfsadmin"
-ENV S3_SECRET_KEY="rustfsadmin"
 ENV S3_BUCKET="postgres-backups"
 ENV S3_REGION="eu-east-1"
 ENV S3_PREFIX="backups"

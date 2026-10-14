@@ -1,16 +1,15 @@
 use super::archive::{create_compressed_archive, Compression, CompressionOptions};
 use super::db::database::list_databases;
-use super::db::general::{db_dump, init_pgpass, postgres_connect};
-use super::misc::{
-    check_file_directory_path_exists, delete_file, ensure_file_directory_path_exists,
-};
+use super::db::general::{db_dump, postgres_connect};
+use super::misc::delete_file;
 use super::structs::{
     DatabaseDetails, PGCliError, PGTools, PgDumpCompression, PostgresCredentials, Result,
     S3Credentials, SqlFileFormat,
 };
+use crate::utils::files::{dump_filename, finish_workspace, parent, workspace};
+use crate::utils::sql::validate_identifier;
 use clap::Args;
 use log::{debug, error, info};
-use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Semaphore;
@@ -36,6 +35,9 @@ pub struct BackupArgs {
     /// has no effect on `all` backups
     #[arg(long, env)]
     no_archive: bool,
+    /// Keep private staging files on success or failure
+    #[arg(long, env)]
+    keep_temp: bool,
     /// Archive compression codec
     #[arg(long, env, value_enum, default_value = "zstd")]
     compression: Compression,
@@ -69,7 +71,7 @@ impl BackupArgs {
         let path = self
             .output_location
             .clone()
-            .unwrap_or_else(|| PathBuf::from("/tmp/psql_backup").join(generated_name));
+            .unwrap_or_else(|| std::env::temp_dir().join(generated_name));
         if self.creates_archive() {
             self.compression.output_path(&path)
         } else {
@@ -80,8 +82,7 @@ impl BackupArgs {
 
 pub async fn backup_db(
     data: &BackupArgs,
-    credentials: &HashMap<String, PostgresCredentials>,
-    pg_main_hostname: &String,
+    main_credentials: &PostgresCredentials,
     s3_credentials: &S3Credentials,
     pg_tools: &PGTools,
 ) -> Result<()> {
@@ -110,9 +111,9 @@ pub async fn backup_db(
         chrono::Utc::now().format("%Y-%m-%d-%H-%M-%S"),
         suffix
     );
-    let output_file = data.output_path(&output_file_name)?;
+    let mut output_file = data.output_path(&output_file_name)?;
     if let Some(output_location) = &data.output_location {
-        if !check_file_directory_path_exists(output_location) {
+        if !parent(output_location).is_dir() {
             return Err(PGCliError::Other(
                 "Output location does not exist".to_string(),
             ));
@@ -123,17 +124,11 @@ pub async fn backup_db(
         s3_credentials.validate_s3_credentials()?;
     }
 
-    init_pgpass(
-        &credentials
-            .values()
-            .cloned()
-            .collect::<Vec<PostgresCredentials>>(),
-    )
-    .await?;
-
-    let main_credentials = credentials.get(pg_main_hostname).unwrap();
-
+    if data.database != "all" {
+        validate_identifier(&data.database)?;
+    }
     let client = postgres_connect(main_credentials, None).await?;
+    pg_tools.check_dump_server(&client).await?;
 
     let databases: Vec<String> = match data.database.as_str() {
         "all" => list_databases(&client, &None, false, &None)
@@ -151,109 +146,119 @@ pub async fn backup_db(
     debug!("Using {} parallel jobs", data.jobs);
     let semaphore = Arc::new(Semaphore::new(data.jobs as usize));
 
-    ensure_file_directory_path_exists("/tmp/psql_backup").await?;
-    let temp_directory = tempfile::Builder::new()
-        .prefix("postgresql-backup-")
-        .tempdir_in("/tmp/psql_backup")?;
+    let temp_directory = workspace("postgresql-backup-")?;
     let temp_folder = temp_directory.path().to_path_buf();
-
-    let pg_tools = Arc::new(pg_tools.clone()); // Wrap pg_tools in an Arc
-    let backup_format = Arc::new(data.format);
-    let dump_compression = data.dump_compression();
-    debug!("pg_dump compression: {:?}", dump_compression);
-
-    let tasks: Vec<_> = databases
-        .into_iter()
-        .map(|database| {
-            let permit = semaphore.clone(); // Get a permit to execute the task
-            let credentials = main_credentials.clone();
-            let temp_folder = temp_folder.clone();
-            let pg_tools = pg_tools.clone(); // Clone the Arc, not the data
-            let backup_format = backup_format.clone();
-
-            task::spawn(async move {
-                let _permit = permit
-                    .acquire()
-                    .await
-                    .expect("Failed to acquire semaphore permit");
-                let output_file =
-                    temp_folder.join(format!("{}.{}", database, backup_format.file_extension()));
-                db_dump(
-                    credentials,
-                    &database,
-                    &output_file,
-                    &pg_tools,
-                    *backup_format,
-                    dump_compression,
-                )
-                .await
-                .map_err(|error| {
-                    PGCliError::Other(format!("Failed to dump database {}: {}", database, error))
-                })?;
-                info!("Database {} dumped successfully", database);
-                Ok::<(), PGCliError>(())
-            })
-        })
-        .collect();
-
-    // Wait for every dump before returning an error or removing temporary files.
-    let mut first_error = None;
-    for task in tasks {
-        let result = match task.await {
-            Ok(result) => result,
-            Err(error) => Err(PGCliError::TaskJoin(error)),
-        };
-        if let Err(error) = result {
-            error!("{}", error);
-            first_error.get_or_insert(error);
-        }
-    }
-    if let Some(error) = first_error {
-        return Err(error);
-    }
-
-    info!("All databases dumped successfully");
-
-    if let Some(options) = compression_options {
-        info!(
-            "Creating {:?} archive at level {} with {} compression thread(s)",
-            options.codec, options.level, options.threads
-        );
-        create_compressed_archive(&temp_folder, &output_file, options).await?;
-        info!("Compressed archive created successfully");
-    }
-
-    if !data.creates_archive() {
-        let output_location = temp_folder.join(format!(
-            "{}.{}",
-            data.database,
-            data.format.file_extension()
-        ));
-        info!(
-            "Copying file from {} to {}",
-            output_location.display(),
-            output_file.display()
-        );
-        fs::copy(output_location, &output_file).await?;
-        info!("File copied successfully");
-    }
-
     if data.output_location.is_none() {
-        info!("Uploading to S3");
-        s3_credentials
-            .multipart_upload(&output_file, &output_file_name)
-            .await?;
-        info!("Uploaded to S3 successfully");
-        debug!("Deleting local file");
-        delete_file(&output_file).await?;
+        output_file = temp_folder.join("upload-output");
     }
+    let result = async {
+        let dump_folder = temp_folder.join("dumps");
+        fs::create_dir(&dump_folder).await?;
+        let pg_tools = Arc::new(pg_tools.clone()); // Wrap pg_tools in an Arc
+        let backup_format = Arc::new(data.format);
+        let dump_compression = data.dump_compression();
+        debug!("pg_dump compression: {:?}", dump_compression);
 
-    debug!("Deleting temp folder");
-    temp_directory.close()?;
+        let file_map: Vec<_> = databases.iter().map(|name| serde_json::json!({"database": name, "file": dump_filename(name, backup_format.file_extension())})).collect();
+    fs::write(dump_folder.join("files.json"), serde_json::to_vec_pretty(&file_map)?).await?;
+    let tasks: Vec<_> = databases
+            .into_iter()
+            .map(|database| {
+                let permit = semaphore.clone(); // Get a permit to execute the task
+                let credentials = main_credentials.clone();
+                let temp_folder = dump_folder.clone();
+                let pg_tools = pg_tools.clone(); // Clone the Arc, not the data
+                let backup_format = backup_format.clone();
 
-    debug!("Backup completed successfully");
+                task::spawn(async move {
+                    let _permit = permit
+                        .acquire()
+                        .await
+                        .map_err(|_| PGCliError::Other("Backup task semaphore closed".into()))?;
+                    let output_file =
+                        temp_folder.join(dump_filename(&database, backup_format.file_extension()));
+                    db_dump(
+                        credentials,
+                        &database,
+                        &output_file,
+                        &pg_tools,
+                        *backup_format,
+                        dump_compression,
+                    )
+                    .await
+                    .map_err(|error| {
+                        PGCliError::Other(format!(
+                            "Failed to dump database {}: {}",
+                            database, error
+                        ))
+                    })?;
+                    info!("Database {} dumped successfully", database);
+                    Ok::<(), PGCliError>(())
+                })
+            })
+            .collect();
 
-    Ok(())
+        // Wait for every dump before returning an error or removing temporary files.
+        let mut first_error = None;
+        for task in tasks {
+            let result = match task.await {
+                Ok(result) => result,
+                Err(error) => Err(PGCliError::TaskJoin(error)),
+            };
+            if let Err(error) = result {
+                error!("{}", error);
+                first_error.get_or_insert(error);
+            }
+        }
+        if let Some(error) = first_error {
+            return Err(error);
+        }
+
+        info!("All databases dumped successfully");
+
+        if let Some(options) = compression_options {
+            info!(
+                "Creating {:?} archive at level {} with {} compression thread(s)",
+                options.codec, options.level, options.threads
+            );
+            create_compressed_archive(&dump_folder, &output_file, options).await?;
+            info!("Compressed archive created successfully");
+        }
+
+        if !data.creates_archive() {
+            let output_location =
+                dump_folder.join(dump_filename(&data.database, data.format.file_extension()));
+            info!(
+                "Copying file from {} to {}",
+                output_location.display(),
+                output_file.display()
+            );
+            let temporary = tempfile::NamedTempFile::new_in(parent(&output_file))?;
+            fs::copy(output_location, temporary.path()).await?;
+            temporary
+                .persist(&output_file)
+                .map_err(|error| PGCliError::TokioIo(error.error))?;
+            info!("File copied successfully");
+        }
+
+        if data.output_location.is_none() {
+            info!("Uploading to S3");
+            s3_credentials
+                .multipart_upload(&output_file, &output_file_name)
+                .await?;
+            info!("Uploaded to S3 successfully");
+            debug!("Deleting local file");
+            delete_file(&output_file).await?;
+        }
+
+        debug!("Deleting temp folder");
+
+        debug!("Backup completed successfully");
+
+        Ok(())
+    }
+    .await;
+    finish_workspace(temp_directory, data.keep_temp, result)
 }
 
 #[cfg(test)]
@@ -287,7 +292,7 @@ mod tests {
         assert_eq!(all.dump_compression(), PgDumpCompression::None);
         assert_eq!(
             all.output_path("all.tar.zst").unwrap(),
-            PathBuf::from("/tmp/psql_backup/all.tar.zst")
+            std::env::temp_dir().join("all.tar.zst")
         );
         assert_eq!(
             args(&["example", "--pg-dump-compression", "default"]).dump_compression(),
